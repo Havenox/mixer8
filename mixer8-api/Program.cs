@@ -27,6 +27,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Adiciona variáveis de ambiente ao Configuration
 builder.Configuration.AddEnvironmentVariables();
 
+// Configura a URL de escuta com base na porta definida no .env (resiliência baremetal)
+var apiPort = builder.Configuration["API_PORT"] ?? "5000";
+builder.WebHost.UseUrls($"http://*:{apiPort}");
+
 // 2. Configura a String de Conexão com o PostgreSQL de forma resiliente e dinâmica
 var connectionString = builder.Configuration["DB_CONNECTION_STRING"];
 if (string.IsNullOrEmpty(connectionString) || connectionString.Contains("${"))
@@ -89,7 +93,7 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-// 6. Roda Migrações automáticas de Banco de Dados na Inicialização (Resiliência)
+// 6. Roda Migrações automáticas de Banco de Dados na Inicialização (Resiliência) e Seed de usuários
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -99,10 +103,73 @@ using (var scope = app.Services.CreateScope())
         Console.WriteLine("[DB] Verificando e aplicando migrações pendentes no PostgreSQL homelab...");
         db.Database.Migrate();
         Console.WriteLine("[DB] Banco de dados inicializado com sucesso!");
+
+        // Seed de usuários conforme especificação (admin, moderator, paiduser, user com senha 'mixer8')
+        var seedUsers = new[]
+        {
+            new { Email = "admin@mixer8.com", Role = "Admin" },
+            new { Email = "moderator@mixer8.com", Role = "Moderator" },
+            new { Email = "paiduser@mixer8.com", Role = "PaidUser" },
+            new { Email = "user@mixer8.com", Role = "User" }
+        };
+
+        bool seedApplied = false;
+        foreach (var seed in seedUsers)
+        {
+            var normalizedEmail = seed.Email.ToLower().Trim();
+            var exists = db.Users.Any(u => u.Email == normalizedEmail);
+            if (!exists)
+            {
+                var newUser = new Mixer8.Api.Domain.User
+                {
+                    UserId = Guid.NewGuid(),
+                    Email = normalizedEmail,
+                    PasswordHash = SecurityHelper.HashPassword("mixer8"),
+                    UserRole = seed.Role,
+                    CreatedAt = DateTime.UtcNow
+                };
+                db.Users.Add(newUser);
+                Console.WriteLine($"[DB SEED] Adicionando usuário semente: {normalizedEmail} ({seed.Role})");
+                seedApplied = true;
+            }
+        }
+
+        if (seedApplied)
+        {
+            db.SaveChanges();
+            Console.WriteLine("[DB SEED] Usuários semente gravados com sucesso!");
+        }
+
+        // Seed de música de demonstração se a biblioteca de tracks estiver vazia
+        var hasTracks = db.Tracks.Any();
+        if (!hasTracks)
+        {
+            var demoTrackId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+            var demoTrack = new Mixer8.Api.Domain.Track
+            {
+                TrackId = demoTrackId,
+                TrackTitle = "Demo Stems - Summer Breeze",
+                ArtistName = "Mixer8 Collective",
+                ExtractionStatus = "Pronto",
+                UploadedBy = Guid.Empty,
+                CreatedAt = DateTime.UtcNow,
+                Stems = new List<Mixer8.Api.Domain.Stem>
+                {
+                    new Mixer8.Api.Domain.Stem { StemId = Guid.NewGuid(), TrackId = demoTrackId, StemType = "Vocals", AudioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", CreatedAt = DateTime.UtcNow },
+                    new Mixer8.Api.Domain.Stem { StemId = Guid.NewGuid(), TrackId = demoTrackId, StemType = "Drums", AudioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3", CreatedAt = DateTime.UtcNow },
+                    new Mixer8.Api.Domain.Stem { StemId = Guid.NewGuid(), TrackId = demoTrackId, StemType = "Bass", AudioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3", CreatedAt = DateTime.UtcNow },
+                    new Mixer8.Api.Domain.Stem { StemId = Guid.NewGuid(), TrackId = demoTrackId, StemType = "Piano", AudioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3", CreatedAt = DateTime.UtcNow },
+                    new Mixer8.Api.Domain.Stem { StemId = Guid.NewGuid(), TrackId = demoTrackId, StemType = "Others", AudioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3", CreatedAt = DateTime.UtcNow }
+                }
+            };
+            db.Tracks.Add(demoTrack);
+            db.SaveChanges();
+            Console.WriteLine("[DB SEED] Música de demonstração (Demo Stems) gravada com sucesso!");
+        }
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"[DB ERROR] Falha ao conectar ou aplicar migrações: {ex.Message}");
+        Console.WriteLine($"[DB ERROR] Falha ao conectar, aplicar migrações ou realizar o seed: {ex.Message}");
     }
 }
 
