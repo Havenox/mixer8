@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
-  Sparkles, UploadCloud, CheckCircle, Disc, Music, 
+  UploadCloud, CheckCircle, Disc, Music, 
   AlertTriangle, ArrowLeft, Layers, Loader2
 } from 'lucide-react';
 

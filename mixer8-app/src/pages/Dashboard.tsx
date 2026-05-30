@@ -3,11 +3,11 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   Play, UploadCloud, CheckCircle, Clock, FileAudio, 
-  Sparkles, Layers, ShieldAlert, Disc, Music, AlertTriangle
+  Sparkles, ShieldAlert, Disc, AlertTriangle
 } from 'lucide-react';
 
 import { usePlayer } from '../context/PlayerContext';
-import type { ITrack, IStem } from '../context/PlayerContext';
+import type { ITrack } from '../context/PlayerContext';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const SERVER_URL = API_URL.replace('/api', '');
@@ -54,7 +54,7 @@ export const Dashboard: React.FC = () => {
 
   // 2. Pooling do progresso real da conversão do Worker na VPS
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: any;
 
     if (newTrackId) {
       interval = setInterval(async () => {

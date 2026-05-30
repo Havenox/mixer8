@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { usePlayer } from '../context/PlayerContext';
 import { MesaPlayer } from './MesaPlayer';
 import { 
-  Home, Search, Library, PlusCircle, Shield, 
+  Home, Library, PlusCircle, Shield, 
   LogOut, User, Sparkles, ChevronDown, Layers
 } from 'lucide-react';
 import type { UserRole } from '../types/Auth';
