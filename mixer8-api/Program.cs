@@ -30,6 +30,10 @@ builder.Configuration.AddEnvironmentVariables();
 // Configura a URL de escuta com base na porta definida no .env (resiliência baremetal)
 var apiPort = builder.Configuration["API_PORT"] ?? "5000";
 builder.WebHost.UseUrls($"http://*:{apiPort}");
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 500 * 1024 * 1024; // 500 MB
+});
 
 // 2. Configura a String de Conexão com o PostgreSQL de forma resiliente e dinâmica
 var connectionString = builder.Configuration["DB_CONNECTION_STRING"];
@@ -88,6 +92,11 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = null; // Mantém a grafia PascalCase
     });
+
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 500 * 1024 * 1024; // 500 MB
+});
 
 builder.Services.AddOpenApi();
 
@@ -184,6 +193,17 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("Mixer8CorsPolicy");
+
+// Habilita arquivos estáticos com cabeçalhos CORS liberados (CORS nos áudios do player)
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        ctx.Context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
+        ctx.Context.Response.Headers.Append("Access-Control-Allow-Headers", "*");
+        ctx.Context.Response.Headers.Append("Access-Control-Allow-Methods", "*");
+    }
+});
 
 app.UseAuthentication();
 app.UseAuthorization();
