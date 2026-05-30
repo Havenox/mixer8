@@ -35,16 +35,19 @@ const PlayerContext = createContext<IPlayerContext | undefined>(undefined);
 
 // Lista das 10 Stems padronizadas da especificação
 export const STANDARD_STEMS = [
-  'Vocais',
+  'Voz',
+  'Vocal',
   'Bateria',
   'Baixo',
   'Guitarra',
-  'Piano',
-  'Teclado',
+  'Guitarra Solo',
+  'Guitarra Base',
   'Sopro',
+  'Teclado',
+  'Piano',
   'Cordas',
-  'Metrônomo',
-  'Outros'
+  'Outros',
+  'Metrônomo'
 ];
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';

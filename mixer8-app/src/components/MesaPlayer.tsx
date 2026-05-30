@@ -40,7 +40,7 @@ export const MesaPlayer: React.FC = () => {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
-  // Presets rápidos para 10 stems (Apenas se houver stems suficientes na lista)
+  // Presets rápidos para as stems
   const applyPreset = (preset: 'acapella' | 'karaoke' | 'instrumental' | 'reset') => {
     if (!currentTrack.Stems) return;
 
@@ -49,16 +49,13 @@ export const MesaPlayer: React.FC = () => {
       
       switch (preset) {
         case 'acapella':
-          // Apenas Vocais ligado, resto zerado
-          setStemVolume(type, type === 'Vocais' ? 1.0 : 0.0);
+          // Apenas Voz e Vocal ligados, resto zerado (mantém compatibilidade com o legado 'Vocais')
+          setStemVolume(type, (type === 'Voz' || type === 'Vocal' || type === 'Vocais') ? 1.0 : 0.0);
           break;
         case 'karaoke':
-          // Vocais desligado, metrônomo desligado, resto ligado
-          setStemVolume(type, (type === 'Vocais' || type === 'Metrônomo') ? 0.0 : 1.0);
-          break;
         case 'instrumental':
-          // Vocais desligado, metrônomo desligado, resto ligado
-          setStemVolume(type, (type === 'Vocais' || type === 'Metrônomo') ? 0.0 : 1.0);
+          // Voz/Vocal desligados, metrônomo desligado, resto ligado
+          setStemVolume(type, (type === 'Voz' || type === 'Vocal' || type === 'Vocais' || type === 'Metrônomo') ? 0.0 : 1.0);
           break;
         case 'reset':
           // Todos os canais retornados para o default (1.0, e metronomo a 0.0)
@@ -241,32 +238,56 @@ export const MesaPlayer: React.FC = () => {
               </button>
             </div>
 
-            {/* Faders / Sliders Dinâmicos baseados nas Stems Reais */}
+            {/* Faders / Sliders Dinâmicos baseados nas Stems Reais Ordenadas */}
             <div className="flex flex-col gap-3 my-1 max-h-[300px] overflow-y-auto pr-1">
-              {currentTrack.Stems.map((stem) => {
-                const stemName = stem.StemType; // ex: Voz, Bateria, Baixo
-                const volume = stemsVolume[stemName] ?? (stemName === 'Metrônomo' ? 0.0 : 1.0);
-                
-                return (
-                  <div key={stem.StemId} className="flex flex-col gap-1">
-                    <div className="flex justify-between text-xs font-medium">
-                      <span className="text-white flex items-center gap-1.5 capitalize font-semibold">
-                        {stemName}
-                      </span>
-                      <span className="text-brand-gray">{Math.round(volume * 100)}%</span>
+              {[...currentTrack.Stems]
+                .sort((a, b) => {
+                  const order = [
+                    'Voz',
+                    'Vocal',
+                    'Bateria',
+                    'Baixo',
+                    'Guitarra',
+                    'Guitarra Solo',
+                    'Guitarra Base',
+                    'Sopro',
+                    'Teclado',
+                    'Piano',
+                    'Cordas',
+                    'Outros',
+                    'Metrônomo'
+                  ];
+                  const indexA = order.indexOf(a.StemType);
+                  const indexB = order.indexOf(b.StemType);
+                  // Compatibilidade legada para "Vocais" (mapeia para a posição de "Voz")
+                  const valA = a.StemType === 'Vocais' ? 0 : (indexA === -1 ? 999 : indexA);
+                  const valB = b.StemType === 'Vocais' ? 0 : (indexB === -1 ? 999 : indexB);
+                  return valA - valB;
+                })
+                .map((stem) => {
+                  const stemName = stem.StemType; // ex: Voz, Bateria, Baixo
+                  const volume = stemsVolume[stemName] ?? (stemName === 'Metrônomo' ? 0.0 : 1.0);
+                  
+                  return (
+                    <div key={stem.StemId} className="flex flex-col gap-1">
+                      <div className="flex justify-between text-xs font-medium">
+                        <span className="text-white flex items-center gap-1.5 capitalize font-semibold">
+                          {stemName}
+                        </span>
+                        <span className="text-brand-gray">{Math.round(volume * 100)}%</span>
+                      </div>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="1.5" 
+                        step="0.05"
+                        value={volume}
+                        onChange={(e) => setStemVolume(stemName, parseFloat(e.target.value))}
+                        className="w-full accent-brand-green bg-brand-hover h-1 rounded-lg appearance-none cursor-pointer"
+                      />
                     </div>
-                    <input 
-                      type="range" 
-                      min="0" 
-                      max="1.5" 
-                      step="0.05"
-                      value={volume}
-                      onChange={(e) => setStemVolume(stemName, parseFloat(e.target.value))}
-                      className="w-full accent-brand-green bg-brand-hover h-1 rounded-lg appearance-none cursor-pointer"
-                    />
-                  </div>
-                );
-              })}
+                  );
+                })}
             </div>
 
             {/* Presets Salvar */}

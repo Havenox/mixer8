@@ -29,22 +29,28 @@ export const UploadDireto: React.FC = () => {
   // Mapeamento automático de arquivo para o fader da DAW (UX Premium)
   const mapFileNameToStemType = (fileName: string): string => {
     const lower = fileName.toLowerCase();
+    if (lower.includes('backing_vocals') || lower.includes('backingvocals') || lower.includes('vocal_de_apoio'))
+      return 'Vocal 🎤';
     if (lower.includes('vocals') || lower.includes('vocais') || lower.includes('voz'))
-      return 'Vocais 🎤';
+      return 'Voz 🎤';
     if (lower.includes('drums') || lower.includes('bateria') || lower.includes('percussion'))
       return 'Bateria 🥁';
     if (lower.includes('bass') || lower.includes('baixo'))
       return 'Baixo 🎸';
-    if (lower.includes('guitar') || lower.includes('guitarra'))
+    if (lower.includes('lead') || lower.includes('solo'))
+      return 'Guitarra Solo 🎸';
+    if (lower.includes('rhythm') || lower.includes('base'))
+      return 'Guitarra Base 🎸';
+    if (lower.includes('guitar') || lower.includes('guitarra') || lower.includes('guitars'))
       return 'Guitarra 🎸';
-    if (lower.includes('keyboard') || lower.includes('teclado'))
+    if (lower.includes('keys') || lower.includes('keyboard') || lower.includes('teclado'))
       return 'Teclado 🎹';
-    if (lower.includes('piano'))
+    if (lower.includes('piano') || lower.includes('pian'))
       return 'Piano 🎹';
-    if (lower.includes('sopro') || lower.includes('wind') || lower.includes('brass') || lower.includes('horns'))
-      return 'Sopro 🎺';
     if (lower.includes('strings') || lower.includes('cordas') || lower.includes('violin') || lower.includes('cello'))
       return 'Cordas 🎻';
+    if (lower.includes('sopro') || lower.includes('wind') || lower.includes('brass') || lower.includes('horns'))
+      return 'Sopro 🎺';
     if (lower.includes('metronome') || lower.includes('metronomo') || lower.includes('metrônomo') || lower.includes('click'))
       return 'Metrônomo ⏱️';
     
