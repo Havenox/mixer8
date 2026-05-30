@@ -15,8 +15,10 @@ services:
       - .env
     environment:
       - DOTNET_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
+      - EXTRACTOR_DOWNLOADS_DIR=/app/downloads
+      - API_URL=http://api:5000
     volumes:
-      # Volume para persistir os downloads dos ZIPs na VPS
+      # Volume para persistir os downloads dos ZIPs na VPS/Host
       - ${EXTRACTOR_DOWNLOADS_DIR:-./mixer8-extractor/downloads}:/app/downloads
       # Volume para persistir os cookies e sessão do navegador (auth.json)
       - ${EXTRACTOR_CONFIG_DIR:-./mixer8-extractor/config}:/app/config
@@ -42,36 +44,44 @@ services:
   #     - pgdata:/var/lib/postgresql/data
 
   # =========================================================================
-  # 3. BACKEND API: mixer8-api (.NET Core / Node.js) - Reservado para Futuro
+  # 3. BACKEND API: mixer8-api (.NET Core / Node.js)
   # =========================================================================
-  # api:
-  #   image: mixer8-api:latest
-  #   build:
-  #     context: ./mixer8-api
-  #     dockerfile: Dockerfile
-  #   container_name: mixer8_api
-  #   restart: unless-stopped
-  #   depends_on:
-  #     - mixer8-extractor
-  #   env_file:
-  #     - .env
-  #   ports:
-  #     - "${API_PORT:-5000}:5000"
+  api:
+    image: mixer8-api:latest
+    build:
+      context: ./mixer8-api
+      dockerfile: Dockerfile
+    container_name: mixer8_api
+    restart: unless-stopped
+    depends_on:
+      - mixer8-extractor
+    env_file:
+      - .env
+    environment:
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
+      - EXTRACTOR_DOWNLOADS_DIR=/app/downloads
+    volumes:
+      # Shared volume de downloads para persistir arquivos originais/ZIPs temporários
+      - ${EXTRACTOR_DOWNLOADS_DIR:-./mixer8-extractor/downloads}:/app/downloads
+      # Mapeamento físico para as stems e capas gravadas localmente
+      - ./mixer8-api/wwwroot/stems:/app/wwwroot/stems
+    ports:
+      - "${API_PORT:-5000}:5000"
 
   # =========================================================================
-  # 4. FRONTEND WEB: mixer8-app (React + Vite + Shadcn + Tailwind) - Reservado para Futuro
+  # 4. FRONTEND WEB: mixer8-app (React + Vite + Nginx)
   # =========================================================================
-  # app:
-  #   image: mixer8-app:latest
-  #   build:
-  #     context: ./mixer8-app
-  #     dockerfile: Dockerfile
-  #   container_name: mixer8_app
-  #   restart: unless-stopped
-  #   depends_on:
-  #     - api
-  #   ports:
-  #     - "${WEB_PORT:-3000}:3000"
+  app:
+    image: mixer8-app:latest
+    build:
+      context: ./mixer8-app
+      dockerfile: Dockerfile
+    container_name: mixer8_app
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${WEB_PORT:-3000}:3000"
 
 # volumes:
 #   pgdata:
