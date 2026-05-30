@@ -54,15 +54,15 @@ export const MesaPlayer: React.FC = () => {
           break;
         case 'karaoke':
           // Vocais desligado, metrônomo desligado, resto ligado
-          setStemVolume(type, (type === 'Vocais' || type === 'Metrônomo') ? 0.0 : 0.8);
+          setStemVolume(type, (type === 'Vocais' || type === 'Metrônomo') ? 0.0 : 1.0);
           break;
         case 'instrumental':
-          // Vocais desligado, resto ligado
-          setStemVolume(type, type === 'Vocais' ? 0.0 : 0.8);
+          // Vocais desligado, metrônomo desligado, resto ligado
+          setStemVolume(type, (type === 'Vocais' || type === 'Metrônomo') ? 0.0 : 1.0);
           break;
         case 'reset':
-          // Todos os canais em 0.8
-          setStemVolume(type, 0.8);
+          // Todos os canais retornados para o default (1.0, e metronomo a 0.0)
+          setStemVolume(type, type === 'Metrônomo' ? 0.0 : 1.0);
           break;
       }
     });
@@ -245,7 +245,7 @@ export const MesaPlayer: React.FC = () => {
             <div className="flex flex-col gap-3 my-1 max-h-[300px] overflow-y-auto pr-1">
               {currentTrack.Stems.map((stem) => {
                 const stemName = stem.StemType; // ex: Voz, Bateria, Baixo
-                const volume = stemsVolume[stemName] ?? 0.8;
+                const volume = stemsVolume[stemName] ?? (stemName === 'Metrônomo' ? 0.0 : 1.0);
                 
                 return (
                   <div key={stem.StemId} className="flex flex-col gap-1">
@@ -258,7 +258,7 @@ export const MesaPlayer: React.FC = () => {
                     <input 
                       type="range" 
                       min="0" 
-                      max="1" 
+                      max="1.5" 
                       step="0.05"
                       value={volume}
                       onChange={(e) => setStemVolume(stemName, parseFloat(e.target.value))}

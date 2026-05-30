@@ -56,9 +56,12 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   
-  // Volumes individuais de stems (padrão 0.8)
+  // Volumes individuais de stems (padrão 1.0, exceto metronomo)
   const [stemsVolume, setStemsVolume] = useState<Record<string, number>>({});
-  const [masterVolume, setMasterVolumeState] = useState(0.8);
+  const [masterVolume, setMasterVolumeState] = useState(() => {
+    const saved = localStorage.getItem('mixer8_master_volume');
+    return saved !== null ? parseFloat(saved) : 1.0;
+  });
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const masterGainNodeRef = useRef<GainNode | null>(null);
@@ -130,7 +133,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     track.Stems.forEach(stem => {
       const stemType = stem.StemType; // ex: Voz, Bateria, Baixo
-      initialVolumes[stemType] = 0.8;
+      // O volume padrão das stems é 100% (1.0), exceto para o "Metrônomo" que inicia zerado (0.0)
+      initialVolumes[stemType] = stemType === 'Metrônomo' ? 0.0 : 1.0;
 
       // Se for uma URL relativa, resolve com a URL do servidor backend para evitar 404 local
       const fullAudioUrl = stem.AudioUrl.startsWith('http')
@@ -154,8 +158,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         gainNode.connect(ctx.destination);
       }
 
-      // Define volume inicial
-      gainNode.gain.value = 0.8;
+      // Define volume inicial com base nas regras de default
+      gainNode.gain.value = stemType === 'Metrônomo' ? 0.0 : 1.0;
 
       loadedStems.push({
         audio,
