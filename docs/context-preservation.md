@@ -42,6 +42,11 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
    * **Orquestração Geral**: `docker-compose.yml` ajustado e ativado para subir todos os containers integrados sob volumes compartilhados de download e comunicação interna de rede.
    * **Conversão Opus**: Toda stem recebida (seja via upload direto ou simulação do Worker) é transcodificada in-memory via pipes do FFmpeg para `.opus` (mono a 64k VBR para canais como Voz/Baixo, e estéreo a 96k VBR para os demais), reduzindo drasticamente o consumo de armazenamento sem perda perceptível de qualidade.
    * **Worker Realista**: O `Worker.cs` localiza o arquivo do upload original, empacota-o em um arquivo ZIP `{trackId}_stems.zip` com 5 stems mockadas e chama a API pelo endpoint `/api/Tracks/{id}/ProcessStemsZip` para realizar a conversão centralizada.
+9. **Otimização de Transmissão (HTTP Range 206) e Sliders Premium**:
+   * **Carregamento Otimizado**: Alterado o pré-carregamento das stems para `preload = 'metadata'`, evitando o download automático de arquivos inteiros de áudio e economizando banda.
+   * **Streaming Parcial (HTTP 206)**: Servidor estático configurado com cabeçalhos de `Cache-Control` (30 dias) e suporte nativo a HTTP Range Requests, transmitindo bytes progressivamente em chunks.
+   * **Timeline com Drag-and-Release**: A linha de progresso do player agora é um input de controle real com marcador circular verde. O seek do áudio só é executado no soltar do mouse/toque, evitando múltiplos requests repetitivos e travamentos do player.
+   * **Volume Master Real**: Integrado um nó de ganho master (`masterGainNode`) na Web Audio API vinculado ao fader de volume, alterando o ganho de todas as stems em tempo real de forma local e imediata.
 
 ---
 
