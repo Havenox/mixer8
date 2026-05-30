@@ -15,34 +15,29 @@ export const MesaPlayer: React.FC = () => {
     currentTime, 
     duration, 
     stemsVolume, 
+    masterVolume,
     togglePlay, 
     seek, 
-    setStemVolume 
+    setStemVolume,
+    setMasterVolume
   } = usePlayer();
 
   const [showMixer, setShowMixer] = useState(false);
+  const [isDraggingProgress, setIsDraggingProgress] = useState(false);
+  const [dragProgressTime, setDragProgressTime] = useState(0);
+
+  const displayTime = isDraggingProgress ? dragProgressTime : currentTime;
 
   // Se nenhuma música foi carregada ainda, o player fica 100% oculto no rodapé (Zero Mocks)
   if (!currentTrack) {
     return null;
   }
 
-  const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
-
   const formatTime = (secs: number) => {
     if (isNaN(secs) || secs === 0) return '0:00';
     const m = Math.floor(secs / 60);
     const s = Math.floor(secs % 60);
     return `${m}:${s.toString().padStart(2, '0')}`;
-  };
-
-  // Permite clicar na barra de progresso para pular para qualquer tempo da música
-  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (duration <= 0) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const percentage = clickX / rect.width;
-    seek(percentage * duration);
   };
 
   // Presets rápidos para 10 stems (Apenas se houver stems suficientes na lista)
@@ -137,18 +132,34 @@ export const MesaPlayer: React.FC = () => {
           </button>
         </div>
 
-        {/* Progress Bar com Click Real */}
+        {/* Progress Bar com Click/Arrasto e Bolinha Premium */}
         <div className="flex items-center gap-3 w-full text-xs text-brand-gray select-none">
-          <span className="w-8 text-right">{formatTime(currentTime)}</span>
-          <div 
-            onClick={handleProgressClick}
-            className="flex-1 h-1 bg-brand-hover rounded-full relative cursor-pointer group"
-          >
-            <div 
-              className="h-full bg-brand-gray group-hover:bg-brand-green rounded-full transition-all duration-100"
-              style={{ width: `${progressPercentage}%` }}
-            />
-          </div>
+          <span className="w-8 text-right">{formatTime(displayTime)}</span>
+          <input 
+            type="range"
+            min="0"
+            max={duration || 100}
+            step="0.1"
+            value={displayTime}
+            onMouseDown={() => {
+              setIsDraggingProgress(true);
+              setDragProgressTime(currentTime);
+            }}
+            onTouchStart={() => {
+              setIsDraggingProgress(true);
+              setDragProgressTime(currentTime);
+            }}
+            onChange={(e) => setDragProgressTime(parseFloat(e.target.value))}
+            onMouseUp={(e) => {
+              setIsDraggingProgress(false);
+              seek(parseFloat((e.target as HTMLInputElement).value));
+            }}
+            onTouchEnd={(e) => {
+              setIsDraggingProgress(false);
+              seek(parseFloat((e.target as HTMLInputElement).value));
+            }}
+            className="flex-1 accent-brand-green bg-brand-hover h-1.5 rounded-lg appearance-none cursor-pointer"
+          />
           <span className="w-8">{formatTime(duration)}</span>
         </div>
       </div>
@@ -175,12 +186,18 @@ export const MesaPlayer: React.FC = () => {
           </div>
         )}
 
-        {/* Barra de volume geral fictícia */}
+        {/* Barra de volume geral real com Bolinha Premium */}
         <div className="flex items-center gap-2 text-brand-gray">
-          <Volume2 className="w-5 h-5" />
-          <div className="w-20 h-1 bg-brand-hover rounded-full overflow-hidden relative cursor-pointer group">
-            <div className="h-full bg-brand-gray group-hover:bg-brand-green rounded-full w-4/5" />
-          </div>
+          <Volume2 className="w-5 h-5 shrink-0" />
+          <input 
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={masterVolume}
+            onChange={(e) => setMasterVolume(parseFloat(e.target.value))}
+            className="w-20 accent-brand-green bg-brand-hover h-1.5 rounded-lg appearance-none cursor-pointer"
+          />
         </div>
 
         {/* PAINEL FLUTUANTE DA DAW (Mesa de Mixagem Dinâmica para até 10 stems) */}

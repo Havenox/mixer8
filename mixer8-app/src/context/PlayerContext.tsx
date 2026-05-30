@@ -23,10 +23,12 @@ interface IPlayerContext {
   currentTime: number;
   duration: number;
   stemsVolume: Record<string, number>;
+  masterVolume: number;
   loadTrack: (track: ITrack) => void;
   togglePlay: () => void;
   seek: (seconds: number) => void;
   setStemVolume: (type: string, volume: number) => void;
+  setMasterVolume: (volume: number) => void;
 }
 
 const PlayerContext = createContext<IPlayerContext | undefined>(undefined);
@@ -56,8 +58,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   
   // Volumes individuais de stems (padrão 0.8)
   const [stemsVolume, setStemsVolume] = useState<Record<string, number>>({});
+  const [masterVolume, setMasterVolumeState] = useState(0.8);
 
   const audioContextRef = useRef<AudioContext | null>(null);
+  const masterGainNodeRef = useRef<GainNode | null>(null);
   
   // Referências para gerenciar elementos de áudio e nós do Web Audio API sem causar re-renders indesejados
   const activeStemsRef = useRef<{
@@ -92,7 +96,14 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!audioContextRef.current) {
       // Suporta múltiplos browsers
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      audioContextRef.current = new AudioContextClass();
+      const ctx = new AudioContextClass();
+      audioContextRef.current = ctx;
+
+      // Cria e conecta o nó de ganho master
+      const masterGain = ctx.createGain();
+      masterGain.gain.value = masterVolume;
+      masterGain.connect(ctx.destination);
+      masterGainNodeRef.current = masterGain;
     }
     return audioContextRef.current;
   };
@@ -121,23 +132,27 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const stemType = stem.StemType; // ex: Voz, Bateria, Baixo
       initialVolumes[stemType] = 0.8;
 
-      // Se for uma URL relativa, resolve com a URL do servidor
+      // Se for uma URL relativa, resolve com a URL do servidor backend para evitar 404 local
       const fullAudioUrl = stem.AudioUrl.startsWith('http')
         ? stem.AudioUrl
         : `${SERVER_URL}${stem.AudioUrl}`;
 
-      // Cria elemento HTML5 Audio
+      // Cria elemento HTML5 Audio com pré-carregamento apenas dos metadados (streaming progressivo)
       const audio = new Audio(fullAudioUrl);
       audio.crossOrigin = 'anonymous';
-      audio.preload = 'auto';
+      audio.preload = 'metadata';
 
       // Cria nós de Web Audio correspondentes
       const sourceNode = ctx.createMediaElementSource(audio);
       const gainNode = ctx.createGain();
       
-      // Conecta o fluxo: Áudio -> Volume -> Saída principal
+      // Conecta o fluxo: Áudio -> Volume Canal -> Volume Master -> Saída física
       sourceNode.connect(gainNode);
-      gainNode.connect(ctx.destination);
+      if (masterGainNodeRef.current) {
+        gainNode.connect(masterGainNodeRef.current);
+      } else {
+        gainNode.connect(ctx.destination);
+      }
 
       // Define volume inicial
       gainNode.gain.value = 0.8;
@@ -233,6 +248,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const setMasterVolume = (volume: number) => {
+    setMasterVolumeState(volume);
+    if (masterGainNodeRef.current && audioContextRef.current) {
+      masterGainNodeRef.current.gain.setValueAtTime(volume, audioContextRef.current.currentTime);
+    }
+  };
+
   return (
     <PlayerContext.Provider
       value={{
@@ -241,10 +263,12 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         currentTime,
         duration,
         stemsVolume,
+        masterVolume,
         loadTrack,
         togglePlay,
         seek,
-        setStemVolume
+        setStemVolume,
+        setMasterVolume
       }}
     >
       {children}
