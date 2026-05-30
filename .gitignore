@@ -71,3 +71,8 @@ docker-compose.override.yml
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# === Uploads e Mídias Físicas (Stems/Capas) ===
+**/wwwroot/stems/
+**/wwwroot/stems/*
+!**/wwwroot/stems/.gitkeep

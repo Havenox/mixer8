@@ -129,6 +129,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         }
 
         // Processando CoverFile
+        string? coverUrl = null;
         if (request.CoverFile != null && request.CoverFile.Length > 0)
         {
             var coverExt = Path.GetExtension(request.CoverFile.FileName).ToLowerInvariant();
@@ -139,6 +140,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                 {
                     await request.CoverFile.CopyToAsync(stream);
                 }
+                coverUrl = $"/stems/{trackId}/cover.jpg";
             }
         }
 
@@ -240,7 +242,8 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             UploadedBy = userId,
             ExtractionStatus = "Pronto", // Salvo diretamente no status final
             CreatedAt = DateTime.UtcNow,
-            Stems = stemsList
+            Stems = stemsList,
+            CoverUrl = coverUrl
         };
 
         dbContext.Tracks.Add(track);

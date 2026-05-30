@@ -11,6 +11,7 @@ public class Track
     public Guid UploadedBy { get; set; }
     public string ExtractionStatus { get; set; } = "Aguardando"; // Aguardando, Processando, Pronto, Falhou
     public DateTime CreatedAt { get; set; }
+    public string? CoverUrl { get; set; }
 
     public ICollection<Stem> Stems { get; set; } = new List<Stem>();
 }
