@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Sparkles, Mail, Lock, ArrowRight, AlertTriangle, ShieldCheck } from 'lucide-react';
-import { UserRole } from '../types/Auth';
+import type { UserRole } from '../types/Auth';
 
 export const Register: React.FC = () => {
   const [email, setEmail] = useState('');

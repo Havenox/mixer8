@@ -6,7 +6,7 @@ import {
   Home, Search, Library, PlusCircle, Shield, 
   LogOut, User, Sparkles, ChevronDown
 } from 'lucide-react';
-import { UserRole } from '../types/Auth';
+import type { UserRole } from '../types/Auth';
 
 export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { IsAuthenticated, CurrentUser, Logout, UpdateRole } = useAuth();

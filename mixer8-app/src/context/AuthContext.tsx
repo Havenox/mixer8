@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { IAuthState, IUser, UserRole } from '../types/Auth';
+import type { IAuthState, IUser, UserRole } from '../types/Auth';
 
 interface IAuthContext extends IAuthState {
   Login: (email: string, password: string) => Promise<boolean>;
