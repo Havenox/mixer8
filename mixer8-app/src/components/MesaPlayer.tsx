@@ -15,10 +15,14 @@ export const MesaPlayer: React.FC = () => {
     currentTime, 
     duration, 
     stemsVolume, 
+    stemsMute,
+    stemsSolo,
     masterVolume,
     togglePlay, 
     seek, 
     setStemVolume,
+    toggleStemMute,
+    toggleStemSolo,
     setMasterVolume
   } = usePlayer();
 
@@ -267,14 +271,42 @@ export const MesaPlayer: React.FC = () => {
                 .map((stem) => {
                   const stemName = stem.StemType; // ex: Voz, Bateria, Baixo
                   const volume = stemsVolume[stemName] ?? (stemName === 'Metrônomo' ? 0.0 : 1.0);
+                  const isMuted = stemsMute[stemName] ?? false;
+                  const isSoloed = stemsSolo[stemName] ?? false;
+                  const hasAnySolo = Object.values(stemsSolo).some(v => v);
+                  const isSilenced = hasAnySolo ? !isSoloed : isMuted;
                   
                   return (
-                    <div key={stem.StemId} className="flex flex-col gap-1">
-                      <div className="flex justify-between text-xs font-medium">
-                        <span className="text-white flex items-center gap-1.5 capitalize font-semibold">
-                          {stemName}
+                    <div key={stem.StemId} className={`flex flex-col gap-1 transition-all duration-200 ${isSilenced ? 'opacity-40' : 'opacity-100'}`}>
+                      <div className="flex justify-between text-xs font-medium items-center">
+                        <span className="text-white flex items-center gap-1.5 capitalize font-semibold select-none">
+                          <span>{stemName}</span>
+                          <span className="flex items-center gap-1 shrink-0 ml-1">
+                            <button
+                              onClick={() => toggleStemMute(stemName)}
+                              className={`w-4 h-4 rounded-[3px] flex items-center justify-center text-[9px] font-black transition-all border cursor-pointer ${
+                                isMuted
+                                  ? 'bg-red-500 text-white border-red-500 hover:bg-red-500'
+                                  : 'bg-brand-hover hover:bg-red-500/80 hover:text-white hover:border-red-500/80 text-brand-gray border-transparent'
+                              }`}
+                              title="Mute"
+                            >
+                              M
+                            </button>
+                            <button
+                              onClick={() => toggleStemSolo(stemName)}
+                              className={`w-4 h-4 rounded-[3px] flex items-center justify-center text-[9px] font-black transition-all border cursor-pointer ${
+                                isSoloed
+                                  ? 'bg-yellow-500 text-black border-yellow-500 hover:bg-yellow-500'
+                                  : 'bg-brand-hover hover:bg-yellow-500/80 hover:text-black hover:border-yellow-500/80 text-brand-gray border-transparent'
+                              }`}
+                              title="Solo"
+                            >
+                              S
+                            </button>
+                          </span>
                         </span>
-                        <span className="text-brand-gray">{Math.round(volume * 100)}%</span>
+                        <span className="text-brand-gray font-mono">{Math.round(volume * 100)}%</span>
                       </div>
                       <input 
                         type="range" 

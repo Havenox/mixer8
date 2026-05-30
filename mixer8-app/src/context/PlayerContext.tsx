@@ -23,11 +23,15 @@ interface IPlayerContext {
   currentTime: number;
   duration: number;
   stemsVolume: Record<string, number>;
+  stemsMute: Record<string, boolean>;
+  stemsSolo: Record<string, boolean>;
   masterVolume: number;
   loadTrack: (track: ITrack | null) => void;
   togglePlay: () => void;
   seek: (seconds: number) => void;
   setStemVolume: (type: string, volume: number) => void;
+  toggleStemMute: (type: string) => void;
+  toggleStemSolo: (type: string) => void;
   setMasterVolume: (volume: number) => void;
 }
 
@@ -61,6 +65,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   
   // Volumes individuais de stems (padrão 1.0, exceto metronomo)
   const [stemsVolume, setStemsVolume] = useState<Record<string, number>>({});
+  const [stemsMute, setStemsMute] = useState<Record<string, boolean>>({});
+  const [stemsSolo, setStemsSolo] = useState<Record<string, boolean>>({});
   const [masterVolume, setMasterVolumeState] = useState(() => {
     const saved = localStorage.getItem('mixer8_master_volume');
     return saved !== null ? parseFloat(saved) : 1.0;
@@ -76,6 +82,33 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     sourceNode: MediaElementAudioSourceNode;
     type: string;
   }[]>([]);
+
+  // Atualiza os ganhos de todas as stems ativas com base em volume, mute e solo
+  const updateAudioGains = (
+    volumes: Record<string, number>,
+    mutes: Record<string, boolean>,
+    solos: Record<string, boolean>
+  ) => {
+    const hasAnySolo = Object.values(solos).some(v => v);
+
+    activeStemsRef.current.forEach(item => {
+      const type = item.type;
+      const vol = volumes[type] ?? (type === 'Metrônomo' ? 0.0 : 1.0);
+      const isMuted = mutes[type] ?? false;
+      const isSoloed = solos[type] ?? false;
+
+      let targetGain = 0;
+      if (hasAnySolo) {
+        // Se houver qualquer SOLO ativo, apenas as marcadas com SOLO tocam (mesmo se estiverem em Mute)
+        targetGain = isSoloed ? vol : 0;
+      } else {
+        // Sem SOLO ativo, tocamos baseado no volume individual do fader e Mute
+        targetGain = isMuted ? 0 : vol;
+      }
+
+      item.gainNode.gain.setValueAtTime(targetGain, audioContextRef.current?.currentTime || 0);
+    });
+  };
 
   // Limpa tudo ao desmontar
   useEffect(() => {
@@ -176,8 +209,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     });
 
+    setStemsMute({});
+    setStemsSolo({});
     setStemsVolume(initialVolumes);
     activeStemsRef.current = loadedStems;
+    updateAudioGains(initialVolumes, {}, {});
 
     // Sincroniza progresso e duração a partir do master audio
     if (masterAudioElement) {
@@ -246,13 +282,27 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const setStemVolume = (type: string, volume: number) => {
-    setStemsVolume(prev => ({ ...prev, [type]: volume }));
-    
-    // Atualiza ganho direto no nó Web Audio API
-    const stemNode = activeStemsRef.current.find(item => item.type === type);
-    if (stemNode) {
-      stemNode.gainNode.gain.setValueAtTime(volume, audioContextRef.current?.currentTime || 0);
-    }
+    setStemsVolume(prev => {
+      const next = { ...prev, [type]: volume };
+      updateAudioGains(next, stemsMute, stemsSolo);
+      return next;
+    });
+  };
+
+  const toggleStemMute = (type: string) => {
+    setStemsMute(prev => {
+      const next = { ...prev, [type]: !prev[type] };
+      updateAudioGains(stemsVolume, next, stemsSolo);
+      return next;
+    });
+  };
+
+  const toggleStemSolo = (type: string) => {
+    setStemsSolo(prev => {
+      const next = { ...prev, [type]: !prev[type] };
+      updateAudioGains(stemsVolume, stemsMute, next);
+      return next;
+    });
   };
 
   const setMasterVolume = (volume: number) => {
@@ -270,11 +320,15 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         currentTime,
         duration,
         stemsVolume,
+        stemsMute,
+        stemsSolo,
         masterVolume,
         loadTrack,
         togglePlay,
         seek,
         setStemVolume,
+        toggleStemMute,
+        toggleStemSolo,
         setMasterVolume
       }}
     >
