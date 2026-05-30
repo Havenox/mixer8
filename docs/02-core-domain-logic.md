@@ -4,12 +4,24 @@ Este documento descreve as joias da coroa do **Mixer8**: a lógica de sincroniza
 
 ---
 
-## 1. O Core Player: Sincronização de Múltiplas Stems
+## 1. O Core Player Dinâmico (1 a 10 Stems Opcionais)
 
-Ao contrário de tocadores de música tradicionais que reproduzem um único stream de áudio, o player do **Mixer8** reproduz simultaneamente até 5 faixas separadas (Voz, Baixo, Bateria, Teclado/Piano e Outros) correspondentes a uma única música.
+Ao contrário de tocadores tradicionais de faixa única ou DAW de canais fixos, o tocador do **Mixer8** é 100% dinâmico e flexível:
+* **Suporte Completo de 1 a 10 Stems**: A aplicação está preparada para lidar com qualquer combinação de faixas sob demanda, inclusive músicas de canal único (sem separação, reproduzidas como um tocador convencional estéreo).
+* **A Matriz de 10 Stems Opcionais**:
+  1. `Voz` (`vocals` ──> `Voz.mp3`): Canal isolado de vocais principais e backing vocals.
+  2. `Bateria` (`drums` ──> `Bateria.mp3`): Percussão acústica/eletrônica.
+  3. `Baixo` (`bass` ──> `Baixo.mp3`): Linhas de contrabaixo elétrico, acústico ou sintetizado.
+  4. `Guitarra` (`guitars` ──> `Guitarra.mp3`): Guitarras elétricas, violões e solos.
+  5. `Piano` (`piano` ──> `Piano.mp3`): Pianos acústicos e elétricos de cauda.
+  6. `Teclado` (`keyboards` ──> `Teclado.mp3`): Sintetizadores, pads e órgãos.
+  7. `Sopro` (`wind` ──> `Sopro.mp3`): Metais, flautas e instrumentos de sopro em geral.
+  8. `Cordas` (`strings` ──> `Cordas.mp3`): Violinos, violoncelos e orquestrações de cordas.
+  9. `Metronomo` (`metronome` ──> `Metronomo.mp3`): Faixa de clique guia de andamento sincronizado (sempre presente se extraído da plataforma externa).
+  10. `Outros` (`other` ──> `Outros.mp3`): Efeitos, ambiências e instrumentos não categorizados acima (faixa residual, sempre presente).
 
 ### A Mecânica de Sincronização Sólida
-Para garantir que as faixas não percam o sincronismo de tempo (drift) durante a reprodução no navegador, o frontend `mixer8-web` implementa a seguinte arquitetura de áudio:
+Para garantir que as faixas não percam o sincronismo de tempo (drift) durante a reprodução no navegador, o frontend `mixer8-app` implementa a seguinte arquitetura de áudio:
 
 ```
                       ┌──────────────────────┐
@@ -19,7 +31,8 @@ Para garantir que as faixas não percam o sincronismo de tempo (drift) durante a
         ┌────────────────────────┼────────────────────────┐
         ▼                        ▼                        ▼
  ┌──────────────┐         ┌──────────────┐         ┌──────────────┐
- │ Stem: Vocals │         │  Stem: Bass  │         │ Stem: Drums  │ ...
+ │ Stem: Vocals │         │  Stem: Bass  │         │ Stem: Drums  │ ... (Até 10 stems)
+ │  (Se houver) │         │  (Se houver) │         │  (Se houver) │
  └──────┬───────┘         └──────┬───────┘         └──────┬───────┘
         │                        │                        │
         ▼                        ▼                        ▼
@@ -33,39 +46,23 @@ Para garantir que as faixas não percam o sincronismo de tempo (drift) durante a
                      └───────────────────────┘
 ```
 
-1. **Web Audio API**: O player utiliza a `Web Audio API` nativa do navegador em vez de múltiplos elementos `<audio>` simples.
-2. **Master Clock**: Um relógio central serve como âncora absoluta. Quando o usuário executa um *Seek* (pula para outra parte da música), o tempo de reprodução de todas as instâncias `AudioBufferSourceNode` é reconfigurado de forma atômica no mesmo milissegundo.
-3. **GainNodes Individuais**: Cada stem passa por seu respectivo nó de ganho (`GainNode`), o qual é controlado em tempo real pelos sliders de volume da DAW na interface do usuário. Isso permite mixar a música dinamicamente na hora, silenciar faixas (ex: isolar a voz ou remover a bateria) e salvar estes níveis como presets de mixagem personalizados do usuário.
+1. **Web Audio API**: O player utiliza a `Web Audio API` nativa do navegador para criar múltiplos fluxos de áudio independentes sob um mesmo `AudioContext`.
+2. **Master Clock**: Um relógio central serve como âncora absoluta. Quando o usuário executa um *Seek*, o tempo de reprodução de todas as instâncias `AudioBufferSourceNode` ativas é reconfigurado de forma atômica no mesmo milissegundo.
+3. **GainNodes Dinâmicos**: A interface gera controles de volume (`GainNode`) sob demanda apenas para os canais retornados na propriedade `Stems` da música. Se uma música possuir apenas as faixas `Voz` e `Bateria`, apenas estes dois sliders aparecerão, eliminando canais mortos ou fictícios (Mocks).
 
 ---
 
-## 2. O Fluxo de Extração Inteligente (Moises Integration)
+## 2. O Fluxo de Extração e Decodificação de Nomes (Headless Bot)
 
-A jornada de criação de uma música com stems no Mixer8 se inicia no upload de um arquivo de áudio estéreo convencional. O microserviço `moises-extractor` faz a mágica de conversão se comportando como um bot headless:
+A jornada de criação de uma música com stems no Mixer8 se inicia no upload de um arquivo de áudio estéreo convencional. O microserviço `mixer8-extractor` (Worker C#) faz o download do pacote `.zip` da plataforma externa de inteligência artificial contendo arquivos nomeados padronizadamente:
 
-```
-[Usuário] 
-   │ 1. Faz upload do MP3 de 1 arquivo estéreo
-   ▼
-[mixer8-api] 
-   │ 2. Salva arquivo no storage temporário
-   │ 3. Cria registro da track com status "Aguardando Extração"
-   ▼
-[moises-extractor] (C# Playwright Worker)
-   │ 4. Detecta nova tarefa pendente
-   │ 5. Inicializa o Chromium Headless com cookies de sessão de "auth.json"
-   │ 6. Navega para Moises.ai, faz upload e seleciona a opção "5 Stems"
-   │ 7. Aguarda em polling visual na biblioteca até a faixa constar como processada
-   │ 8. Acessa o player do Moises, abre o menu "Exportar" e baixa o pacote ZIP
-   │ 9. Descompacta o arquivo ZIP contendo as 5 faixas individuais
-   ▼
-[mixer8-api]
-   │ 10. Atualiza registro no banco vinculando as URLs de cada uma das 5 stems
-   │ 11. Notifica o frontend (via Webhook ou WebSocket) que a música está pronta
-   ▼
-[mixer8-web]
-   │ 12. Disponibiliza a track com os sliders da DAW ativos no player do usuário!
-```
+### Mapeamento e Renomeação de Arquivos
+A plataforma entrega os arquivos extraídos no formato:
+`[NomeOriginal]-<stem>-<tonalidade>-<bpm>-<frequencia>.mp3`
+
+O extrator realiza a leitura física deste ZIP, decodifica a tag `<stem>`, renomeia cada arquivo isolado e salva-o estruturadamente:
+* **Exemplo**: `02 - Vestido Curto-drums-D minor-150bpm-441hz.mp3` é decodificado, renomeado para **`Bateria.mp3`**, e salvo sob a pasta dedicada no servidor `/downloads/tracks/[TrackId]/Bateria.mp3`.
+* **Persistência Relacional**: As URLs de streaming físicas (ex: `/tracks/[TrackId]/Bateria.mp3`) de cada faixa descompactada com sucesso são registradas na tabela `"Stems"`, marcando a música como `Pronto`.
 
 ---
 

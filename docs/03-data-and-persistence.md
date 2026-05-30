@@ -38,7 +38,7 @@ erDiagram
     Stems {
         Guid StemId PK
         Guid TrackId FK
-        String StemType "Vocals, Drums, Bass, Piano, Others"
+        String StemType "Voz, Bateria, Baixo, Guitarra, Piano, Teclado, Sopro, Cordas, Metronomo, Outros"
         String AudioUrl
         DateTime CreatedAt
     }
