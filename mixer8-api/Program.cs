@@ -194,9 +194,13 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors("Mixer8CorsPolicy");
 
-// Habilita arquivos estáticos com cabeçalhos CORS liberados (CORS nos áudios do player)
+// Habilita arquivos estáticos com suporte a arquivos .opus (MimeType) e cabeçalhos CORS liberados
+var contentTypeProvider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+contentTypeProvider.Mappings[".opus"] = "audio/opus";
+
 app.UseStaticFiles(new StaticFileOptions
 {
+    ContentTypeProvider = contentTypeProvider,
     OnPrepareResponse = ctx =>
     {
         ctx.Context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
