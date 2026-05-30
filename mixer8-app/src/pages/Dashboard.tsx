@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   Play, UploadCloud, CheckCircle, Clock, FileAudio, 
-  Sparkles, ShieldAlert, Disc, AlertTriangle, Plus, Trash2, X, Music, Loader2
+  Sparkles, ShieldAlert, Disc, AlertTriangle, Plus, Trash2, X, Music, Loader2, Settings, RefreshCw
 } from 'lucide-react';
 
 import { usePlayer } from '../context/PlayerContext';
@@ -29,6 +29,98 @@ export const Dashboard: React.FC = () => {
   const [deleteCountdown, setDeleteCountdown] = useState(3);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+
+  // Estados para Edição de Músicas (Admin)
+  const [trackToEdit, setTrackToEdit] = useState<ITrack | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editArtist, setEditArtist] = useState('');
+  const [editCoverFile, setEditCoverFile] = useState<File | null>(null);
+  const [editCoverPreview, setEditCoverPreview] = useState('');
+  const [stemsToDelete, setStemsToDelete] = useState<string[]>([]); // IDs das stems a deletar
+  const [stemsToReplace, setStemsToReplace] = useState<Record<string, File>>({}); // ID -> Arquivo
+  const [newStemsFiles, setNewStemsFiles] = useState<File[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+
+  useEffect(() => {
+    if (trackToEdit) {
+      setEditTitle(trackToEdit.TrackTitle);
+      setEditArtist(trackToEdit.ArtistName);
+      setEditCoverFile(null);
+      setEditCoverPreview(trackToEdit.CoverUrl ? (trackToEdit.CoverUrl.startsWith('http') ? trackToEdit.CoverUrl : `${SERVER_URL}${trackToEdit.CoverUrl}`) : '');
+      setStemsToDelete([]);
+      setStemsToReplace({});
+      setNewStemsFiles([]);
+      setSaveError('');
+      setIsSaving(false);
+    }
+  }, [trackToEdit]);
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!trackToEdit || !Token) return;
+
+    if (!editTitle.trim() || !editArtist.trim()) {
+      setSaveError('Título e Artista são obrigatórios.');
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('TrackTitle', editTitle.trim());
+      formData.append('ArtistName', editArtist.trim());
+      
+      if (editCoverFile) {
+        formData.append('CoverFile', editCoverFile);
+      }
+
+      if (stemsToDelete.length > 0) {
+        formData.append('DeleteStemIds', stemsToDelete.join(','));
+      }
+
+      // Adiciona arquivos de substituição mapeados com "ReplaceStem_{stemId}"
+      Object.entries(stemsToReplace).forEach(([stemId, file]) => {
+        if (!stemsToDelete.includes(stemId)) {
+          formData.append(`ReplaceStem_${stemId}`, file);
+        }
+      });
+
+      // Adiciona novas stems avulsas ou ZIPs
+      newStemsFiles.forEach((file) => {
+        formData.append('Files', file);
+      });
+
+      const res = await fetch(`${API_URL}/Tracks/${trackToEdit.TrackId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${Token}`
+        },
+        body: formData
+      });
+
+      if (res.ok) {
+        const updatedTrack = await res.json();
+        
+        // Se a música editada estiver ativamente carregada no player, recarrega
+        if (currentTrack && currentTrack.TrackId === trackToEdit.TrackId) {
+          loadTrack(updatedTrack);
+        }
+
+        setTrackToEdit(null);
+        fetchTracks(); // Recarrega o grid da tela
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        setSaveError(errorData.ErrorMessage || 'Falha ao salvar as alterações da música.');
+      }
+    } catch {
+      setSaveError('Erro de conexão ao tentar salvar as alterações.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // Fechar menu de contexto ao clicar fora
   useEffect(() => {
@@ -502,6 +594,16 @@ export const Dashboard: React.FC = () => {
               <div className="h-[1px] bg-brand-hover my-1" />
               <button
                 onClick={() => {
+                  setTrackToEdit(contextMenu.track);
+                  setContextMenu(null);
+                }}
+                className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-brand-green"
+              >
+                <Settings className="w-4 h-4 text-brand-green" />
+                <span>Editar Música</span>
+              </button>
+              <button
+                onClick={() => {
                   setTrackToDelete(contextMenu.track);
                   setContextMenu(null);
                 }}
@@ -590,6 +692,261 @@ export const Dashboard: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+      {/* MODAL DE EDIÇÃO DE MÚSICA (ADMIN) */}
+      {trackToEdit && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
+          <form 
+            onSubmit={handleSaveEdit}
+            className="bg-brand-card border border-brand-hover w-full max-w-lg p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200"
+          >
+            <button 
+              type="button"
+              onClick={() => setTrackToEdit(null)}
+              className="absolute top-4 right-4 text-brand-gray hover:text-white cursor-pointer"
+              disabled={isSaving}
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2 pr-8">
+              <Settings className="w-5 h-5 text-brand-green" />
+              <div className="flex flex-col">
+                <span className="text-[10px] text-brand-green font-bold uppercase tracking-wider">Painel Administrativo</span>
+                <h3 className="text-sm font-bold text-white">Editar Música e Stems</h3>
+              </div>
+            </div>
+
+            <div className="max-h-[60vh] overflow-y-auto pr-1 flex flex-col gap-4">
+              
+              {/* Nome e Artista */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Título da Música</label>
+                  <input 
+                    type="text"
+                    value={editTitle}
+                    onChange={e => setEditTitle(e.target.value)}
+                    required
+                    disabled={isSaving}
+                    className="w-full bg-black border border-brand-hover rounded p-2 text-xs text-white focus:outline-none focus:border-brand-green"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Artista / Banda</label>
+                  <input 
+                    type="text"
+                    value={editArtist}
+                    onChange={e => setEditArtist(e.target.value)}
+                    required
+                    disabled={isSaving}
+                    className="w-full bg-black border border-brand-hover rounded p-2 text-xs text-white focus:outline-none focus:border-brand-green"
+                  />
+                </div>
+              </div>
+
+              {/* Capa / Imagem */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Capa da Música</label>
+                <div className="flex items-center gap-4 bg-black/40 border border-brand-hover p-3 rounded">
+                  <div className="w-16 h-16 bg-black rounded overflow-hidden flex items-center justify-center text-brand-green border border-brand-hover shrink-0">
+                    {editCoverPreview ? (
+                      <img 
+                        src={editCoverPreview} 
+                        alt="Capa" 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Music className="w-6 h-6" />
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[10px] text-brand-gray">Selecione um arquivo de imagem (PNG, JPG) para substituir a capa atual.</span>
+                    <input 
+                      type="file"
+                      accept="image/*"
+                      disabled={isSaving}
+                      onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setEditCoverFile(file);
+                          setEditCoverPreview(URL.createObjectURL(file));
+                        }
+                      }}
+                      className="text-xs text-brand-gray file:mr-3 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-bold file:bg-brand-hover file:text-white hover:file:bg-brand-hover/80 file:cursor-pointer"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Gerenciamento das Stems Reais */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Canais de Stems Ativas</label>
+                <div className="flex flex-col gap-2 max-h-48 overflow-y-auto border border-brand-hover rounded p-2 bg-black/20">
+                  {trackToEdit.Stems && trackToEdit.Stems.length > 0 ? (
+                    trackToEdit.Stems.map((stem) => {
+                      const isDeleted = stemsToDelete.includes(stem.StemId);
+                      const isReplaced = stemsToReplace[stem.StemId] !== undefined;
+
+                      return (
+                        <div 
+                          key={stem.StemId} 
+                          className={`flex items-center justify-between p-2 rounded border text-xs transition-colors ${
+                            isDeleted 
+                              ? 'bg-red-950/20 border-red-500/30 text-red-300 line-through' 
+                              : isReplaced 
+                                ? 'bg-brand-green/10 border-brand-green/30 text-brand-green'
+                                : 'bg-black/40 border-brand-hover text-white'
+                          }`}
+                        >
+                          <div className="flex flex-col truncate">
+                            <span className="font-bold capitalize truncate">{stem.StemType}</span>
+                            <span className="text-[10px] text-brand-gray truncate">
+                              {isReplaced ? `Substituindo por: ${stemsToReplace[stem.StemId].name}` : stem.AudioUrl.split('/').pop()}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            {/* Substituir arquivo */}
+                            {!isDeleted && (
+                              <label className="py-1 px-2 bg-brand-hover text-white font-bold rounded text-[9px] hover:bg-brand-hover/80 transition-colors cursor-pointer select-none">
+                                Substituir
+                                <input 
+                                  type="file"
+                                  accept="audio/*"
+                                  disabled={isSaving}
+                                  onChange={e => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      setStemsToReplace(prev => ({ ...prev, [stem.StemId]: file }));
+                                    }
+                                  }}
+                                  className="hidden"
+                                />
+                              </label>
+                            )}
+
+                            {/* Desfazer substituição */}
+                            {isReplaced && !isDeleted && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setStemsToReplace(prev => {
+                                    const copy = { ...prev };
+                                    delete copy[stem.StemId];
+                                    return copy;
+                                  });
+                                }}
+                                className="py-1 px-2 border border-brand-hover text-brand-gray hover:text-white rounded text-[9px] cursor-pointer"
+                              >
+                                Desfazer
+                              </button>
+                            )}
+
+                            {/* Excluir/Restaurar */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isDeleted) {
+                                  setStemsToDelete(prev => prev.filter(id => id !== stem.StemId));
+                                } else {
+                                  setStemsToDelete(prev => [...prev, stem.StemId]);
+                                }
+                              }}
+                              className={`p-1 rounded cursor-pointer transition-colors ${
+                                isDeleted 
+                                  ? 'bg-brand-hover text-brand-gray hover:text-white' 
+                                  : 'hover:bg-red-950 hover:text-red-400 text-brand-gray'
+                              }`}
+                              title={isDeleted ? 'Restaurar Stem' : 'Deletar Stem'}
+                            >
+                              {isDeleted ? <RefreshCw className="w-3.5 h-3.5" /> : <Trash2 className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-4 text-xs italic text-brand-gray">Nenhuma stem encontrada.</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Adicionar novas stems */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Adicionar Novas Stems (Áudios ou ZIP)</label>
+                <div className="border border-dashed border-brand-hover rounded p-4 text-center bg-black/20 flex flex-col gap-2">
+                  <input 
+                    type="file"
+                    accept="audio/*,.zip"
+                    multiple
+                    disabled={isSaving}
+                    onChange={e => {
+                      const files = Array.from(e.target.files || []);
+                      if (files.length > 0) {
+                        setNewStemsFiles(prev => [...prev, ...files]);
+                      }
+                    }}
+                    className="text-xs text-brand-gray file:mr-3 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-bold file:bg-brand-hover file:text-white hover:file:bg-brand-hover/80 file:cursor-pointer"
+                  />
+                  <span className="text-[10px] text-brand-gray">Formatos suportados: MP3, WAV, FLAC, OGG, OPUS, ZIP</span>
+                </div>
+
+                {newStemsFiles.length > 0 && (
+                  <div className="flex flex-col gap-1.5 border border-brand-hover rounded p-2 bg-black/40">
+                    <span className="text-[9px] text-brand-green font-bold uppercase tracking-wider">Arquivos adicionais pendentes:</span>
+                    <div className="flex flex-col gap-1 max-h-24 overflow-y-auto">
+                      {newStemsFiles.map((file, idx) => (
+                        <div key={idx} className="flex justify-between items-center bg-black p-1.5 rounded text-[10px]">
+                          <span className="text-white truncate max-w-[250px]">{file.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setNewStemsFiles(prev => prev.filter((_, i) => i !== idx))}
+                            className="text-red-400 hover:underline text-[9px] font-bold cursor-pointer"
+                          >
+                            Remover
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            {saveError && (
+              <div className="bg-red-500/10 border border-red-500/30 p-2.5 rounded text-xs text-red-400">
+                {saveError}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 mt-2 pt-3 border-t border-brand-hover shrink-0">
+              <button
+                type="button"
+                onClick={() => setTrackToEdit(null)}
+                disabled={isSaving}
+                className="py-2 px-3 border border-brand-hover rounded text-xs font-semibold text-brand-gray hover:text-white cursor-pointer disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="py-2 px-4 bg-brand-green text-black font-bold rounded text-xs hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:hover:scale-100 disabled:active:scale-100"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Salvando...</span>
+                  </>
+                ) : (
+                  <span>Salvar Alterações</span>
+                )}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
