@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Mixer8.Api.Domain;
 using Mixer8.Api.Infrastructure;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -35,6 +37,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             PlaylistId = Guid.NewGuid(),
             Name = request.Name.Trim(),
             Visibility = visibility,
+            Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
             OwnerId = userId,
             CoverUrl = string.IsNullOrWhiteSpace(request.CoverUrl) ? null : request.CoverUrl.Trim(),
             CreatedAt = DateTime.UtcNow
@@ -53,6 +56,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             PlaylistId = playlist.PlaylistId,
             Name = playlist.Name,
             Visibility = playlist.Visibility,
+            Description = playlist.Description,
             OwnerId = playlist.OwnerId,
             OwnerEmail = ownerEmail,
             CoverUrl = playlist.CoverUrl,
@@ -109,6 +113,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
                 PlaylistId = p.PlaylistId,
                 Name = p.Name,
                 Visibility = p.Visibility,
+                Description = p.Description,
                 OwnerId = p.OwnerId,
                 OwnerEmail = email ?? "",
                 CoverUrl = p.CoverUrl ?? firstTrackCover,
@@ -172,6 +177,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             PlaylistId = playlist.PlaylistId,
             Name = playlist.Name,
             Visibility = playlist.Visibility,
+            Description = playlist.Description,
             OwnerId = playlist.OwnerId,
             OwnerEmail = ownerEmail,
             CoverUrl = playlist.CoverUrl ?? firstTrackCover,
@@ -213,7 +219,8 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> UpdatePlaylist(Guid id, [FromBody] UpdatePlaylistDto request)
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UpdatePlaylist(Guid id, [FromForm] UpdatePlaylistRequest request)
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
@@ -238,8 +245,54 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
         if (visibility != null)
             playlist.Visibility = visibility;
 
-        if (request.CoverUrl != null)
-            playlist.CoverUrl = string.IsNullOrWhiteSpace(request.CoverUrl) ? null : request.CoverUrl.Trim();
+        playlist.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
+
+        // Gerenciar exclusão física da capa anterior se solicitado ou ao substituir por novo arquivo
+        if (request.DeleteCover || (request.CoverFile != null && request.CoverFile.Length > 0))
+        {
+            if (!string.IsNullOrWhiteSpace(playlist.CoverUrl) && playlist.CoverUrl.StartsWith("/playlists/"))
+            {
+                var oldPhysicalPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", playlist.CoverUrl.TrimStart('/'));
+                if (System.IO.File.Exists(oldPhysicalPath))
+                {
+                    try
+                    {
+                        System.IO.File.Delete(oldPhysicalPath);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[DELETE COVER ERROR] Falha ao deletar capa física antiga: {ex.Message}");
+                    }
+                }
+            }
+
+            playlist.CoverUrl = null;
+        }
+
+        // Salvar novo arquivo físico de capa se fornecido
+        if (request.CoverFile != null && request.CoverFile.Length > 0)
+        {
+            var playlistDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "playlists", id.ToString());
+            if (!Directory.Exists(playlistDir))
+            {
+                Directory.CreateDirectory(playlistDir);
+            }
+
+            var ext = Path.GetExtension(request.CoverFile.FileName).ToLowerInvariant();
+            var allowedExtensions = new[] { ".png", ".jpg", ".jpeg", ".webp" };
+            if (allowedExtensions.Contains(ext))
+            {
+                var coverFileName = $"cover{ext}";
+                var coverPath = Path.Combine(playlistDir, coverFileName);
+
+                using (var stream = new FileStream(coverPath, FileMode.Create))
+                {
+                    await request.CoverFile.CopyToAsync(stream);
+                }
+
+                playlist.CoverUrl = $"/playlists/{id}/{coverFileName}";
+            }
+        }
 
         await dbContext.SaveChangesAsync();
         return Ok(playlist);
@@ -259,6 +312,23 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
         var isAdmin = User.IsInRole("Admin");
         if (playlist.OwnerId != userId && !isAdmin)
             return Forbid();
+
+        // Deletar fisicamente a pasta de arquivos customizados da playlist
+        if (!string.IsNullOrWhiteSpace(playlist.CoverUrl) && playlist.CoverUrl.StartsWith("/playlists/"))
+        {
+            var playlistDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "playlists", id.ToString());
+            if (Directory.Exists(playlistDir))
+            {
+                try
+                {
+                    Directory.Delete(playlistDir, true);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[DELETE PLAYLIST DIR ERROR] Falha ao deletar pasta física da playlist: {ex.Message}");
+                }
+            }
+        }
 
         dbContext.Playlists.Remove(playlist);
         await dbContext.SaveChangesAsync();
@@ -428,14 +498,17 @@ public class CreatePlaylistDto
 {
     public string Name { get; set; } = null!;
     public string? Visibility { get; set; }
+    public string? Description { get; set; }
     public string? CoverUrl { get; set; }
 }
 
-public class UpdatePlaylistDto
+public class UpdatePlaylistRequest
 {
     public string Name { get; set; } = null!;
     public string? Visibility { get; set; }
-    public string? CoverUrl { get; set; }
+    public string? Description { get; set; }
+    public IFormFile? CoverFile { get; set; }
+    public bool DeleteCover { get; set; }
 }
 
 public class AddTrackDto
@@ -453,6 +526,7 @@ public class PlaylistResponseDto
     public Guid PlaylistId { get; set; }
     public string Name { get; set; } = null!;
     public string Visibility { get; set; } = null!;
+    public string? Description { get; set; }
     public Guid OwnerId { get; set; }
     public string OwnerEmail { get; set; } = null!;
     public string? CoverUrl { get; set; }
@@ -467,6 +541,7 @@ public class PlaylistDetailResponseDto
     public Guid PlaylistId { get; set; }
     public string Name { get; set; } = null!;
     public string Visibility { get; set; } = null!;
+    public string? Description { get; set; }
     public Guid OwnerId { get; set; }
     public string OwnerEmail { get; set; } = null!;
     public string? CoverUrl { get; set; }

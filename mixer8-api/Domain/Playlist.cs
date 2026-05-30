@@ -11,6 +11,7 @@ public class Playlist
     public Guid PlaylistId { get; set; } = Guid.NewGuid();
     public string Name { get; set; } = null!;
     public string Visibility { get; set; } = "Public"; // Public, Private, Unlisted
+    public string? Description { get; set; }
     public Guid OwnerId { get; set; }
     public string? CoverUrl { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
