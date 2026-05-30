@@ -1,14 +1,26 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePlaylists } from '../context/PlaylistContext';
-import { ListMusic, PlusCircle, Lock, Globe, EyeOff, Play } from 'lucide-react';
+import type { IPlaylist } from '../context/PlaylistContext';
+import { useAuth } from '../context/AuthContext';
+import { ListMusic, PlusCircle, Lock, Globe, EyeOff, Play, Edit, Trash2, MoreVertical } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const SERVER_URL = API_URL.replace('/api', '');
 
 export const Playlists: React.FC = () => {
-  const { playlists, openCreatePlaylist } = usePlaylists();
+  const { playlists, openCreatePlaylist, openEditPlaylist, openDeletePlaylist } = usePlaylists();
+  const { CurrentUser } = useAuth();
   const navigate = useNavigate();
+
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; playlist: IPlaylist } | null>(null);
+
+  // Fecha menus ao clicar fora
+  useEffect(() => {
+    const handleClose = () => setContextMenu(null);
+    window.addEventListener('click', handleClose);
+    return () => window.removeEventListener('click', handleClose);
+  }, []);
 
   return (
     <div className="flex flex-col gap-6 select-none animate-in fade-in duration-300">
@@ -46,69 +58,130 @@ export const Playlists: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 select-none">
-          {playlists.map((playlist) => (
-            <div 
-              key={playlist.PlaylistId} 
-              onClick={() => navigate(`/playlists/${playlist.PlaylistId}`)}
-              className="bg-brand-card border border-brand-hover p-4 rounded-md hover:bg-brand-hover group transition-all relative cursor-pointer"
-            >
-              <div className="w-full aspect-square bg-gradient-to-br from-brand-card to-black/60 border border-brand-hover rounded mb-4 flex items-center justify-center relative overflow-hidden group shadow-md">
-                {playlist.CoverUrl ? (
-                  <img 
-                    src={playlist.CoverUrl.startsWith('http') ? playlist.CoverUrl : `${SERVER_URL}${playlist.CoverUrl}`} 
-                    alt="Capa" 
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-neutral-900 via-brand-card to-black flex items-center justify-center">
-                    <ListMusic className="w-16 h-16 text-brand-green/20 group-hover:text-brand-green/40 transition-colors duration-300" />
-                  </div>
+          {playlists.map((playlist) => {
+            const canManage = playlist.IsOwner || CurrentUser?.UserRole === 'Admin';
+            return (
+              <div 
+                key={playlist.PlaylistId} 
+                onClick={() => navigate(`/playlists/${playlist.PlaylistId}`)}
+                onContextMenu={(e) => {
+                  if (canManage) {
+                    e.preventDefault();
+                    setContextMenu({
+                      x: e.clientX,
+                      y: e.clientY,
+                      playlist
+                    });
+                  }
+                }}
+                className="bg-brand-card border border-brand-hover p-4 rounded-md hover:bg-brand-hover group transition-all relative cursor-pointer"
+              >
+                {/* Botão rápido de opções para mobile/acessibilidade */}
+                {canManage && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setContextMenu({
+                        x: e.clientX,
+                        y: e.clientY,
+                        playlist
+                      });
+                    }}
+                    className="absolute top-6 right-6 z-20 w-8 h-8 rounded-full bg-black/75 border border-brand-hover hover:border-brand-green text-brand-gray hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-105 transition-all shadow-md cursor-pointer duration-200"
+                    title="Opções da Playlist"
+                  >
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
                 )}
-                
-                {/* Botão flutuante de reprodução/detalhes no hover */}
-                <div className="absolute w-12 h-12 rounded-full bg-brand-green text-black flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 hover:scale-105 transition-all shadow-lg duration-250 cursor-pointer">
-                  <Play className="w-6 h-6 fill-current translate-x-[1px]" />
-                </div>
-              </div>
 
-              {/* Título e Info */}
-              <div className="flex flex-col gap-1">
-                <span className="font-bold text-white text-sm truncate group-hover:text-brand-green transition-colors duration-200" title={playlist.Name}>
-                  {playlist.Name}
-                </span>
-                
-                <div className="flex items-center gap-1.5 text-xs text-brand-gray">
-                  <span>{playlist.TracksCount} {playlist.TracksCount === 1 ? 'música' : 'músicas'}</span>
-                  <span>•</span>
-                  <div className="flex items-center gap-1 text-[11px]">
-                    {playlist.Visibility === 'Private' ? (
-                      <>
-                        <Lock className="w-3 h-3 text-brand-green" />
-                        <span>Privada</span>
-                      </>
-                    ) : playlist.Visibility === 'Public' ? (
-                      <>
-                        <Globe className="w-3 h-3 text-brand-green/60" />
-                        <span>Pública</span>
-                      </>
-                    ) : (
-                      <>
-                        <EyeOff className="w-3 h-3 text-brand-gray/60" />
-                        <span>Não listada</span>
-                      </>
-                    )}
+                <div className="w-full aspect-square bg-gradient-to-br from-brand-card to-black/60 border border-brand-hover rounded mb-4 flex items-center justify-center relative overflow-hidden group shadow-md">
+                  {playlist.CoverUrl ? (
+                    <img 
+                      src={playlist.CoverUrl.startsWith('http') ? playlist.CoverUrl : `${SERVER_URL}${playlist.CoverUrl}`} 
+                      alt="Capa" 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-neutral-900 via-brand-card to-black flex items-center justify-center">
+                      <ListMusic className="w-16 h-16 text-brand-green/20 group-hover:text-brand-green/40 transition-colors duration-300" />
+                    </div>
+                  )}
+                  
+                  {/* Botão flutuante de reprodução/detalhes no hover */}
+                  <div className="absolute w-12 h-12 rounded-full bg-brand-green text-black flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 hover:scale-105 transition-all shadow-lg duration-250 cursor-pointer">
+                    <Play className="w-6 h-6 fill-current translate-x-[1px]" />
                   </div>
                 </div>
-                
-                {/* Badge de Colaborativa se aplicável */}
-                {playlist.IsCollaborator && (
-                  <div className="mt-1.5 self-start px-2 py-0.5 bg-brand-green/10 text-[9px] text-brand-green font-bold rounded border border-brand-green/20 uppercase tracking-wider">
-                    Colaborativa
+
+                {/* Título e Info */}
+                <div className="flex flex-col gap-1">
+                  <span className="font-bold text-white text-sm truncate group-hover:text-brand-green transition-colors duration-200" title={playlist.Name}>
+                    {playlist.Name}
+                  </span>
+
+                  {playlist.Description && (
+                    <p className="text-[11px] text-brand-gray truncate m-0 leading-normal" title={playlist.Description}>
+                      {playlist.Description}
+                    </p>
+                  )}
+                  
+                  <div className="flex items-center gap-1.5 text-xs text-brand-gray mt-0.5">
+                    <span>{playlist.TracksCount} {playlist.TracksCount === 1 ? 'música' : 'músicas'}</span>
+                    <span>•</span>
+                    <div className="flex items-center gap-1 text-[11px]">
+                      {playlist.Visibility === 'Private' ? (
+                        <>
+                          <Lock className="w-3 h-3 text-brand-green" />
+                          <span>Privada</span>
+                        </>
+                      ) : playlist.Visibility === 'Public' ? (
+                        <>
+                          <Globe className="w-3 h-3 text-brand-green/60" />
+                          <span>Pública</span>
+                        </>
+                      ) : (
+                        <>
+                          <EyeOff className="w-3 h-3 text-brand-gray/60" />
+                          <span>Não listada</span>
+                        </>
+                      )}
+                    </div>
                   </div>
-                )}
+                  
+                  {/* Badge de Colaborativa se aplicável */}
+                  {playlist.IsCollaborator && (
+                    <div className="mt-1.5 self-start px-2 py-0.5 bg-brand-green/10 text-[9px] text-brand-green font-bold rounded border border-brand-green/20 uppercase tracking-wider">
+                      Colaborativa
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
+        </div>
+      )}
+
+      {/* MENU DE CONTEXTO FLUTUANTE */}
+      {contextMenu && (
+        <div 
+          className="fixed z-50 bg-brand-card border border-brand-hover rounded shadow-2xl py-1.5 w-48 text-xs font-semibold select-none cursor-pointer"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+        >
+          <div 
+            onClick={() => openEditPlaylist(contextMenu.playlist)}
+            className="px-4 py-2 hover:bg-brand-hover hover:text-brand-green flex items-center gap-2.5 transition-colors"
+          >
+            <Edit className="w-4 h-4 text-brand-gray" />
+            <span>Editar Ajustes</span>
+          </div>
+          <div className="h-[1px] bg-brand-hover my-1" />
+          <div 
+            onClick={() => openDeletePlaylist(contextMenu.playlist)}
+            className="px-4 py-2 hover:bg-brand-hover hover:text-red-400 text-red-500 flex items-center gap-2.5 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Excluir Playlist</span>
+          </div>
         </div>
       )}
 

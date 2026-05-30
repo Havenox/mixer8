@@ -1,13 +1,15 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
-import { X, Lock, Globe, EyeOff, Plus, Loader2, Check } from 'lucide-react';
+import { X, Plus, Loader2, Check, AlertTriangle, Trash2, ListMusic } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const SERVER_URL = API_URL.replace('/api', '');
 
 export interface IPlaylist {
   PlaylistId: string;
   Name: string;
   Visibility: string;
+  Description?: string;
   OwnerId: string;
   OwnerEmail: string;
   CoverUrl?: string;
@@ -22,6 +24,8 @@ interface IPlaylistContext {
   fetchPlaylists: () => Promise<void>;
   openAddToPlaylist: (trackId: string, trackTitle: string, trackArtist: string) => void;
   openCreatePlaylist: () => void;
+  openEditPlaylist: (playlist: IPlaylist) => void;
+  openDeletePlaylist: (playlist: IPlaylist) => void;
 }
 
 const PlaylistContext = createContext<IPlaylistContext | undefined>(undefined);
@@ -33,8 +37,9 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [targetTrack, setTargetTrack] = useState<{ id: string; title: string; artist: string } | null>(null);
   
-  // Estados dos formulários de modal
+  // Estados de Criação de Playlist
   const [newPlaylistName, setNewPlaylistName] = useState('');
+  const [newPlaylistDescription, setNewPlaylistDescription] = useState('');
   const [newPlaylistVisibility, setNewPlaylistVisibility] = useState('Public');
   const [isCreating, setIsCreating] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
@@ -42,11 +47,54 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
+  // Estados Globais de Edição de Playlist
+  const [playlistToEdit, setPlaylistToEdit] = useState<IPlaylist | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editVisibility, setEditVisibility] = useState('Public');
+  const [editCoverFile, setEditCoverFile] = useState<File | null>(null);
+  const [editCoverPreview, setEditCoverPreview] = useState<string | null>(null);
+  const [deleteCoverFlag, setDeleteCoverFlag] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editError, setEditError] = useState('');
+
+  // Colaboradores no Modal
+  const [collabs, setCollabs] = useState<{ UserId: string; Email: string; AddedAt: string }[]>([]);
+  const [newCollabEmail, setNewCollabEmail] = useState('');
+  const [isAddingCollab, setIsAddingCollab] = useState(false);
+  const [collabError, setCollabError] = useState('');
+
+  // Estados Globais de Exclusão de Playlist
+  const [playlistToDelete, setPlaylistToDelete] = useState<IPlaylist | null>(null);
+  const [deleteCountdown, setDeleteCountdown] = useState(0);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
   const openCreatePlaylist = () => {
     setTargetTrack(null);
     setIsCreateOpen(true);
     setNewPlaylistName('');
+    setNewPlaylistDescription('');
+    setNewPlaylistVisibility('Public');
     setError('');
+  };
+
+  const openEditPlaylist = (playlist: IPlaylist) => {
+    setPlaylistToEdit(playlist);
+    setEditName(playlist.Name);
+    setEditDescription(playlist.Description || '');
+    setEditVisibility(playlist.Visibility);
+    setEditCoverFile(null);
+    setEditCoverPreview(playlist.CoverUrl ? (playlist.CoverUrl.startsWith('http') ? playlist.CoverUrl : `${SERVER_URL}${playlist.CoverUrl}`) : null);
+    setDeleteCoverFlag(false);
+    setEditError('');
+    setCollabs([]);
+    setNewCollabEmail('');
+    setCollabError('');
+  };
+
+  const openDeletePlaylist = (playlist: IPlaylist) => {
+    setPlaylistToDelete(playlist);
   };
 
   const fetchPlaylists = async () => {
@@ -98,64 +146,20 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setMessage('');
     setError('');
 
-    // Preenche o mapa de faixas das playlists do usuário
-    if (Token && playlists.length > 0) {
-      const map: Record<string, string[]> = {};
-      await Promise.all(
-        playlists.map(async (p) => {
-          const ids = await fetchPlaylistTrackIds(p.PlaylistId);
-          map[p.PlaylistId] = ids;
-        })
-      );
-      setPlaylistTracksMap(map);
+    // Preenche o mapeamento para saber em quais a música já está
+    const map: Record<string, string[]> = {};
+    for (const p of playlists) {
+      const trackIds = await fetchPlaylistTrackIds(p.PlaylistId);
+      map[p.PlaylistId] = trackIds;
     }
+    setPlaylistTracksMap(map);
   };
 
-  const handleCreatePlaylistSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!Token || !newPlaylistName.trim()) return;
-
-    setIsCreating(true);
-    setError('');
-    try {
-      const res = await fetch(`${API_URL}/Playlists`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${Token}`
-        },
-        body: JSON.stringify({
-          Name: newPlaylistName.trim(),
-          Visibility: newPlaylistVisibility
-        })
-      });
-
-      if (res.ok) {
-        const created: IPlaylist = await res.json();
-        setPlaylists(prev => [created, ...prev]);
-        setNewPlaylistName('');
-        setIsCreateOpen(false);
-        setIsAddOpen(true); // retorna ao modal de adição
-        
-        // Atualiza a nova playlist no mapa com lista vazia
-        setPlaylistTracksMap(prev => ({ ...prev, [created.PlaylistId]: [] }));
-      } else {
-        const errData = await res.json();
-        setError(errData.ErrorMessage || 'Falha ao criar playlist.');
-      }
-    } catch {
-      setError('Erro de rede ao conectar.');
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  const handleAddTrackToPlaylist = async (playlistId: string) => {
-    if (!Token || !targetTrack || isAdding) return;
-
+  const handleAddTrackSubmit = async (playlistId: string) => {
+    if (!targetTrack || isAdding || !Token) return;
     setIsAdding(true);
-    setError('');
     setMessage('');
+    setError('');
 
     try {
       const res = await fetch(`${API_URL}/Playlists/${playlistId}/Tracks`, {
@@ -164,29 +168,23 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${Token}`
         },
-        body: JSON.stringify({
-          TrackId: targetTrack.id
-        })
+        body: JSON.stringify({ TrackId: targetTrack.id })
       });
 
       if (res.ok) {
-        setMessage('Adicionado com sucesso!');
-        // Atualiza o mapa localmente
+        setMessage('Música adicionada à playlist!');
+        
+        // Atualiza localmente
         setPlaylistTracksMap(prev => ({
           ...prev,
           [playlistId]: [...(prev[playlistId] || []), targetTrack.id]
         }));
         
-        // Atualiza contagem de tracks localmente nas playlists
-        setPlaylists(prev => prev.map(p => 
-          p.PlaylistId === playlistId 
-            ? { ...p, TracksCount: p.TracksCount + 1 } 
-            : p
-        ));
-
+        // Atualiza a barra lateral
+        await fetchPlaylists();
+        
         setTimeout(() => {
           setIsAddOpen(false);
-          setTargetTrack(null);
         }, 1000);
       } else {
         const errData = await res.json();
@@ -199,8 +197,208 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
+  const handleCreatePlaylistSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPlaylistName.trim() || isCreating || !Token) return;
+    setIsCreating(true);
+    setError('');
+
+    try {
+      const res = await fetch(`${API_URL}/Playlists`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${Token}`
+        },
+        body: JSON.stringify({
+          Name: newPlaylistName.trim(),
+          Description: newPlaylistDescription.trim(),
+          Visibility: newPlaylistVisibility
+        })
+      });
+
+      if (res.ok) {
+        const createdPlaylist = await res.json();
+        setIsCreateOpen(false);
+        await fetchPlaylists();
+
+        // Se veio do fluxo de adicionar música, adiciona imediatamente na recém criada
+        if (targetTrack) {
+          await handleAddTrackSubmit(createdPlaylist.PlaylistId);
+        }
+      } else {
+        const errData = await res.json();
+        setError(errData.ErrorMessage || 'Erro ao criar playlist.');
+      }
+    } catch {
+      setError('Erro de conexão ao criar.');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  // Efeito do timer de 3 segundos para exclusão de playlist
+  useEffect(() => {
+    let timer: any;
+    if (playlistToDelete) {
+      setDeleteCountdown(3);
+      setDeleteError('');
+      timer = setInterval(() => {
+        setDeleteCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [playlistToDelete]);
+
+  const handleConfirmDelete = async () => {
+    if (!playlistToDelete || deleteCountdown > 0 || isDeleting) return;
+    setIsDeleting(true);
+    setDeleteError('');
+    try {
+      const res = await fetch(`${API_URL}/Playlists/${playlistToDelete.PlaylistId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${Token}`
+        }
+      });
+      if (res.ok) {
+        window.dispatchEvent(new CustomEvent('playlist-deleted', { detail: { playlistId: playlistToDelete.PlaylistId } }));
+        setPlaylistToDelete(null);
+        await fetchPlaylists();
+      } else {
+        const errData = await res.json();
+        setDeleteError(errData.ErrorMessage || 'Falha ao excluir playlist.');
+      }
+    } catch {
+      setDeleteError('Erro de conexão ao excluir playlist.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!playlistToEdit || isSavingEdit) return;
+    setIsSavingEdit(true);
+    setEditError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('Name', editName.trim());
+      formData.append('Visibility', editVisibility);
+      formData.append('Description', editDescription.trim());
+      formData.append('DeleteCover', deleteCoverFlag ? 'true' : 'false');
+      
+      if (editCoverFile) {
+        formData.append('CoverFile', editCoverFile);
+      }
+
+      const res = await fetch(`${API_URL}/Playlists/${playlistToEdit.PlaylistId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${Token}`
+        },
+        body: formData
+      });
+
+      if (res.ok) {
+        const updatedPlaylist = await res.json();
+        window.dispatchEvent(new CustomEvent('playlist-updated', { detail: updatedPlaylist }));
+        setPlaylistToEdit(null);
+        await fetchPlaylists();
+      } else {
+        const errData = await res.json();
+        setEditError(errData.ErrorMessage || 'Falha ao salvar alterações.');
+      }
+    } catch {
+      setEditError('Erro de conexão ao salvar alterações.');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  // Buscar colaboradores quando abrir o modal de edição
+  useEffect(() => {
+    if (playlistToEdit && Token) {
+      fetch(`${API_URL}/Playlists/${playlistToEdit.PlaylistId}`, {
+        headers: { 'Authorization': `Bearer ${Token}` }
+      })
+      .then(res => {
+        if (res.ok) return res.json();
+        throw new Error();
+      })
+      .then(data => {
+        setCollabs(data.Collaborators || []);
+      })
+      .catch(() => console.warn('Não foi possível carregar colaboradores.'));
+    }
+  }, [playlistToEdit, Token]);
+
+  const handleAddCollab = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!playlistToEdit || !newCollabEmail.trim() || isAddingCollab) return;
+    setIsAddingCollab(true);
+    setCollabError('');
+
+    try {
+      const res = await fetch(`${API_URL}/Playlists/${playlistToEdit.PlaylistId}/Collaborators`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${Token}`
+        },
+        body: JSON.stringify({ Email: newCollabEmail.trim() })
+      });
+
+      if (res.ok) {
+        const newCollab = await res.json();
+        setCollabs(prev => [...prev, newCollab]);
+        setNewCollabEmail('');
+        await fetchPlaylists();
+      } else {
+        const errData = await res.json();
+        setCollabError(errData.ErrorMessage || 'Falha ao adicionar colaborador.');
+      }
+    } catch {
+      setCollabError('Erro de conexão ao adicionar colaborador.');
+    } finally {
+      setIsAddingCollab(false);
+    }
+  };
+
+  const handleRemoveCollab = async (collabUserId: string) => {
+    if (!playlistToEdit) return;
+    if (!window.confirm('Tem certeza que deseja remover este colaborador?')) return;
+
+    try {
+      const res = await fetch(`${API_URL}/Playlists/${playlistToEdit.PlaylistId}/Collaborators/${collabUserId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${Token}`
+        }
+      });
+
+      if (res.ok) {
+        setCollabs(prev => prev.filter(c => c.UserId !== collabUserId));
+        await fetchPlaylists();
+      } else {
+        alert('Falha ao remover colaborador.');
+      }
+    } catch {
+      alert('Erro de conexão ao remover colaborador.');
+    }
+  };
+
   return (
-    <PlaylistContext.Provider value={{ playlists, fetchPlaylists, openAddToPlaylist, openCreatePlaylist }}>
+    <PlaylistContext.Provider value={{ playlists, fetchPlaylists, openAddToPlaylist, openCreatePlaylist, openEditPlaylist, openDeletePlaylist }}>
       {children}
 
       {/* MODAL 1: ADICIONAR MÚSICA À PLAYLIST */}
@@ -220,9 +418,16 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 "{targetTrack.title}"
               </h3>
               <span className="text-xs text-brand-gray truncate">
-                {targetTrack.artist}
+                de {targetTrack.artist}
               </span>
             </div>
+
+            {message && (
+              <div className="bg-brand-green/10 border border-brand-green/30 p-2.5 rounded text-xs text-brand-green flex items-center gap-2">
+                <Check className="w-4 h-4 shrink-0" />
+                <span>{message}</span>
+              </div>
+            )}
 
             {error && (
               <div className="bg-red-500/10 border border-red-500/30 p-2.5 rounded text-xs text-red-400">
@@ -230,72 +435,52 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               </div>
             )}
 
-            {message && (
-              <div className="bg-brand-green/10 border border-brand-green/30 p-2.5 rounded text-xs text-brand-green flex items-center gap-2">
-                <Check className="w-4 h-4" />
-                <span>{message}</span>
+            <div className="flex flex-col gap-1.5 shrink-0">
+              <div className="flex justify-between items-center text-[10px] text-brand-gray font-bold uppercase tracking-wider px-1">
+                <span>Minhas Listas</span>
+                <button 
+                  onClick={() => {
+                    setIsAddOpen(false);
+                    setIsCreateOpen(true);
+                  }}
+                  className="text-brand-green hover:underline cursor-pointer flex items-center gap-1 text-[9px]"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Nova Playlist</span>
+                </button>
               </div>
-            )}
 
-            {/* Ação de Criar Nova Playlist */}
-            <button
-              onClick={() => {
-                setIsAddOpen(false);
-                setIsCreateOpen(true);
-              }}
-              className="flex items-center gap-3 py-2 px-3 bg-brand-hover/40 border border-brand-hover hover:border-brand-green rounded text-xs text-brand-green font-bold transition-all cursor-pointer justify-center"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Criar Nova Playlist</span>
-            </button>
-
-            <div className="h-[1px] bg-brand-hover my-1" />
-
-            {/* Listagem de Playlists Existentes */}
-            <div className="flex flex-col gap-2 max-h-60 overflow-y-auto pr-1">
-              <span className="text-[10px] text-brand-gray font-bold uppercase tracking-wider mb-1">Escolha uma playlist</span>
-              
-              {playlists.length === 0 ? (
-                <div className="text-xs text-brand-gray italic py-4 text-center">
-                  Nenhuma playlist criada. Comece criando uma!
-                </div>
-              ) : (
-                playlists.map(p => {
-                  const isAlreadyAdded = (playlistTracksMap[p.PlaylistId] || []).includes(targetTrack.id);
-                  const isOwnerOrCollab = p.IsOwner || p.IsCollaborator;
-
-                  return (
-                    <button
-                      key={p.PlaylistId}
-                      disabled={isAlreadyAdded || isAdding || !isOwnerOrCollab}
-                      onClick={() => handleAddTrackToPlaylist(p.PlaylistId)}
-                      className={`flex items-center justify-between p-3 rounded border text-left transition-all ${
-                        isAlreadyAdded 
-                          ? 'bg-black/30 border-transparent text-brand-gray/40 cursor-not-allowed'
-                          : !isOwnerOrCollab 
-                          ? 'bg-black/10 border-transparent text-brand-gray/30 cursor-not-allowed'
-                          : 'bg-black/40 border-brand-hover hover:border-white hover:bg-black/75 cursor-pointer text-white'
-                      }`}
-                    >
-                      <div className="flex flex-col gap-0.5 truncate">
-                        <span className="text-xs font-bold truncate">{p.Name}</span>
-                        <span className="text-[9px] text-brand-gray flex items-center gap-1">
-                          {p.Visibility === 'Private' && <Lock className="w-3 h-3 text-brand-green" />}
-                          {p.Visibility === 'Public' && <Globe className="w-3 h-3 text-brand-gray" />}
-                          {p.Visibility === 'Unlisted' && <EyeOff className="w-3 h-3 text-brand-gray" />}
-                          <span>{p.TracksCount} {p.TracksCount === 1 ? 'música' : 'músicas'}</span>
-                        </span>
-                      </div>
-                      
-                      {isAlreadyAdded && (
-                        <span className="text-[9px] px-2 py-0.5 bg-brand-hover text-brand-gray font-bold rounded">
-                          Já adicionado
-                        </span>
-                      )}
-                    </button>
-                  );
-                })
-              )}
+              <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1 border border-brand-hover rounded p-2 bg-black/20">
+                {playlists.length === 0 ? (
+                  <span className="text-xs text-brand-gray/60 italic py-4 text-center">Nenhuma playlist criada.</span>
+                ) : (
+                  playlists.map(p => {
+                    const alreadyContains = (playlistTracksMap[p.PlaylistId] || []).includes(targetTrack.id);
+                    return (
+                      <button
+                        key={p.PlaylistId}
+                        disabled={alreadyContains || isAdding}
+                        onClick={() => handleAddTrackSubmit(p.PlaylistId)}
+                        className={`flex items-center justify-between p-2 rounded border text-left text-xs transition-all ${
+                          alreadyContains 
+                            ? 'bg-brand-hover/40 border-brand-hover/40 text-brand-gray cursor-not-allowed select-none' 
+                            : 'bg-black/40 border-brand-hover text-white hover:bg-brand-hover/60 cursor-pointer'
+                        }`}
+                      >
+                        <div className="flex flex-col truncate">
+                          <span className="font-bold truncate">{p.Name}</span>
+                          <span className="text-[9px] text-brand-gray">{p.TracksCount} {p.TracksCount === 1 ? 'música' : 'músicas'}</span>
+                        </div>
+                        {alreadyContains && (
+                          <span className="text-[9px] bg-brand-hover text-brand-gray border border-brand-hover px-1.5 py-0.5 rounded uppercase font-bold shrink-0">
+                            Já Adicionado
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -312,7 +497,7 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               type="button"
               onClick={() => {
                 setIsCreateOpen(false);
-                if (targetTrack) setIsAddOpen(true); // retorna para o anterior se houver track
+                if (targetTrack) setIsAddOpen(true);
               }}
               className="absolute top-4 right-4 text-brand-gray hover:text-white cursor-pointer"
             >
@@ -339,6 +524,17 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 placeholder="Ex: Minhas Preferidas, Foco Total, etc."
                 required
                 className="w-full bg-black border border-brand-hover rounded p-2 text-xs text-white focus:outline-none focus:border-brand-green"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Descrição (Opcional)</label>
+              <textarea 
+                value={newPlaylistDescription}
+                onChange={e => setNewPlaylistDescription(e.target.value)}
+                placeholder="Descreva a vibe ou foco desta playlist..."
+                rows={2}
+                className="w-full bg-black border border-brand-hover rounded p-2 text-xs text-white focus:outline-none focus:border-brand-green resize-none"
               />
             </div>
 
@@ -382,6 +578,294 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* MODAL 3: CONFIGURAÇÃO DE PLAYLIST (UNIFICADO/GLOBAL) */}
+      {playlistToEdit && (
+        <div className="fixed inset-0 bg-black/85 flex items-center justify-center z-[100] p-4 select-none animate-in fade-in duration-200">
+          <div className="bg-brand-card border border-brand-hover w-full max-w-lg p-6 rounded-md shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+            <button 
+              type="button"
+              onClick={() => setPlaylistToEdit(null)}
+              className="absolute top-4 right-4 text-brand-gray hover:text-white cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex flex-col gap-1 pr-8">
+              <span className="text-[10px] text-brand-green font-bold uppercase tracking-wider">Configurações</span>
+              <h3 className="text-sm font-bold text-white">Editar Playlist</h3>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="flex flex-col gap-4">
+              
+              {/* Capa da Playlist */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Capa da Playlist</label>
+                <div className="flex items-center gap-4 bg-black/40 border border-brand-hover p-3 rounded">
+                  <div className="w-16 h-16 bg-black rounded overflow-hidden flex items-center justify-center text-brand-green border border-brand-hover shrink-0 relative">
+                    {editCoverPreview ? (
+                      <img 
+                        src={editCoverPreview} 
+                        alt="Capa" 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <ListMusic className="w-6 h-6" />
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1.5 flex-1">
+                    <span className="text-[10px] text-brand-gray leading-normal">Carregue um arquivo JPG, PNG ou WEBP para definir uma imagem personalizada.</span>
+                    <div className="flex items-center gap-2">
+                      <label className="py-1.5 px-3 bg-brand-hover text-white font-bold rounded text-[10px] hover:bg-brand-hover/80 transition-colors cursor-pointer select-none">
+                        Escolher Imagem
+                        <input 
+                          type="file"
+                          accept="image/*"
+                          disabled={isSavingEdit}
+                          onChange={e => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setEditCoverFile(file);
+                              setEditCoverPreview(URL.createObjectURL(file));
+                              setDeleteCoverFlag(false);
+                            }
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+
+                      {editCoverPreview && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditCoverFile(null);
+                            setEditCoverPreview(null);
+                            setDeleteCoverFlag(true);
+                          }}
+                          className="py-1.5 px-3 border border-red-900/50 hover:bg-red-950/20 text-red-400 font-bold rounded text-[10px] cursor-pointer"
+                        >
+                          Remover Imagem
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Informações Básicas */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Nome da Playlist</label>
+                  <input 
+                    type="text"
+                    value={editName}
+                    onChange={e => setEditName(e.target.value)}
+                    required
+                    disabled={isSavingEdit}
+                    className="w-full bg-black border border-brand-hover rounded p-2 text-xs text-white focus:outline-none focus:border-brand-green"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Privacidade</label>
+                  <select
+                    value={editVisibility}
+                    onChange={e => setEditVisibility(e.target.value)}
+                    disabled={isSavingEdit}
+                    className="w-full bg-black border border-brand-hover rounded p-2 text-xs text-white focus:outline-none focus:border-brand-green"
+                  >
+                    <option value="Public">Pública</option>
+                    <option value="Private">Privada</option>
+                    <option value="Unlisted">Não Listada</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Descrição */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Descrição</label>
+                <textarea 
+                  value={editDescription}
+                  onChange={e => setEditDescription(e.target.value)}
+                  placeholder="Vibe, estilo ou informações..."
+                  rows={2}
+                  disabled={isSavingEdit}
+                  className="w-full bg-black border border-brand-hover rounded p-2 text-xs text-white focus:outline-none focus:border-brand-green resize-none"
+                />
+              </div>
+
+              {editError && (
+                <div className="bg-red-500/10 border border-red-500/30 p-2.5 rounded text-xs text-red-400">
+                  {editError}
+                </div>
+              )}
+
+              {/* Botões do Formulário */}
+              <div className="flex justify-end gap-3 mt-1 pt-3 border-t border-brand-hover">
+                <button
+                  type="button"
+                  onClick={() => setPlaylistToEdit(null)}
+                  disabled={isSavingEdit}
+                  className="py-2 px-3 border border-brand-hover rounded text-xs font-semibold text-brand-gray hover:text-white cursor-pointer disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingEdit || !editName.trim()}
+                  className="py-2 px-4 bg-brand-green text-black font-bold rounded text-xs hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:hover:scale-100 disabled:active:scale-100"
+                >
+                  {isSavingEdit ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Salvando...</span>
+                    </>
+                  ) : (
+                    <span>Salvar Alterações</span>
+                  )}
+                </button>
+              </div>
+            </form>
+
+            {/* Gerenciamento de Colaboradores (Apenas Dono ou Admin) */}
+            {(playlistToEdit.IsOwner || !playlistToEdit.IsCollaborator) && (
+              <div className="flex flex-col gap-2.5 border-t border-brand-hover pt-4 mt-1 select-none">
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-brand-green font-bold uppercase tracking-wider">Colaboradores</span>
+                  <p className="text-[9px] text-brand-gray mt-0.5">Permite que outras pessoas busquem e adicionem faixas a esta playlist.</p>
+                </div>
+
+                {/* Formulário de Adicionar Colaborador */}
+                <form onSubmit={handleAddCollab} className="flex gap-2">
+                  <input 
+                    type="email"
+                    value={newCollabEmail}
+                    onChange={e => setNewCollabEmail(e.target.value)}
+                    placeholder="Adicionar por email (ex: joao@mixer8.com)"
+                    disabled={isAddingCollab}
+                    className="flex-1 bg-black border border-brand-hover rounded p-2 text-xs text-white focus:outline-none focus:border-brand-green"
+                  />
+                  <button 
+                    type="submit"
+                    disabled={isAddingCollab || !newCollabEmail.trim()}
+                    className="py-2 px-4 bg-brand-hover hover:text-white text-brand-green rounded text-xs font-bold transition-all shrink-0 cursor-pointer"
+                  >
+                    {isAddingCollab ? 'Carregando...' : 'Adicionar'}
+                  </button>
+                </form>
+
+                {collabError && (
+                  <span className="text-[10px] text-red-400 bg-red-500/10 p-1.5 rounded border border-red-500/20 select-none">{collabError}</span>
+                )}
+
+                {/* Lista de Colaboradores Ativos */}
+                <div className="flex flex-col gap-1.5 max-h-32 overflow-y-auto pr-1">
+                  {collabs.length === 0 ? (
+                    <span className="text-[10px] text-brand-gray/60 italic py-1">Sem colaboradores ativos.</span>
+                  ) : (
+                    collabs.map(c => (
+                      <div key={c.UserId} className="flex items-center justify-between p-2 rounded bg-black/40 border border-brand-hover text-xs">
+                        <div className="flex flex-col">
+                          <span className="text-white font-semibold">{c.Email}</span>
+                          <span className="text-[9px] text-brand-gray">Adicionado em {new Date(c.AddedAt).toLocaleDateString('pt-BR')}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveCollab(c.UserId)}
+                          className="p-1 rounded text-brand-gray hover:text-red-400 hover:bg-red-950/20 cursor-pointer transition-colors"
+                          title="Remover Colaborador"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: CONFIRMAÇÃO DE EXCLUSÃO DE PLAYLIST (UNIFICADO/GLOBAL) */}
+      {playlistToDelete && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 select-none animate-in fade-in duration-200">
+          <div className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200">
+            <button 
+              type="button"
+              onClick={() => setPlaylistToDelete(null)}
+              className="absolute top-4 right-4 text-brand-gray hover:text-white cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 text-red-500">
+              <AlertTriangle className="w-6 h-6 shrink-0" />
+              <div className="flex flex-col">
+                <span className="text-[10px] text-red-400 font-bold uppercase tracking-wider">Ação Destrutiva</span>
+                <h3 className="text-sm font-bold text-white">Excluir Playlist</h3>
+              </div>
+            </div>
+
+            <div className="bg-black/40 border border-brand-hover p-3 rounded flex items-center gap-3">
+              <div className="w-12 h-12 bg-gradient-to-br from-neutral-900 to-black rounded overflow-hidden flex items-center justify-center text-brand-green border border-brand-hover shrink-0">
+                {playlistToDelete.CoverUrl ? (
+                  <img 
+                    src={playlistToDelete.CoverUrl.startsWith('http') ? playlistToDelete.CoverUrl : `${SERVER_URL}${playlistToDelete.CoverUrl}`} 
+                    alt="Capa" 
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <ListMusic className="w-5 h-5" />
+                )}
+              </div>
+              <div className="flex flex-col truncate">
+                <span className="font-bold text-white text-sm truncate">{playlistToDelete.Name}</span>
+                <span className="text-xs text-brand-gray truncate">{playlistToDelete.TracksCount} {playlistToDelete.TracksCount === 1 ? 'música' : 'músicas'}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-brand-gray leading-relaxed m-0">
+              Esta ação é <strong className="text-red-400">irreversível</strong>. A playlist será excluída permanentemente. Caso possua uma imagem de capa personalizada salva no servidor, ela também será deletada fisicamente. As faixas originais não sofrerão alterações.
+            </p>
+
+            {deleteError && (
+              <div className="bg-red-500/10 border border-red-500/30 p-2.5 rounded text-xs text-red-400">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 mt-2 pt-3 border-t border-brand-hover">
+              <button
+                type="button"
+                onClick={() => setPlaylistToDelete(null)}
+                disabled={isDeleting}
+                className="py-2 px-3 border border-brand-hover rounded text-xs font-semibold text-brand-gray hover:text-white cursor-pointer disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={deleteCountdown > 0 || isDeleting}
+                className="py-2 px-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded text-xs hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:hover:scale-100 disabled:active:scale-100"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Excluindo...</span>
+                  </>
+                ) : deleteCountdown > 0 ? (
+                  <span>Aguarde ({deleteCountdown}s)</span>
+                ) : (
+                  <span>Confirmar Exclusão</span>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </PlaylistContext.Provider>
