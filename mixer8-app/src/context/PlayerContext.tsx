@@ -13,6 +13,7 @@ export interface ITrack {
   ArtistName: string;
   ExtractionStatus: string;
   CreatedAt: string;
+  CoverUrl?: string;
   Stems: IStem[];
 }
 
@@ -43,6 +44,9 @@ export const STANDARD_STEMS = [
   'Metrônomo',
   'Outros'
 ];
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const SERVER_URL = API_URL.replace('/api', '');
 
 export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentTrack, setCurrentTrack] = useState<ITrack | null>(null);
@@ -117,8 +121,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const stemType = stem.StemType; // ex: Voz, Bateria, Baixo
       initialVolumes[stemType] = 0.8;
 
+      // Se for uma URL relativa, resolve com a URL do servidor
+      const fullAudioUrl = stem.AudioUrl.startsWith('http')
+        ? stem.AudioUrl
+        : `${SERVER_URL}${stem.AudioUrl}`;
+
       // Cria elemento HTML5 Audio
-      const audio = new Audio(stem.AudioUrl);
+      const audio = new Audio(fullAudioUrl);
       audio.crossOrigin = 'anonymous';
       audio.preload = 'auto';
 

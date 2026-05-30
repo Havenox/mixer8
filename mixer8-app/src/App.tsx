@@ -12,6 +12,7 @@ import { UploadDireto } from './pages/UploadDireto';
 import { Play, Sparkles, Disc, Flame, Music, Radio, Star, Loader2 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const SERVER_URL = API_URL.replace('/api', '');
 
 // Rota protegida por autenticação
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -86,8 +87,14 @@ const Explore: React.FC = () => {
             {tracks.slice(0, 3).map((track, idx) => (
               <div key={track.TrackId} className="bg-brand-card border border-brand-hover p-5 rounded-md hover:bg-brand-hover transition-all flex items-center justify-between group shadow-lg">
                 <div className="flex items-center gap-4 truncate">
-                  <div className="w-12 h-12 bg-black border border-brand-hover rounded flex items-center justify-center text-brand-green shadow-md shrink-0">
-                    {idx === 0 ? (
+                  <div className="w-12 h-12 bg-black border border-brand-hover rounded flex items-center justify-center text-brand-green shadow-md shrink-0 overflow-hidden">
+                    {track.CoverUrl ? (
+                      <img 
+                        src={track.CoverUrl.startsWith('http') ? track.CoverUrl : `${SERVER_URL}${track.CoverUrl}`} 
+                        alt="Capa" 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : idx === 0 ? (
                       <Disc className="w-6 h-6 animate-spin" style={{ animationDuration: '6s' }} />
                     ) : idx === 1 ? (
                       <Music className="w-6 h-6" />

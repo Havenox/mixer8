@@ -5,6 +5,9 @@ import {
   Sliders, RefreshCw, Disc, Layers, Music
 } from 'lucide-react';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const SERVER_URL = API_URL.replace('/api', '');
+
 export const MesaPlayer: React.FC = () => {
   const { 
     currentTrack, 
@@ -77,8 +80,16 @@ export const MesaPlayer: React.FC = () => {
       
       {/* Esquerda: Info da Música Real */}
       <div className="flex items-center gap-4 w-1/4 min-w-[200px]">
-        <div className="w-14 h-14 bg-brand-card border border-brand-hover rounded flex items-center justify-center relative overflow-hidden group shadow-lg">
-          <Disc className={`w-8 h-8 text-brand-green ${isPlaying ? 'animate-spin' : ''}`} style={{ animationDuration: '4s' }} />
+        <div className="w-14 h-14 bg-brand-card border border-brand-hover rounded flex items-center justify-center relative overflow-hidden group shadow-lg shrink-0">
+          {currentTrack.CoverUrl ? (
+            <img 
+              src={currentTrack.CoverUrl.startsWith('http') ? currentTrack.CoverUrl : `${SERVER_URL}${currentTrack.CoverUrl}`} 
+              alt="Capa" 
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <Disc className={`w-8 h-8 text-brand-green ${isPlaying ? 'animate-spin' : ''}`} style={{ animationDuration: '4s' }} />
+          )}
           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
             <Music className="w-5 h-5 text-white" />
           </div>

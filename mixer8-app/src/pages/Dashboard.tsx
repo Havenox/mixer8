@@ -10,6 +10,7 @@ import { usePlayer } from '../context/PlayerContext';
 import type { ITrack, IStem } from '../context/PlayerContext';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const SERVER_URL = API_URL.replace('/api', '');
 
 export const Dashboard: React.FC = () => {
   const { CurrentUser, Token } = useAuth();
@@ -207,7 +208,15 @@ export const Dashboard: React.FC = () => {
               className="bg-brand-card border border-brand-hover p-4 rounded-md hover:bg-brand-hover group transition-all relative"
             >
               <div className="w-full aspect-square bg-black border border-brand-hover rounded mb-4 flex items-center justify-center relative overflow-hidden group shadow-md">
-                <Disc className="w-16 h-16 text-brand-green/20 group-hover:text-brand-green/40 transition-colors" />
+                {track.CoverUrl ? (
+                  <img 
+                    src={track.CoverUrl.startsWith('http') ? track.CoverUrl : `${SERVER_URL}${track.CoverUrl}`} 
+                    alt="Capa" 
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <Disc className="w-16 h-16 text-brand-green/20 group-hover:text-brand-green/40 transition-colors" />
+                )}
                 <button 
                   disabled={track.ExtractionStatus !== 'Pronto'}
                   onClick={() => loadTrack(track)}
