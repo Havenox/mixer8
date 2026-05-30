@@ -5,7 +5,7 @@ import { usePlayer } from '../context/PlayerContext';
 import { MesaPlayer } from './MesaPlayer';
 import { 
   Home, Search, Library, PlusCircle, Shield, 
-  LogOut, User, Sparkles, ChevronDown
+  LogOut, User, Sparkles, ChevronDown, Layers
 } from 'lucide-react';
 import type { UserRole } from '../types/Auth';
 
@@ -74,23 +74,45 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
             
             {/* Somente PaidUser ou Admin podem criar stems */}
             {(CurrentUser.UserRole === 'PaidUser' || CurrentUser.UserRole === 'Admin') ? (
-              <Link 
-                to="/dashboard?action=upload" 
-                className="flex items-center gap-4 py-2 px-3 rounded-md font-semibold text-sm text-brand-gray hover:text-white hover:bg-brand-hover transition-all"
-              >
-                <PlusCircle className="w-5 h-5 text-brand-green" />
-                <span>Upload e Separar</span>
-              </Link>
-            ) : (
-              <div className="flex items-center justify-between py-2 px-3 rounded-md font-semibold text-sm text-brand-gray/40 cursor-not-allowed select-none group relative">
-                <div className="flex items-center gap-4">
-                  <PlusCircle className="w-5 h-5 text-brand-gray/40" />
+              <>
+                <Link 
+                  to="/dashboard?action=upload" 
+                  className="flex items-center gap-4 py-2 px-3 rounded-md font-semibold text-sm text-brand-gray hover:text-white hover:bg-brand-hover transition-all"
+                >
+                  <PlusCircle className="w-5 h-5 text-brand-green" />
                   <span>Upload e Separar</span>
+                </Link>
+                <Link 
+                  to="/upload-direto" 
+                  className={`flex items-center gap-4 py-2 px-3 rounded-md font-semibold text-sm text-brand-gray hover:text-white hover:bg-brand-hover transition-all ${
+                    location.pathname === '/upload-direto' ? 'text-white bg-brand-hover' : ''
+                  }`}
+                >
+                  <Layers className="w-5 h-5 text-brand-green" />
+                  <span>Upload Direto (Mesa)</span>
+                </Link>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between py-2 px-3 rounded-md font-semibold text-sm text-brand-gray/40 cursor-not-allowed select-none group relative">
+                  <div className="flex items-center gap-4">
+                    <PlusCircle className="w-5 h-5 text-brand-gray/40" />
+                    <span>Upload e Separar</span>
+                  </div>
+                  <span className="text-[9px] bg-brand-hover text-brand-green border border-brand-green/20 px-1 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                    PRO
+                  </span>
                 </div>
-                <span className="text-[9px] bg-brand-hover text-brand-green border border-brand-green/20 px-1 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                  PRO
-                </span>
-              </div>
+                <div className="flex items-center justify-between py-2 px-3 rounded-md font-semibold text-sm text-brand-gray/40 cursor-not-allowed select-none group relative">
+                  <div className="flex items-center gap-4">
+                    <Layers className="w-5 h-5 text-brand-gray/40" />
+                    <span>Upload Direto (Mesa)</span>
+                  </div>
+                  <span className="text-[9px] bg-brand-hover text-brand-green border border-brand-green/20 px-1 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                    PRO
+                  </span>
+                </div>
+              </>
             )}
           </div>
 
