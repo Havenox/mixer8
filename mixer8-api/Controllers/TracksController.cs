@@ -446,6 +446,59 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             return false;
         }
     }
+
+    [Authorize(Roles = "Admin")]
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        var track = await dbContext.Tracks
+            .Include(t => t.Stems)
+            .FirstOrDefaultAsync(t => t.TrackId == id);
+
+        if (track == null)
+        {
+            return NotFound(new { ErrorMessage = "TRACK_NOT_FOUND" });
+        }
+
+        using var transaction = await dbContext.Database.BeginTransactionAsync();
+        try
+        {
+            dbContext.Tracks.Remove(track);
+            await dbContext.SaveChangesAsync();
+
+            // Deletar pasta física de stems
+            var stemsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "stems");
+            var trackDir = Path.Combine(stemsDir, id.ToString());
+            if (Directory.Exists(trackDir))
+            {
+                Directory.Delete(trackDir, true);
+            }
+
+            // Deletar do downloadsDir temporário se houver
+            var downloadsDir = configuration["EXTRACTOR_DOWNLOADS_DIR"] ?? "./mixer8-extractor/downloads";
+            if (!Path.IsPathRooted(downloadsDir))
+            {
+                downloadsDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", downloadsDir));
+            }
+            if (Directory.Exists(downloadsDir))
+            {
+                var originalFiles = Directory.GetFiles(downloadsDir, $"{id}.*");
+                foreach (var origFile in originalFiles)
+                {
+                    System.IO.File.Delete(origFile);
+                }
+            }
+
+            await transaction.CommitAsync();
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            Console.WriteLine($"[DELETE TRACK ERROR] Falha ao excluir música: {ex.Message}");
+            return StatusCode(500, new { ErrorMessage = "DELETE_FAILED", Details = ex.Message });
+        }
+    }
 }
 
 public class UploadTrackRequest
