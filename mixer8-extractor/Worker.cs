@@ -1,9 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Mixer8.Extractor.Domain;
 using Mixer8.Extractor.Infrastructure;
+using Microsoft.Extensions.Configuration;
 using System;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -13,7 +16,7 @@ namespace Mixer8.Extractor;
 /// Worker Service de Background que consome a fila de extração de Stems
 /// a partir do banco de dados PostgreSQL usando locks de concorrência.
 /// </summary>
-public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider) : BackgroundService
+public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IConfiguration configuration) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -103,28 +106,96 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider) : 
             await UpdateTrackStatusAsync(track.TrackId, "Processando: Baixando ZIP de stems exportadas", db, stoppingToken);
             await Task.Delay(3000, stoppingToken);
 
-            // Etapa 6: Criação das Stems físicas no banco de dados e conclusão!
-            logger.LogInformation($"[WORKER] Extração de '{track.TrackTitle}' finalizada. Cadastrando stems de áudio...");
+            // Etapa 6: Criação das Stems físicas via API do Backend
+            logger.LogInformation($"[WORKER] Extração de '{track.TrackTitle}' finalizada no bot. Empacotando stems e notificando a API...");
 
-            var stems = new[]
+            // 1. Resolução resiliente do diretório de downloads
+            var downloadsDir = configuration["EXTRACTOR_DOWNLOADS_DIR"] ?? "./mixer8-extractor/downloads";
+            if (!Path.IsPathRooted(downloadsDir))
             {
-                new Stem { StemId = Guid.NewGuid(), TrackId = track.TrackId, StemType = "Vocals", AudioUrl = "/stems/mock_vocals.mp3" },
-                new Stem { StemId = Guid.NewGuid(), TrackId = track.TrackId, StemType = "Drums", AudioUrl = "/stems/mock_drums.mp3" },
-                new Stem { StemId = Guid.NewGuid(), TrackId = track.TrackId, StemType = "Bass", AudioUrl = "/stems/mock_bass.mp3" },
-                new Stem { StemId = Guid.NewGuid(), TrackId = track.TrackId, StemType = "Piano", AudioUrl = "/stems/mock_piano.mp3" },
-                new Stem { StemId = Guid.NewGuid(), TrackId = track.TrackId, StemType = "Others", AudioUrl = "/stems/mock_others.mp3" }
-            };
-
-            db.Stems.AddRange(stems);
-
-            var dbTrack = await db.Tracks.FindAsync(track.TrackId);
-            if (dbTrack != null)
-            {
-                dbTrack.ExtractionStatus = "Pronto";
+                var baseDir = AppContext.BaseDirectory;
+                var resolved = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", downloadsDir));
+                if (!Directory.Exists(resolved))
+                {
+                    resolved = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", downloadsDir));
+                }
+                if (!Directory.Exists(resolved))
+                {
+                    resolved = Path.GetFullPath(Path.Combine(baseDir, "..", downloadsDir));
+                }
+                if (!Directory.Exists(resolved))
+                {
+                    resolved = Path.GetFullPath(Path.Combine(baseDir, downloadsDir));
+                }
+                downloadsDir = resolved;
             }
 
-            await db.SaveChangesAsync(stoppingToken);
-            logger.LogInformation($"[WORKER SUCCESS] Música '{track.TrackTitle}' processada com sucesso e 5 stems cadastradas no banco!");
+            if (!Directory.Exists(downloadsDir))
+            {
+                throw new DirectoryNotFoundException($"[WORKER ERROR] Diretório de downloads não encontrado: {downloadsDir}");
+            }
+
+            // 2. Busca o arquivo original carregado no upload (ex: downloads/{trackId}.mp3)
+            var files = Directory.GetFiles(downloadsDir, $"{track.TrackId}.*");
+            var originalFile = files.FirstOrDefault();
+
+            if (string.IsNullOrEmpty(originalFile) || !File.Exists(originalFile))
+            {
+                throw new FileNotFoundException($"[WORKER ERROR] Arquivo original do upload não encontrado em {downloadsDir} com o ID {track.TrackId}");
+            }
+
+            var fileExt = Path.GetExtension(originalFile);
+            var zipPath = Path.Combine(downloadsDir, $"{track.TrackId}_stems.zip");
+
+            // 3. Compacta o arquivo original 5 vezes simulando as 5 stems separadas pelo Moises
+            logger.LogInformation($"[WORKER] Gerando pacote ZIP contendo as 5 stems simuladas em: {zipPath}");
+            using (var zipStream = new FileStream(zipPath, FileMode.Create))
+            {
+                using (var archive = new ZipArchive(zipStream, ZipArchiveMode.Create))
+                {
+                    var stemNames = new[]
+                    {
+                        $"vocals{fileExt}",
+                        $"drums{fileExt}",
+                        $"bass{fileExt}",
+                        $"piano{fileExt}",
+                        $"others{fileExt}"
+                    };
+
+                    foreach (var stemName in stemNames)
+                    {
+                        var entry = archive.CreateEntry(stemName);
+                        using var entryStream = entry.Open();
+                        using var sourceStream = new FileStream(originalFile, FileMode.Open, FileAccess.Read, FileShare.Read);
+                        await sourceStream.CopyToAsync(entryStream, stoppingToken);
+                    }
+                }
+            }
+
+            // 4. Invoca o endpoint do backend para que ele processe e converta tudo para Opus
+            var apiUrl = configuration["API_URL"];
+            if (string.IsNullOrEmpty(apiUrl))
+            {
+                var apiPort = configuration["API_PORT"] ?? "5000";
+                apiUrl = $"http://localhost:{apiPort}";
+            }
+            apiUrl = apiUrl.TrimEnd('/');
+
+            using var httpClient = new HttpClient();
+            // Aumenta timeout para upload/processamento de áudio se necessário
+            httpClient.Timeout = TimeSpan.FromMinutes(5);
+
+            var requestUrl = $"{apiUrl}/api/Tracks/{track.TrackId}/ProcessStemsZip";
+            logger.LogInformation($"[WORKER] Disparando requisição POST para: {requestUrl}");
+
+            var response = await httpClient.PostAsync(requestUrl, null, stoppingToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync(stoppingToken);
+                throw new Exception($"[WORKER ERROR] Chamada ao endpoint ProcessStemsZip falhou com status {response.StatusCode}. Erro: {errorContent}");
+            }
+
+            logger.LogInformation($"[WORKER SUCCESS] Música '{track.TrackTitle}' finalizada, stems convertidas para Opus e persistidas no banco com sucesso!");
         }
         catch (Exception ex)
         {
