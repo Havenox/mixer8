@@ -140,32 +140,36 @@ using (var scope = app.Services.CreateScope())
             Console.WriteLine("[DB SEED] Usuários semente gravados com sucesso!");
         }
 
-        // Seed de música de demonstração se a biblioteca de tracks estiver vazia
-        var hasTracks = db.Tracks.Any();
-        if (!hasTracks)
+        // Seed de música de demonstração com audios publicos da Soundhelix e nomes em português (Moises)
+        var demoTrackId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var existingDemo = db.Tracks.Include(t => t.Stems).FirstOrDefault(t => t.TrackId == demoTrackId);
+        if (existingDemo != null)
         {
-            var demoTrackId = Guid.Parse("11111111-1111-1111-1111-111111111111");
-            var demoTrack = new Mixer8.Api.Domain.Track
-            {
-                TrackId = demoTrackId,
-                TrackTitle = "Demo Stems - Summer Breeze",
-                ArtistName = "Mixer8 Collective",
-                ExtractionStatus = "Pronto",
-                UploadedBy = Guid.Empty,
-                CreatedAt = DateTime.UtcNow,
-                Stems = new List<Mixer8.Api.Domain.Stem>
-                {
-                    new Mixer8.Api.Domain.Stem { StemId = Guid.NewGuid(), TrackId = demoTrackId, StemType = "Vocals", AudioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", CreatedAt = DateTime.UtcNow },
-                    new Mixer8.Api.Domain.Stem { StemId = Guid.NewGuid(), TrackId = demoTrackId, StemType = "Drums", AudioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3", CreatedAt = DateTime.UtcNow },
-                    new Mixer8.Api.Domain.Stem { StemId = Guid.NewGuid(), TrackId = demoTrackId, StemType = "Bass", AudioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3", CreatedAt = DateTime.UtcNow },
-                    new Mixer8.Api.Domain.Stem { StemId = Guid.NewGuid(), TrackId = demoTrackId, StemType = "Piano", AudioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3", CreatedAt = DateTime.UtcNow },
-                    new Mixer8.Api.Domain.Stem { StemId = Guid.NewGuid(), TrackId = demoTrackId, StemType = "Others", AudioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3", CreatedAt = DateTime.UtcNow }
-                }
-            };
-            db.Tracks.Add(demoTrack);
+            db.Tracks.Remove(existingDemo);
             db.SaveChanges();
-            Console.WriteLine("[DB SEED] Música de demonstração (Demo Stems) gravada com sucesso!");
+            Console.WriteLine("[DB SEED] Música de demonstração antiga removida para re-seed atualizado.");
         }
+
+        var demoTrack = new Mixer8.Api.Domain.Track
+        {
+            TrackId = demoTrackId,
+            TrackTitle = "Demo Stems - Summer Breeze",
+            ArtistName = "Mixer8 Collective",
+            ExtractionStatus = "Pronto",
+            UploadedBy = Guid.Empty,
+            CreatedAt = DateTime.UtcNow,
+            Stems = new List<Mixer8.Api.Domain.Stem>
+            {
+                new Mixer8.Api.Domain.Stem { StemId = Guid.NewGuid(), TrackId = demoTrackId, StemType = "Vocais", AudioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", CreatedAt = DateTime.UtcNow },
+                new Mixer8.Api.Domain.Stem { StemId = Guid.NewGuid(), TrackId = demoTrackId, StemType = "Bateria", AudioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3", CreatedAt = DateTime.UtcNow },
+                new Mixer8.Api.Domain.Stem { StemId = Guid.NewGuid(), TrackId = demoTrackId, StemType = "Baixo", AudioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3", CreatedAt = DateTime.UtcNow },
+                new Mixer8.Api.Domain.Stem { StemId = Guid.NewGuid(), TrackId = demoTrackId, StemType = "Piano", AudioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3", CreatedAt = DateTime.UtcNow },
+                new Mixer8.Api.Domain.Stem { StemId = Guid.NewGuid(), TrackId = demoTrackId, StemType = "Outros", AudioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3", CreatedAt = DateTime.UtcNow }
+            }
+        };
+        db.Tracks.Add(demoTrack);
+        db.SaveChanges();
+        Console.WriteLine("[DB SEED] Música de demonstração (Demo Stems) gravada com sucesso com nomes em português!");
     }
     catch (Exception ex)
     {
