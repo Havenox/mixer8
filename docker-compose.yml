@@ -27,20 +27,20 @@ services:
   # =========================================================================
   # 2. MICROSERVIÇO: Banco de Dados (Exemplo: PostgreSQL)
   # =========================================================================
-  db:
-    image: postgres:15-alpine
-    container_name: mixer8_postgres_db
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      POSTGRES_DB: ${DB_NAME:-mixer8_db}
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-sua_senha_secreta_db}
-    ports:
-      - "${DB_PORT:-5432}:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
+  # db:
+  #   image: postgres:15-alpine
+  #   container_name: mixer8_postgres_db
+  #   restart: unless-stopped
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     POSTGRES_DB: ${DB_NAME:-mixer8_db}
+  #     POSTGRES_USER: ${DB_USER:-postgres}
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD:-sua_senha_secreta_db}
+  #   ports:
+  #     - "${DB_PORT:-5432}:5432"
+  #   volumes:
+  #     - pgdata:/var/lib/postgresql/data
 
   # =========================================================================
   # 3. BACKEND API: mixer8-api (.NET Core / Node.js) - Reservado para Futuro
@@ -75,6 +75,6 @@ services:
   #   ports:
   #     - "${WEB_PORT:-3000}:3000"
 
-volumes:
-  pgdata:
-    driver: local
+# volumes:
+#   pgdata:
+#     driver: local
