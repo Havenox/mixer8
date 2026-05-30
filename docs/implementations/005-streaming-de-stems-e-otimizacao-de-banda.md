@@ -25,10 +25,14 @@ Adicionalmente, os seletores da linha do tempo e do volume geral eram representa
 ### Frontend (React SPA)
 - Atualizado [PlayerContext.tsx](file:///g:/DEV/mixer8/mixer8-app/src/context/PlayerContext.tsx) para:
   - Adicionar o nó `masterGainNodeRef` e a função `setMasterVolume` para controle de ganho master real.
+  - Sincronizar o volume geral do player (`masterVolume`) com o `localStorage` (chave `mixer8_master_volume`) com fallback inicial para 100% (1.0).
   - Prefixar caminhos de áudios locais relativos com `SERVER_URL`.
   - Configurar `preload = 'metadata'` nas instâncias de áudio das stems.
+  - Ajustar o volume inicial padrão de stems normais para 100% (1.0), com exceção da stem `"Metrônomo"` que sempre inicia silenciada em 0% (0.0).
 - Refatorado [MesaPlayer.tsx](file:///g:/DEV/mixer8/mixer8-app/src/components/MesaPlayer.tsx) para:
   - Substituir faders fictícios por inputs range do tipo `<input type="range" />` reais para volume geral e timeline.
+  - Ajustar o limite de ganho das stems individuais (`max="1.5"`) permitindo boost de volume de até 150%.
+  - Atualizar presets de mixagem rápida (`karaoke`, `instrumental`, `reset`) para refletirem a calibração de volume padrão a 100% (1.0) e metronomo a 0%.
   - Implementar estado local `isDraggingProgress` e `dragProgressTime` para pulo na timeline apenas ao soltar o mouse.
 - Adicionados estilos visuais de faders com bolinha verde e escalas dinâmicas no [index.css](file:///g:/DEV/mixer8/mixer8-app/src/index.css).
 
@@ -37,5 +41,6 @@ Adicionalmente, os seletores da linha do tempo e do volume geral eram representa
 
 ## 🎯 Impacto e Resultado
 * **Economia Extrema de Banda**: Redução drástica do tráfego do servidor. Músicas carregadas na biblioteca não geram custos de rede até que o Play seja ativado, e a interrupção de faixas cessa o tráfego HTTP 206 instantaneamente.
-* **Mesa de Som Funcional**: O fader de volume master do painel do player passou a atuar de forma real e contínua no volume de saída das stems combinadas da Web Audio API.
+* **Mesa de Som Funcional**: O fader de volume master do painel do player passou a atuar de forma real e contínua no volume de saída das stems combinadas da Web Audio API, persistindo as preferências do usuário no browser.
+* **Calibração DAW Profissional**: Stems individuais iniciam com volume máximo original (100%), permitindo ganho extra (boost até 150%) para isolamento preciso, mantendo o clique do metrônomo desligado por padrão para evitar ruídos indesejados ao carregar.
 * **Suavidade na Timeline**: O arrasto na linha do tempo tornou-se fluido, sem re-bufferings ou requisições repetidas ao servidor durante o deslocamento do cursor de tempo.
