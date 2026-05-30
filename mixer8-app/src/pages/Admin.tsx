@@ -43,8 +43,28 @@ export const Admin: React.FC = () => {
     }
   };
 
+  const fetchCookies = async () => {
+    if (!Token) return;
+    try {
+      const res = await fetch(`${API_URL}/Admin/GetSession`, {
+        headers: {
+          'Authorization': `Bearer ${Token}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.CookiesJson) {
+          setCookiesJson(data.CookiesJson);
+        }
+      }
+    } catch {
+      // Ignora falha silenciosa
+    }
+  };
+
   useEffect(() => {
     fetchSessionStatus();
+    fetchCookies();
   }, []);
 
   if (CurrentUser?.UserRole !== 'Admin' && CurrentUser?.UserRole !== 'Moderator') {
@@ -90,29 +110,44 @@ export const Admin: React.FC = () => {
     }
   };
 
-  const handleTestConnection = () => {
+  const handleTestConnection = async () => {
+    if (!Token) return;
     setIsTesting(true);
     setTestResult(null);
-    setTestLogs([]);
+    setTestLogs(['[BOT] Solicitando validação real dos cookies no servidor...']);
 
-    const steps = [
-      'Solicitando inicialização do Playwright no container do mixer8-extractor...',
-      'Injetando cookies e localStorage (auth.json) no contexto do Chromium...',
-      'Abrindo navegação headless para a plataforma de Stems AI...',
-      'Aguardando redirecionamentos invisíveis e verificação do Cloudflare...',
-      'Localizado elemento do perfil do usuário: logado com "Havenox/Eduardo"!',
-      'Sessão confirmada como VÁLIDA e pronta para processamento.'
-    ];
-
-    steps.forEach((step, idx) => {
-      setTimeout(() => {
-        setTestLogs(prev => [...prev, `[BOT] ${step}`]);
-        if (idx === steps.length - 1) {
-          setIsTesting(false);
-          setTestResult('success');
+    try {
+      const res = await fetch(`${API_URL}/Admin/TestConnection`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${Token}`
         }
-      }, (idx + 1) * 1000);
-    });
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setTestLogs(prev => [
+          ...prev,
+          `[BOT] Resposta recebida do servidor.`,
+          `[BOT] URL de Destino final: ${data.Url}`,
+          `[BOT] Diagnóstico: ${data.Message}`
+        ]);
+        if (data.IsActive) {
+          setTestResult('success');
+        } else {
+          setTestResult('failed');
+        }
+      } else {
+        const errorData = await res.json();
+        setTestLogs(prev => [...prev, `[BOT ERROR] Falha no teste de conexão: ${errorData.ErrorMessage || 'Erro Desconhecido'}`]);
+        setTestResult('failed');
+      }
+    } catch {
+      setTestLogs(prev => [...prev, '[BOT ERROR] Erro de rede ao conectar com a API de testes.']);
+      setTestResult('failed');
+    } finally {
+      setIsTesting(false);
+    }
   };
 
   return (
