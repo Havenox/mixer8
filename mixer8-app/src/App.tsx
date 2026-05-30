@@ -548,7 +548,30 @@ const Explore: React.FC = () => {
                 <label className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Canais de Stems Ativas</label>
                 <div className="flex flex-col gap-2 max-h-48 overflow-y-auto border border-brand-hover rounded p-2 bg-black/20">
                   {trackToEdit.Stems && trackToEdit.Stems.length > 0 ? (
-                    trackToEdit.Stems.map((stem) => {
+                    [...trackToEdit.Stems]
+                      .sort((a, b) => {
+                        const order = [
+                          'Voz',
+                          'Vocal',
+                          'Bateria',
+                          'Baixo',
+                          'Guitarra',
+                          'Guitarra Solo',
+                          'Guitarra Base',
+                          'Sopro',
+                          'Teclado',
+                          'Piano',
+                          'Cordas',
+                          'Outros',
+                          'Metrônomo'
+                        ];
+                        const indexA = order.indexOf(a.StemType);
+                        const indexB = order.indexOf(b.StemType);
+                        const valA = a.StemType === 'Vocais' ? 0 : (indexA === -1 ? 999 : indexA);
+                        const valB = b.StemType === 'Vocais' ? 0 : (indexB === -1 ? 999 : indexB);
+                        return valA - valB;
+                      })
+                      .map((stem) => {
                       const isDeleted = stemsToDelete.includes(stem.StemId);
                       const isReplaced = stemsToReplace[stem.StemId] !== undefined;
 
