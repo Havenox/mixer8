@@ -18,6 +18,7 @@ namespace Mixer8.Api.Controllers;
 [Route("api/[controller]")]
 public class TracksController(Mixer8DbContext dbContext, IConfiguration configuration) : ControllerBase
 {
+    private static readonly string[] AllowedAudioExtensions = { ".mp3", ".wav", ".ogg", ".aac", ".flac", ".opus", ".m4a", ".wma" };
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
@@ -65,8 +66,13 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         }
 
         var trackId = Guid.NewGuid();
-        var fileExtension = Path.GetExtension(request.File.FileName);
+        var fileExtension = Path.GetExtension(request.File.FileName).ToLowerInvariant();
         
+        if (!AllowedAudioExtensions.Contains(fileExtension))
+        {
+            return BadRequest(new { ErrorMessage = "INVALID_AUDIO_FORMAT" });
+        }
+
         // O nome do arquivo no disco será o próprio ID do banco, evitando conflitos de caracteres especiais
         var fileName = $"{trackId}{fileExtension}";
         var filePath = Path.Combine(downloadsDir, fileName);
@@ -146,7 +152,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
 
         var stemsList = new List<Stem>();
 
-        // Processamento das Stems (Arquivos .mp3 diretos ou .zip compactado)
+        // Processamento das Stems (Arquivos de áudio diretos ou .zip compactado)
         foreach (var file in request.Files)
         {
             if (file.Length == 0) continue;
@@ -164,17 +170,17 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                             if (string.IsNullOrEmpty(entry.Name) || entry.Length == 0) continue;
 
                             var entryExt = Path.GetExtension(entry.Name).ToLowerInvariant();
-                            // Validador de tipo estrito de áudio: Apenas .mp3 é persistido!
-                            if (entryExt != ".mp3") continue;
+                            // Validador de tipo estrito de áudio: Apenas áudios permitidos são persistidos!
+                            if (!AllowedAudioExtensions.Contains(entryExt)) continue;
 
                             var stemType = MapFileNameToStemType(entry.Name);
-                            var stemFileName = $"{stemType}.mp3";
+                            var stemFileName = $"{stemType}.opus";
                             var stemPath = Path.Combine(trackDir, stemFileName);
 
                             using (var entryStream = entry.Open())
-                            using (var outputStream = new FileStream(stemPath, FileMode.Create))
                             {
-                                await entryStream.CopyToAsync(outputStream);
+                                var success = await ConvertToOpusAsync(entryStream, stemPath, stemType);
+                                if (!success) continue;
                             }
 
                             // Evita adicionar duplicatas na lista
@@ -196,31 +202,33 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                     }
                 }
             }
-            else if (ext == ".mp3")
+            else if (AllowedAudioExtensions.Contains(ext))
             {
                 var stemType = MapFileNameToStemType(file.FileName);
-                var stemFileName = $"{stemType}.mp3";
+                var stemFileName = $"{stemType}.opus";
                 var stemPath = Path.Combine(trackDir, stemFileName);
 
-                using (var stream = new FileStream(stemPath, FileMode.Create))
+                using (var stream = file.OpenReadStream())
                 {
-                    await file.CopyToAsync(stream);
-                }
+                    var success = await ConvertToOpusAsync(stream, stemPath, stemType);
+                    if (success)
+                    {
+                        var existing = stemsList.FirstOrDefault(s => s.StemType == stemType);
+                        if (existing != null)
+                        {
+                            stemsList.Remove(existing);
+                        }
 
-                var existing = stemsList.FirstOrDefault(s => s.StemType == stemType);
-                if (existing != null)
-                {
-                    stemsList.Remove(existing);
+                        stemsList.Add(new Stem
+                        {
+                            StemId = Guid.NewGuid(),
+                            TrackId = trackId,
+                            StemType = stemType,
+                            AudioUrl = $"/stems/{trackId}/{stemFileName}",
+                            CreatedAt = DateTime.UtcNow
+                        });
+                    }
                 }
-
-                stemsList.Add(new Stem
-                {
-                    StemId = Guid.NewGuid(),
-                    TrackId = trackId,
-                    StemType = stemType,
-                    AudioUrl = $"/stems/{trackId}/{stemFileName}",
-                    CreatedAt = DateTime.UtcNow
-                });
             }
         }
 
@@ -275,6 +283,162 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             return "Metrônomo";
         
         return "Outros";
+    }
+
+    [AllowAnonymous]
+    [HttpPost("{id}/ProcessStemsZip")]
+    public async Task<IActionResult> ProcessStemsZip(Guid id)
+    {
+        var track = await dbContext.Tracks.Include(t => t.Stems).FirstOrDefaultAsync(t => t.TrackId == id);
+        if (track == null)
+        {
+            return NotFound(new { ErrorMessage = "TRACK_NOT_FOUND" });
+        }
+
+        var downloadsDir = configuration["EXTRACTOR_DOWNLOADS_DIR"] ?? "./mixer8-extractor/downloads";
+        if (!Path.IsPathRooted(downloadsDir))
+        {
+            downloadsDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", downloadsDir));
+        }
+
+        var zipFileName = $"{id}_stems.zip";
+        var zipPath = Path.Combine(downloadsDir, zipFileName);
+
+        if (!System.IO.File.Exists(zipPath))
+        {
+            return BadRequest(new { ErrorMessage = "ZIP_FILE_NOT_FOUND" });
+        }
+
+        var stemsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "stems");
+        if (!Directory.Exists(stemsDir))
+        {
+            Directory.CreateDirectory(stemsDir);
+        }
+
+        var trackDir = Path.Combine(stemsDir, id.ToString());
+        if (!Directory.Exists(trackDir))
+        {
+            Directory.CreateDirectory(trackDir);
+        }
+
+        var stemsList = new List<Stem>();
+
+        // Extração em memória segura e validação
+        using (var archiveStream = System.IO.File.OpenRead(zipPath))
+        {
+            using (var archive = new ZipArchive(archiveStream, ZipArchiveMode.Read))
+            {
+                foreach (var entry in archive.Entries)
+                {
+                    if (string.IsNullOrEmpty(entry.Name) || entry.Length == 0) continue;
+
+                    var entryExt = Path.GetExtension(entry.Name).ToLowerInvariant();
+                    if (!AllowedAudioExtensions.Contains(entryExt)) continue;
+
+                    var stemType = MapFileNameToStemType(entry.Name);
+                    var stemFileName = $"{stemType}.opus";
+                    var stemPath = Path.Combine(trackDir, stemFileName);
+
+                    using (var entryStream = entry.Open())
+                    {
+                        var success = await ConvertToOpusAsync(entryStream, stemPath, stemType);
+                        if (!success) continue;
+                    }
+
+                    var existing = stemsList.FirstOrDefault(s => s.StemType == stemType);
+                    if (existing != null)
+                    {
+                        stemsList.Remove(existing);
+                    }
+
+                    stemsList.Add(new Stem
+                    {
+                        StemId = Guid.NewGuid(),
+                        TrackId = id,
+                        StemType = stemType,
+                        AudioUrl = $"/stems/{id}/{stemFileName}",
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
+            }
+        }
+
+        if (stemsList.Count == 0)
+        {
+            if (Directory.Exists(trackDir) && Directory.GetFileSystemEntries(trackDir).Length == 0)
+            {
+                Directory.Delete(trackDir, true);
+            }
+            return BadRequest(new { ErrorMessage = "NO_VALID_AUDIO_FILES_IN_ZIP" });
+        }
+
+        dbContext.Stems.AddRange(stemsList);
+        track.ExtractionStatus = "Pronto";
+        await dbContext.SaveChangesAsync();
+
+        // Limpeza dos arquivos temporários de downloads para economizar armazenamento
+        try
+        {
+            System.IO.File.Delete(zipPath);
+
+            var originalFiles = Directory.GetFiles(downloadsDir, $"{id}.*");
+            foreach (var origFile in originalFiles)
+            {
+                System.IO.File.Delete(origFile);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[CLEANUP ERROR] Falha ao excluir arquivos de downloads temporários: {ex.Message}");
+        }
+
+        return Ok(track);
+    }
+
+    private static async Task<bool> ConvertToOpusAsync(Stream inputStream, string outputFilePath, string stemType)
+    {
+        bool forceMono = stemType == "Vocais" || stemType == "Baixo" || stemType == "Metrônomo";
+        string arguments = forceMono
+            ? $"-y -i pipe:0 -ac 1 -c:a libopus -b:a 64k -vbr on -ar 48000 \"{outputFilePath}\""
+            : $"-y -i pipe:0 -ac 2 -c:a libopus -b:a 96k -vbr on -ar 48000 \"{outputFilePath}\"";
+
+        var startInfo = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "ffmpeg",
+            Arguments = arguments,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = false,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var process = new System.Diagnostics.Process { StartInfo = startInfo };
+        try
+        {
+            process.Start();
+
+            // Escreve a entrada in-memory de forma assíncrona na stdin do processo
+            var copyTask = inputStream.CopyToAsync(process.StandardInput.BaseStream);
+            await copyTask;
+            process.StandardInput.Close();
+
+            await process.WaitForExitAsync();
+
+            if (process.ExitCode != 0)
+            {
+                string errorOutput = await process.StandardError.ReadToEndAsync();
+                Console.WriteLine($"[FFMPEG ERROR] Conversão para Opus falhou com ExitCode {process.ExitCode}. Erro: {errorOutput}");
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[FFMPEG ERROR] Falha ao executar conversão Opus via FFmpeg: {ex.Message}");
+            return false;
+        }
     }
 }
 
