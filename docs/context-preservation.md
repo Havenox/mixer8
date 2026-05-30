@@ -1,7 +1,7 @@
 # Context Preservation (Save State) - Mixer8 Ecosystem
 
 **Data da Última Atualização:** 30/05/2026  
-**Status do Projeto:** Transição para Purga de Mocks e Decodificador de 10 Stems Opcionais.
+**Status do Projeto:** Purga de Mocks Concluída, Player Multi-Stems Ativo e Uploader Direto (ZIP/MP3) Implementado com Sucesso.
 
 ---
 
@@ -23,36 +23,26 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
 3. **Importação e Validação de Cookies Headless**:
    * O painel administrativo persistente grava fisicamente o JSONEditThisCookie no arquivo `/config/auth.json`.
    * Criado o teste de conexão ativa que valida os cookies diretamente nos servidores da plataforma de Stems AI (`https://studio.moises.ai/`), retornando se a sessão está ativa ou expirada (evitando simulações no frontend).
-4. **Portas Dinâmicas**: Configuração unificada via `.env` na raiz do projeto (sem arquivos duplicados nas pastas filhas).
+4. **Portas Dinâmicas**: Configuração unificada via `.env` na raiz do projeto.
+5. **Purga Completa de Mocks**:
+   * **Página Explorar**: Dados de Queen, Santana e Eagles fictícios removidos por completo. O catálogo consome faixas reais via `/api/Tracks` e oculta seções de gêneros caso não existam músicas prontas.
+   * **CRM Administrativo**: Lista de usuários fakeados removida. O CRM de controle do administrador faz requisições JWT autenticadas à API `/api/Users` listando contas registradas no PostgreSQL.
+6. **Mesa de Mixagem Inteligente e Player Progressive**:
+   * Utiliza progressive audio streaming com elementos `new Audio()` invisíveis acoplados a `MediaElementAudioSourceNode` e somados em um `GainNode` da `Web Audio API` por canal.
+   * Faders na DAW renderizam-se dinamicamente conforme as stems presentes na música no banco, com verificação de presets traduzidos para português (`Vocais` e `Metrônomo` baseados no Moises).
+   * **Ajuste de Responsividade**: Adicionado encolhimento de layout de tela (`pb-24`) reativo à presença de áudio ativo para manter a sidebar e todos os botões do rodapé 100% clicáveis acima do player.
+7. **Uploader Direto de Stems (ZIP/MP3)**:
+   * **Payload de Alta Resiliência**: Backend com limits de Kestrel e `FormOptions` configurados para tankar requisições multipartes de até 500 MB.
+   * **Static Files com CORS**: Servidor estático em `wwwroot/stems` habilitado com injeção manual de CORS (`Access-Control-Allow-Origin: *`) para permitir carregamento de áudios no player via Web Audio API.
+   * **Validador de Sandbox**: Descompressão de ZIPs em memória (`ZipArchive`), extraindo e salvando estritamente arquivos com extensão `.mp3`, blindando o ecossistema contra scripts maliciosos.
+   * **Mapeamento Heurístico C#**: Conversão em tempo de execução de termos em inglês (ex: `bass.mp3`) para português (`Baixo.mp3`) e associação a metadados, capa e persistência no banco com status `Pronto`.
+   * **UX Drag-and-Drop**: Uploader em React com drag-and-drop, preview de capa com URL temporária e classificação preditiva instantânea do tipo de stem na UI.
 
 ---
 
-## 🎯 Próximo Milestone: O Plano de Purga Total de Mocks
-
-Na próxima iteração, executaremos o plano de purga total de mocks e implementação do decodificador de arquivos:
-
-### 1. Limpeza de Mocks no Frontend (`mixer8-app`)
-* **Página Explorar**: Removeremos as músicas e gêneros fictícios (Bohemian Rhapsody, Smooth, etc.) hardcodados. A página consumirá estritamente o endpoint `GET /api/Tracks` e os gêneros serão calculados dinamicamente das músicas registradas no banco de dados. Caso o banco esteja vazio, exibirá `"Nenhuma música disponível"`.
-* **CRM de Usuários**: Substituiremos a lista estática de usuários por um consumo real à API (`GET /api/Auth/Users` ou `GET /api/Admin/Users`).
-* **Player Principal (MesaPlayer)**: O tocador no rodapé iniciará oculto/inativo. Ele só aparecerá quando o usuário clicar em "Play" em uma música real carregada da biblioteca. Mapeará dinamicamente os GainNodes e sliders apenas para os canais retornados pelo banco.
-
-### 2. A Arquitetura de 10 Stems Opcionais
-Lidaremos com qualquer combinação de stems opcionais com base no mapeamento a seguir:
-* `Metronomo` (`metronome` ──> `Metronomo.mp3`)
-* `Voz` (`vocals` ──> `Voz.mp3`)
-* `Bateria` (`drums` ──> `Bateria.mp3`)
-* `Baixo` (`bass` ──> `Baixo.mp3`)
-* `Guitarra` (`guitars` ──> `Guitarra.mp3`)
-* `Piano` (`piano` ──> `Piano.mp3`)
-* `Teclado` (`keyboards` ──> `Teclado.mp3`)
-* `Sopro` (`wind` ──> `Sopro.mp3`)
-* `Cordas` (`strings` ──> `Cordas.mp3`)
-* `Outros` (`other` ──> `Outros.mp3`)
-
-### 3. Decodificador e Renomeador de Arquivos no Extrator C#
-* O Playwright descompactará o ZIP da plataforma externa contendo nomes do tipo `[NomeOriginal]-<stem>-<tonalidade>-<bpm>-<frequencia>.mp3`.
-* O worker decodificará o trecho `<stem>`, renomeará o arquivo correspondente na pasta da música (ex: `/downloads/tracks/[TrackId]/Baixo.mp3`) e salvará os caminhos estruturadamente no PostgreSQL em uma única transação ACID.
-* O player de áudio lerá a lista de stems registradas no banco e renderizará sliders correspondentes apenas para os arquivos existentes.
+## 🎯 Próximo Milestone: Ajustes de Fluxo e Segurança de Rede
+* Implementar mecanismos de exclusão/remoção de faixas da biblioteca pelo usuário proprietário.
+* Parametrizar tempos de expiração de token JWT com renovação (refresh token).
 
 ---
-**Nota de Arquitetura:** *Nenhum dado ou tela deve simular atividade. Se a API retornar vazia, a UI renderizará feedback limpo. Isso estabelece o estado da arte em termos de fidelidade operacional do Mixer8.*
+**Nota de Arquitetura:** *Nenhum dado ou tela simula atividade. A descompressão em memória evita I/O inútil de disco, e as stems físicas sob o uploader direto pulam totalmente o worker da VPS, garantindo a fidelidade e a agilidade de uso da plataforma Mixer8.*
