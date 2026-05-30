@@ -11,6 +11,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Admin } from './pages/Admin';
 import { UploadDireto } from './pages/UploadDireto';
 import { PlaylistDetail } from './pages/PlaylistDetail';
+import { Playlists } from './pages/Playlists';
 import { Play, Sparkles, Disc, Flame, Music, Radio, Star, Loader2, Plus, Trash2, AlertTriangle, X, Settings, RefreshCw } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -757,6 +758,7 @@ export const App: React.FC = () => {
                 <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
                 <Route path="/upload-direto" element={<ProtectedRoute><UploadDireto /></ProtectedRoute>} />
                 <Route path="/playlists/:id" element={<ProtectedRoute><PlaylistDetail /></ProtectedRoute>} />
+                <Route path="/playlists" element={<ProtectedRoute><Playlists /></ProtectedRoute>} />
                 
                 {/* Fallback */}
                 <Route path="*" element={<Navigate to="/" replace />} />

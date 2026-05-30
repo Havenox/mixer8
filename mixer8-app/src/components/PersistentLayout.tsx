@@ -2,18 +2,16 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { usePlayer } from '../context/PlayerContext';
-import { usePlaylists } from '../context/PlaylistContext';
 import { MesaPlayer } from './MesaPlayer';
 import { 
   Home, Library, PlusCircle, Shield, 
-  LogOut, User, Sparkles, ChevronDown, Layers, Lock
+  LogOut, User, Sparkles, ChevronDown, Layers, ListMusic
 } from 'lucide-react';
 import type { UserRole } from '../types/Auth';
 
 export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { IsAuthenticated, CurrentUser, Logout, UpdateRole } = useAuth();
   const { currentTrack } = usePlayer();
-  const { playlists, openCreatePlaylist } = usePlaylists();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -64,37 +62,15 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
               <Library className="w-5 h-5" />
               <span>Minha Biblioteca</span>
             </Link>
-          </nav>
-
-          {/* Seção de Playlists */}
-          <div className="flex items-center justify-between text-[10px] text-brand-gray font-bold uppercase tracking-wider px-3 mt-4">
-            <span>Playlists</span>
-            <button 
-              onClick={openCreatePlaylist}
-              className="hover:text-white transition-colors cursor-pointer"
-              title="Criar Playlist"
+            <Link 
+              to="/playlists" 
+              className={`flex items-center gap-4 py-2 px-3 rounded-md hover:text-white transition-colors ${
+                location.pathname.startsWith('/playlists') ? 'text-white bg-brand-hover' : ''
+              }`}
             >
-              <PlusCircle className="w-4 h-4 text-brand-green" />
-            </button>
-          </div>
-
-          <nav className="flex flex-col gap-1 max-h-[160px] overflow-y-auto px-1">
-            {playlists.length === 0 ? (
-              <span className="text-[11px] text-brand-gray/60 italic px-3 py-1">Sem playlists</span>
-            ) : (
-              playlists.map(p => (
-                <Link
-                  key={p.PlaylistId}
-                  to={`/playlists/${p.PlaylistId}`}
-                  className={`flex items-center gap-2 py-1.5 px-3 rounded text-xs text-brand-gray hover:text-white hover:bg-brand-hover/40 transition-all ${
-                    location.pathname === `/playlists/${p.PlaylistId}` ? 'text-white bg-brand-hover font-semibold' : ''
-                  }`}
-                >
-                  <span className="truncate flex-1">{p.Name}</span>
-                  {p.Visibility === 'Private' && <Lock className="w-3 h-3 text-brand-green" />}
-                </Link>
-              ))
-            )}
+              <ListMusic className="w-5 h-5 text-brand-green" />
+              <span>Playlists</span>
+            </Link>
           </nav>
 
           <div className="h-[1px] bg-brand-hover my-2" />
