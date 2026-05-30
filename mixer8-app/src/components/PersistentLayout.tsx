@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { usePlayer } from '../context/PlayerContext';
 import { MesaPlayer } from './MesaPlayer';
 import { 
   Home, Search, Library, PlusCircle, Shield, 
@@ -10,6 +11,7 @@ import type { UserRole } from '../types/Auth';
 
 export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { IsAuthenticated, CurrentUser, Logout, UpdateRole } = useAuth();
+  const { currentTrack } = usePlayer();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -27,7 +29,7 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   return (
-    <div className="flex h-screen bg-brand-black text-white overflow-hidden">
+    <div className={`flex h-screen bg-brand-black text-white overflow-hidden transition-all duration-300 ${currentTrack ? 'pb-24' : ''}`}>
       
       {/* 1. SIDEBAR (Estilo Mesa de Som) */}
       <div className="w-64 bg-black flex flex-col justify-between p-6 border-r border-brand-hover select-none shrink-0">
