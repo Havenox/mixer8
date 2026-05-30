@@ -1,0 +1,505 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Mixer8.Api.Domain;
+using Mixer8.Api.Infrastructure;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.Claims;
+using System.Threading.Tasks;
+
+namespace Mixer8.Api.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+[Authorize]
+public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
+{
+    [HttpPost]
+    public async Task<IActionResult> CreatePlaylist([FromBody] CreatePlaylistDto request)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+            return Unauthorized(new { ErrorMessage = "INVALID_TOKEN_CLAIMS" });
+
+        if (string.IsNullOrWhiteSpace(request.Name))
+            return BadRequest(new { ErrorMessage = "PLAYLIST_NAME_REQUIRED" });
+
+        var visibility = request.Visibility?.Trim() ?? "Public";
+        if (visibility != "Public" && visibility != "Private" && visibility != "Unlisted")
+            return BadRequest(new { ErrorMessage = "INVALID_VISIBILITY_VALUE" });
+
+        var playlist = new Playlist
+        {
+            PlaylistId = Guid.NewGuid(),
+            Name = request.Name.Trim(),
+            Visibility = visibility,
+            OwnerId = userId,
+            CoverUrl = string.IsNullOrWhiteSpace(request.CoverUrl) ? null : request.CoverUrl.Trim(),
+            CreatedAt = DateTime.UtcNow
+        };
+
+        dbContext.Playlists.Add(playlist);
+        await dbContext.SaveChangesAsync();
+
+        var ownerEmail = await dbContext.Users
+            .Where(u => u.UserId == userId)
+            .Select(u => u.Email)
+            .FirstOrDefaultAsync() ?? "";
+
+        return Ok(new PlaylistResponseDto
+        {
+            PlaylistId = playlist.PlaylistId,
+            Name = playlist.Name,
+            Visibility = playlist.Visibility,
+            OwnerId = playlist.OwnerId,
+            OwnerEmail = ownerEmail,
+            CoverUrl = playlist.CoverUrl,
+            CreatedAt = playlist.CreatedAt,
+            IsOwner = true,
+            IsCollaborator = false,
+            TracksCount = 0
+        });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetPlaylists()
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+            return Unauthorized(new { ErrorMessage = "INVALID_TOKEN_CLAIMS" });
+
+        var isAdmin = User.IsInRole("Admin");
+
+        var playlistsQuery = dbContext.Playlists
+            .Include(p => p.PlaylistTracks)
+                .ThenInclude(pt => pt.Track)
+            .Include(p => p.PlaylistCollaborators)
+            .AsQueryable();
+
+        // Se for admin, lista todas. Caso contrário, lista as que ele é dono, colaborador, ou públicas.
+        if (!isAdmin)
+        {
+            playlistsQuery = playlistsQuery.Where(p =>
+                p.OwnerId == userId ||
+                p.PlaylistCollaborators.Any(pc => pc.UserId == userId) ||
+                p.Visibility == "Public"
+            );
+        }
+
+        var playlists = await playlistsQuery.ToListAsync();
+
+        var userIds = playlists.Select(p => p.OwnerId).Distinct().ToList();
+        var userEmails = await dbContext.Users
+            .Where(u => userIds.Contains(u.UserId))
+            .ToDictionaryAsync(u => u.UserId, u => u.Email);
+
+        var result = playlists.Select(p =>
+        {
+            var firstTrackCover = p.PlaylistTracks
+                .OrderBy(pt => pt.AddedAt)
+                .Select(pt => pt.Track.CoverUrl)
+                .FirstOrDefault();
+
+            userEmails.TryGetValue(p.OwnerId, out var email);
+
+            return new PlaylistResponseDto
+            {
+                PlaylistId = p.PlaylistId,
+                Name = p.Name,
+                Visibility = p.Visibility,
+                OwnerId = p.OwnerId,
+                OwnerEmail = email ?? "",
+                CoverUrl = p.CoverUrl ?? firstTrackCover,
+                CreatedAt = p.CreatedAt,
+                IsOwner = p.OwnerId == userId,
+                IsCollaborator = p.PlaylistCollaborators.Any(pc => pc.UserId == userId),
+                TracksCount = p.PlaylistTracks.Count
+            };
+        })
+        .OrderByDescending(p => p.CreatedAt)
+        .ToList();
+
+        return Ok(result);
+    }
+
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetPlaylistById(Guid id)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+            return Unauthorized(new { ErrorMessage = "INVALID_TOKEN_CLAIMS" });
+
+        var isAdmin = User.IsInRole("Admin");
+
+        var playlist = await dbContext.Playlists
+            .Include(p => p.PlaylistTracks)
+                .ThenInclude(pt => pt.Track)
+                    .ThenInclude(t => t.Stems)
+            .Include(p => p.PlaylistCollaborators)
+                .ThenInclude(pc => pc.User)
+            .FirstOrDefaultAsync(p => p.PlaylistId == id);
+
+        if (playlist == null)
+            return NotFound(new { ErrorMessage = "PLAYLIST_NOT_FOUND" });
+
+        var isOwner = playlist.OwnerId == userId;
+        var isCollaborator = playlist.PlaylistCollaborators.Any(pc => pc.UserId == userId);
+
+        // Se for privada e não for dono/colaborador/admin, nega acesso
+        if (playlist.Visibility == "Private" && !isOwner && !isCollaborator && !isAdmin)
+            return Forbid();
+
+        var ownerEmail = await dbContext.Users
+            .Where(u => u.UserId == playlist.OwnerId)
+            .Select(u => u.Email)
+            .FirstOrDefaultAsync() ?? "";
+
+        // Mapear e-mails de quem adicionou as músicas
+        var addedByIds = playlist.PlaylistTracks.Select(pt => pt.AddedById).Distinct().ToList();
+        var addedByEmails = await dbContext.Users
+            .Where(u => addedByIds.Contains(u.UserId))
+            .ToDictionaryAsync(u => u.UserId, u => u.Email);
+
+        var firstTrackCover = playlist.PlaylistTracks
+            .OrderBy(pt => pt.AddedAt)
+            .Select(pt => pt.Track.CoverUrl)
+            .FirstOrDefault();
+
+        var detailDto = new PlaylistDetailResponseDto
+        {
+            PlaylistId = playlist.PlaylistId,
+            Name = playlist.Name,
+            Visibility = playlist.Visibility,
+            OwnerId = playlist.OwnerId,
+            OwnerEmail = ownerEmail,
+            CoverUrl = playlist.CoverUrl ?? firstTrackCover,
+            CreatedAt = playlist.CreatedAt,
+            IsOwner = isOwner,
+            IsCollaborator = isCollaborator,
+            Tracks = playlist.PlaylistTracks
+                .OrderBy(pt => pt.AddedAt)
+                .Select(pt =>
+                {
+                    addedByEmails.TryGetValue(pt.AddedById, out var adderEmail);
+                    return new PlaylistTrackResponseDto
+                    {
+                        TrackId = pt.TrackId,
+                        TrackTitle = pt.Track.TrackTitle,
+                        ArtistName = pt.Track.ArtistName,
+                        CoverUrl = pt.Track.CoverUrl,
+                        AddedById = pt.AddedById,
+                        AddedByEmail = adderEmail ?? "",
+                        AddedAt = pt.AddedAt,
+                        Stems = pt.Track.Stems.Select(s => new PlaylistStemResponseDto
+                        {
+                            StemId = s.StemId,
+                            TrackId = s.TrackId,
+                            StemType = s.StemType,
+                            AudioUrl = s.AudioUrl
+                        }).ToList()
+                    };
+                }).ToList(),
+            Collaborators = playlist.PlaylistCollaborators.Select(pc => new PlaylistCollaboratorResponseDto
+            {
+                UserId = pc.UserId,
+                Email = pc.User.Email,
+                AddedAt = pc.AddedAt
+            }).ToList()
+        };
+
+        return Ok(detailDto);
+    }
+
+    [HttpPut("{id}")]
+    public async Task<IActionResult> UpdatePlaylist(Guid id, [FromBody] UpdatePlaylistDto request)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+            return Unauthorized(new { ErrorMessage = "INVALID_TOKEN_CLAIMS" });
+
+        var playlist = await dbContext.Playlists.FindAsync(id);
+        if (playlist == null)
+            return NotFound(new { ErrorMessage = "PLAYLIST_NOT_FOUND" });
+
+        var isAdmin = User.IsInRole("Admin");
+        if (playlist.OwnerId != userId && !isAdmin)
+            return Forbid();
+
+        if (string.IsNullOrWhiteSpace(request.Name))
+            return BadRequest(new { ErrorMessage = "PLAYLIST_NAME_REQUIRED" });
+
+        var visibility = request.Visibility?.Trim();
+        if (visibility != null && visibility != "Public" && visibility != "Private" && visibility != "Unlisted")
+            return BadRequest(new { ErrorMessage = "INVALID_VISIBILITY_VALUE" });
+
+        playlist.Name = request.Name.Trim();
+        if (visibility != null)
+            playlist.Visibility = visibility;
+
+        if (request.CoverUrl != null)
+            playlist.CoverUrl = string.IsNullOrWhiteSpace(request.CoverUrl) ? null : request.CoverUrl.Trim();
+
+        await dbContext.SaveChangesAsync();
+        return Ok(playlist);
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeletePlaylist(Guid id)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+            return Unauthorized(new { ErrorMessage = "INVALID_TOKEN_CLAIMS" });
+
+        var playlist = await dbContext.Playlists.FindAsync(id);
+        if (playlist == null)
+            return NotFound(new { ErrorMessage = "PLAYLIST_NOT_FOUND" });
+
+        var isAdmin = User.IsInRole("Admin");
+        if (playlist.OwnerId != userId && !isAdmin)
+            return Forbid();
+
+        dbContext.Playlists.Remove(playlist);
+        await dbContext.SaveChangesAsync();
+        return Ok(new { Success = true });
+    }
+
+    [HttpPost("{id}/Tracks")]
+    public async Task<IActionResult> AddTrackToPlaylist(Guid id, [FromBody] AddTrackDto request)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+            return Unauthorized(new { ErrorMessage = "INVALID_TOKEN_CLAIMS" });
+
+        var playlist = await dbContext.Playlists
+            .Include(p => p.PlaylistCollaborators)
+            .FirstOrDefaultAsync(p => p.PlaylistId == id);
+
+        if (playlist == null)
+            return NotFound(new { ErrorMessage = "PLAYLIST_NOT_FOUND" });
+
+        var isOwner = playlist.OwnerId == userId;
+        var isCollaborator = playlist.PlaylistCollaborators.Any(pc => pc.UserId == userId);
+        var isAdmin = User.IsInRole("Admin");
+
+        if (!isOwner && !isCollaborator && !isAdmin)
+            return Forbid();
+
+        var trackExists = await dbContext.Tracks.AnyAsync(t => t.TrackId == request.TrackId);
+        if (!trackExists)
+            return BadRequest(new { ErrorMessage = "TRACK_NOT_FOUND" });
+
+        var alreadyInPlaylist = await dbContext.PlaylistTracks
+            .AnyAsync(pt => pt.PlaylistId == id && pt.TrackId == request.TrackId);
+
+        if (alreadyInPlaylist)
+            return BadRequest(new { ErrorMessage = "TRACK_ALREADY_IN_PLAYLIST" });
+
+        var playlistTrack = new PlaylistTrack
+        {
+            PlaylistId = id,
+            TrackId = request.TrackId,
+            AddedById = userId,
+            AddedAt = DateTime.UtcNow
+        };
+
+        dbContext.PlaylistTracks.Add(playlistTrack);
+        await dbContext.SaveChangesAsync();
+
+        return Ok(new { Success = true });
+    }
+
+    [HttpDelete("{id}/Tracks/{trackId}")]
+    public async Task<IActionResult> RemoveTrackFromPlaylist(Guid id, Guid trackId)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+            return Unauthorized(new { ErrorMessage = "INVALID_TOKEN_CLAIMS" });
+
+        var playlist = await dbContext.Playlists.FindAsync(id);
+        if (playlist == null)
+            return NotFound(new { ErrorMessage = "PLAYLIST_NOT_FOUND" });
+
+        var playlistTrack = await dbContext.PlaylistTracks
+            .FirstOrDefaultAsync(pt => pt.PlaylistId == id && pt.TrackId == trackId);
+
+        if (playlistTrack == null)
+            return NotFound(new { ErrorMessage = "TRACK_NOT_FOUND_IN_PLAYLIST" });
+
+        var isOwner = playlist.OwnerId == userId;
+        var isAddedByCurrentUser = playlistTrack.AddedById == userId;
+        var isAdmin = User.IsInRole("Admin");
+
+        // Somente o dono da playlist, o colaborador que adicionou a música, ou admins podem remover a música
+        if (!isOwner && !isAddedByCurrentUser && !isAdmin)
+            return Forbid();
+
+        dbContext.PlaylistTracks.Remove(playlistTrack);
+        await dbContext.SaveChangesAsync();
+
+        return Ok(new { Success = true });
+    }
+
+    [HttpPost("{id}/Collaborators")]
+    public async Task<IActionResult> AddCollaborator(Guid id, [FromBody] AddCollaboratorDto request)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+            return Unauthorized(new { ErrorMessage = "INVALID_TOKEN_CLAIMS" });
+
+        var playlist = await dbContext.Playlists.FindAsync(id);
+        if (playlist == null)
+            return NotFound(new { ErrorMessage = "PLAYLIST_NOT_FOUND" });
+
+        var isOwner = playlist.OwnerId == userId;
+        var isAdmin = User.IsInRole("Admin");
+
+        if (!isOwner && !isAdmin)
+            return Forbid();
+
+        if (string.IsNullOrWhiteSpace(request.Email))
+            return BadRequest(new { ErrorMessage = "EMAIL_REQUIRED" });
+
+        var targetUser = await dbContext.Users
+            .FirstOrDefaultAsync(u => u.Email == request.Email.ToLower().Trim());
+
+        if (targetUser == null)
+            return BadRequest(new { ErrorMessage = "USER_NOT_FOUND" });
+
+        if (targetUser.UserId == playlist.OwnerId)
+            return BadRequest(new { ErrorMessage = "CANNOT_ADD_OWNER_AS_COLLABORATOR" });
+
+        var alreadyCollaborator = await dbContext.PlaylistCollaborators
+            .AnyAsync(pc => pc.PlaylistId == id && pc.UserId == targetUser.UserId);
+
+        if (alreadyCollaborator)
+            return BadRequest(new { ErrorMessage = "ALREADY_COLLABORATOR" });
+
+        var collaborator = new PlaylistCollaborator
+        {
+            PlaylistId = id,
+            UserId = targetUser.UserId,
+            AddedAt = DateTime.UtcNow
+        };
+
+        dbContext.PlaylistCollaborators.Add(collaborator);
+        await dbContext.SaveChangesAsync();
+
+        return Ok(new PlaylistCollaboratorResponseDto
+        {
+            UserId = targetUser.UserId,
+            Email = targetUser.Email,
+            AddedAt = collaborator.AddedAt
+        });
+    }
+
+    [HttpDelete("{id}/Collaborators/{userId}")]
+    public async Task<IActionResult> RemoveCollaborator(Guid id, Guid userId)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var currentUserId))
+            return Unauthorized(new { ErrorMessage = "INVALID_TOKEN_CLAIMS" });
+
+        var playlist = await dbContext.Playlists.FindAsync(id);
+        if (playlist == null)
+            return NotFound(new { ErrorMessage = "PLAYLIST_NOT_FOUND" });
+
+        var isOwner = playlist.OwnerId == currentUserId;
+        var isAdmin = User.IsInRole("Admin");
+
+        if (!isOwner && !isAdmin)
+            return Forbid();
+
+        var collaborator = await dbContext.PlaylistCollaborators
+            .FirstOrDefaultAsync(pc => pc.PlaylistId == id && pc.UserId == userId);
+
+        if (collaborator == null)
+            return NotFound(new { ErrorMessage = "COLLABORATOR_NOT_FOUND" });
+
+        dbContext.PlaylistCollaborators.Remove(collaborator);
+        await dbContext.SaveChangesAsync();
+
+        return Ok(new { Success = true });
+    }
+}
+
+public class CreatePlaylistDto
+{
+    public string Name { get; set; } = null!;
+    public string? Visibility { get; set; }
+    public string? CoverUrl { get; set; }
+}
+
+public class UpdatePlaylistDto
+{
+    public string Name { get; set; } = null!;
+    public string? Visibility { get; set; }
+    public string? CoverUrl { get; set; }
+}
+
+public class AddTrackDto
+{
+    public Guid TrackId { get; set; }
+}
+
+public class AddCollaboratorDto
+{
+    public string Email { get; set; } = null!;
+}
+
+public class PlaylistResponseDto
+{
+    public Guid PlaylistId { get; set; }
+    public string Name { get; set; } = null!;
+    public string Visibility { get; set; } = null!;
+    public Guid OwnerId { get; set; }
+    public string OwnerEmail { get; set; } = null!;
+    public string? CoverUrl { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public bool IsOwner { get; set; }
+    public bool IsCollaborator { get; set; }
+    public int TracksCount { get; set; }
+}
+
+public class PlaylistDetailResponseDto
+{
+    public Guid PlaylistId { get; set; }
+    public string Name { get; set; } = null!;
+    public string Visibility { get; set; } = null!;
+    public Guid OwnerId { get; set; }
+    public string OwnerEmail { get; set; } = null!;
+    public string? CoverUrl { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public bool IsOwner { get; set; }
+    public bool IsCollaborator { get; set; }
+    public List<PlaylistTrackResponseDto> Tracks { get; set; } = new();
+    public List<PlaylistCollaboratorResponseDto> Collaborators { get; set; } = new();
+}
+
+public class PlaylistTrackResponseDto
+{
+    public Guid TrackId { get; set; }
+    public string TrackTitle { get; set; } = null!;
+    public string ArtistName { get; set; } = null!;
+    public string? CoverUrl { get; set; }
+    public Guid AddedById { get; set; }
+    public string AddedByEmail { get; set; } = null!;
+    public DateTime AddedAt { get; set; }
+    public List<PlaylistStemResponseDto> Stems { get; set; } = new();
+}
+
+public class PlaylistStemResponseDto
+{
+    public Guid StemId { get; set; }
+    public Guid TrackId { get; set; }
+    public string StemType { get; set; } = null!;
+    public string AudioUrl { get; set; } = null!;
+}
+
+public class PlaylistCollaboratorResponseDto
+{
+    public Guid UserId { get; set; }
+    public string Email { get; set; } = null!;
+    public DateTime AddedAt { get; set; }
+}

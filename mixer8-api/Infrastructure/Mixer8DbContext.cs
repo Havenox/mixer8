@@ -11,6 +11,9 @@ public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbCont
     public DbSet<User> Users { get; set; } = null!;
     public DbSet<Track> Tracks { get; set; } = null!;
     public DbSet<Stem> Stems { get; set; } = null!;
+    public DbSet<Playlist> Playlists { get; set; } = null!;
+    public DbSet<PlaylistTrack> PlaylistTracks { get; set; } = null!;
+    public DbSet<PlaylistCollaborator> PlaylistCollaborators { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -20,17 +23,59 @@ public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbCont
         modelBuilder.Entity<User>().ToTable("Users");
         modelBuilder.Entity<Track>().ToTable("Tracks");
         modelBuilder.Entity<Stem>().ToTable("Stems");
+        modelBuilder.Entity<Playlist>().ToTable("Playlists");
+        modelBuilder.Entity<PlaylistTrack>().ToTable("PlaylistTracks");
+        modelBuilder.Entity<PlaylistCollaborator>().ToTable("PlaylistCollaborators");
 
         // Chaves primárias
         modelBuilder.Entity<User>().HasKey(u => u.UserId);
         modelBuilder.Entity<Track>().HasKey(t => t.TrackId);
         modelBuilder.Entity<Stem>().HasKey(s => s.StemId);
+        modelBuilder.Entity<Playlist>().HasKey(p => p.PlaylistId);
+        modelBuilder.Entity<PlaylistTrack>().HasKey(pt => new { pt.PlaylistId, pt.TrackId });
+        modelBuilder.Entity<PlaylistCollaborator>().HasKey(pc => new { pc.PlaylistId, pc.UserId });
 
         // Configura relacionamentos
         modelBuilder.Entity<Track>()
             .HasMany(t => t.Stems)
             .WithOne()
             .HasForeignKey(s => s.TrackId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Playlist>()
+            .HasOne<User>()
+            .WithMany()
+            .HasForeignKey(p => p.OwnerId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PlaylistTrack>()
+            .HasOne(pt => pt.Playlist)
+            .WithMany(p => p.PlaylistTracks)
+            .HasForeignKey(pt => pt.PlaylistId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PlaylistTrack>()
+            .HasOne(pt => pt.Track)
+            .WithMany()
+            .HasForeignKey(pt => pt.TrackId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PlaylistTrack>()
+            .HasOne(pt => pt.AddedByUser)
+            .WithMany()
+            .HasForeignKey(pt => pt.AddedById)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<PlaylistCollaborator>()
+            .HasOne(pc => pc.Playlist)
+            .WithMany(p => p.PlaylistCollaborators)
+            .HasForeignKey(pc => pc.PlaylistId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PlaylistCollaborator>()
+            .HasOne(pc => pc.User)
+            .WithMany()
+            .HasForeignKey(pc => pc.UserId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }
