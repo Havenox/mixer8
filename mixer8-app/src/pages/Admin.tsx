@@ -25,6 +25,10 @@ export const Admin: React.FC = () => {
   const [sessionAge, setSessionAge] = useState<number | null>(null);
   const [sessionActive, setSessionActive] = useState<boolean>(false);
 
+  // Estado dos usuários cadastrados no banco de dados
+  const [users, setUsers] = useState<{ UserId: string; Email: string; UserRole: string; CreatedAt: string }[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+
   const fetchSessionStatus = async () => {
     if (!Token) return;
     try {
@@ -62,9 +66,30 @@ export const Admin: React.FC = () => {
     }
   };
 
+  const fetchUsers = async () => {
+    if (!Token) return;
+    setIsLoadingUsers(true);
+    try {
+      const res = await fetch(`${API_URL}/Users`, {
+        headers: {
+          'Authorization': `Bearer ${Token}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data);
+      }
+    } catch {
+      // Ignora falha silenciosa
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
   useEffect(() => {
     fetchSessionStatus();
     fetchCookies();
+    fetchUsers();
   }, []);
 
   if (CurrentUser?.UserRole !== 'Admin' && CurrentUser?.UserRole !== 'Moderator') {
@@ -349,25 +374,29 @@ export const Admin: React.FC = () => {
             </div>
 
             <div className="flex flex-col gap-3 text-xs">
-              <div className="flex items-center justify-between border-b border-brand-hover pb-2">
-                <div className="flex flex-col">
-                  <span className="font-bold text-white">eduardo@havenox.com.br</span>
-                  <span className="text-[10px] text-brand-green font-semibold">ADMINISTRADOR</span>
+              {isLoadingUsers ? (
+                <div className="text-xs text-brand-gray animate-pulse font-semibold">
+                  Carregando usuários do CRM...
                 </div>
-                <span className="text-[10px] bg-brand-hover text-white px-2 py-0.5 rounded border border-brand-hover">
-                  Paid PRO
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between border-b border-brand-hover pb-2">
-                <div className="flex flex-col">
-                  <span className="font-bold text-white">marcos@gmail.com</span>
-                  <span className="text-[10px] text-brand-gray">PAID USER</span>
+              ) : users.length === 0 ? (
+                <div className="text-xs text-brand-gray font-semibold">
+                  Nenhum usuário cadastrado no banco.
                 </div>
-                <span className="text-[10px] bg-brand-hover text-white px-2 py-0.5 rounded border border-brand-hover">
-                  Paid PRO
-                </span>
-              </div>
+              ) : (
+                users.map(user => (
+                  <div key={user.UserId} className="flex items-center justify-between border-b border-brand-hover pb-2">
+                    <div className="flex flex-col">
+                      <span className="font-bold text-white">{user.Email}</span>
+                      <span className={`text-[10px] font-semibold ${user.UserRole === 'Admin' ? 'text-brand-green' : user.UserRole === 'Moderator' ? 'text-blue-400' : 'text-brand-gray'}`}>
+                        {user.UserRole === 'Admin' ? 'ADMINISTRADOR' : user.UserRole === 'Moderator' ? 'MODERADOR' : user.UserRole === 'PaidUser' ? 'USUÁRIO PREMIUM' : 'USUÁRIO COMUM'}
+                      </span>
+                    </div>
+                    <span className="text-[10px] bg-brand-hover text-white px-2 py-0.5 rounded border border-brand-hover">
+                      {user.UserRole === 'PaidUser' || user.UserRole === 'Admin' ? 'Paid PRO' : 'Free Tier'}
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
