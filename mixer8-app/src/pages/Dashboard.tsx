@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   Play, UploadCloud, CheckCircle, Clock, FileAudio, 
-  Sparkles, ShieldAlert, Disc, AlertTriangle, Plus
+  Sparkles, ShieldAlert, Disc, AlertTriangle, Plus, Trash2, X, Music, Loader2
 } from 'lucide-react';
 
 import { usePlayer } from '../context/PlayerContext';
@@ -15,7 +15,7 @@ const SERVER_URL = API_URL.replace('/api', '');
 
 export const Dashboard: React.FC = () => {
   const { CurrentUser, Token } = useAuth();
-  const { loadTrack } = usePlayer();
+  const { loadTrack, currentTrack } = usePlayer();
   const { openAddToPlaylist } = usePlaylists();
   const location = useLocation();
   const navigate = useNavigate();
@@ -25,12 +25,70 @@ export const Dashboard: React.FC = () => {
   const [error, setError] = useState('');
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; track: ITrack } | null>(null);
 
+  const [trackToDelete, setTrackToDelete] = useState<ITrack | null>(null);
+  const [deleteCountdown, setDeleteCountdown] = useState(3);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
   // Fechar menu de contexto ao clicar fora
   useEffect(() => {
     const closeMenu = () => setContextMenu(null);
     window.addEventListener('click', closeMenu);
     return () => window.removeEventListener('click', closeMenu);
   }, []);
+
+  // Gerenciador do timer de contagem regressiva para exclusão física (Admin)
+  useEffect(() => {
+    if (!trackToDelete) return;
+    
+    setDeleteCountdown(3);
+    setDeleteError('');
+    setIsDeleting(false);
+
+    const timer = setInterval(() => {
+      setDeleteCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [trackToDelete]);
+
+  const handleConfirmDelete = async () => {
+    if (!trackToDelete || deleteCountdown > 0 || isDeleting) return;
+
+    setIsDeleting(true);
+    setDeleteError('');
+
+    try {
+      const res = await fetch(`${API_URL}/Tracks/${trackToDelete.TrackId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${Token}`
+        }
+      });
+
+      if (res.ok) {
+        // Se a música deletada estiver tocando, limpa do player
+        if (currentTrack && currentTrack.TrackId === trackToDelete.TrackId) {
+          loadTrack(null);
+        }
+        setTrackToDelete(null);
+        fetchTracks(); // recarrega a lista da tela
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        setDeleteError(errorData.ErrorMessage || 'Falha ao excluir a música do sistema.');
+      }
+    } catch {
+      setDeleteError('Erro de conexão ao tentar excluir a música.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Controle de Upload de arquivos
   const [isUploading, setIsUploading] = useState(false);
@@ -438,6 +496,100 @@ export const Dashboard: React.FC = () => {
             <Plus className="w-4 h-4 text-brand-green" />
             <span>Adicionar à Playlist</span>
           </button>
+
+          {CurrentUser?.UserRole === 'Admin' && (
+            <>
+              <div className="h-[1px] bg-brand-hover my-1" />
+              <button
+                onClick={() => {
+                  setTrackToDelete(contextMenu.track);
+                  setContextMenu(null);
+                }}
+                className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-red-950/40 text-red-400 transition-all cursor-pointer flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4 text-red-400" />
+                <span>Excluir do Sistema</span>
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO DE MÚSICA (ADMIN) */}
+      {trackToDelete && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
+          <div className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200">
+            <button 
+              onClick={() => setTrackToDelete(null)}
+              className="absolute top-4 right-4 text-brand-gray hover:text-white cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 text-red-500">
+              <AlertTriangle className="w-6 h-6 shrink-0" />
+              <div className="flex flex-col">
+                <span className="text-[10px] text-red-400 font-bold uppercase tracking-wider">Ação Destrutiva</span>
+                <h3 className="text-sm font-bold text-white">Excluir Música Permanentemente</h3>
+              </div>
+            </div>
+
+            <div className="bg-black/40 border border-brand-hover p-3 rounded flex items-center gap-3">
+              <div className="w-12 h-12 bg-black rounded overflow-hidden flex items-center justify-center text-brand-green border border-brand-hover shrink-0">
+                {trackToDelete.CoverUrl ? (
+                  <img 
+                    src={trackToDelete.CoverUrl.startsWith('http') ? trackToDelete.CoverUrl : `${SERVER_URL}${trackToDelete.CoverUrl}`} 
+                    alt="Capa" 
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <Music className="w-5 h-5" />
+                )}
+              </div>
+              <div className="flex flex-col truncate">
+                <span className="font-bold text-white text-sm truncate">{trackToDelete.TrackTitle}</span>
+                <span className="text-xs text-brand-gray truncate">{trackToDelete.ArtistName}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-brand-gray leading-relaxed m-0">
+              Esta ação é <strong className="text-red-400">irreversível</strong>. A música será removida permanentemente do banco de dados, seus arquivos físicos de stems (áudio) e capa serão excluídos do servidor, e ela será desassociada de qualquer playlist existente.
+            </p>
+
+            {deleteError && (
+              <div className="bg-red-500/10 border border-red-500/30 p-2.5 rounded text-xs text-red-400">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 mt-2 pt-3 border-t border-brand-hover">
+              <button
+                type="button"
+                onClick={() => setTrackToDelete(null)}
+                disabled={isDeleting}
+                className="py-2 px-3 border border-brand-hover rounded text-xs font-semibold text-brand-gray hover:text-white cursor-pointer disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={deleteCountdown > 0 || isDeleting}
+                className="py-2 px-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded text-xs hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:hover:scale-100 disabled:active:scale-100"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Excluindo...</span>
+                  </>
+                ) : deleteCountdown > 0 ? (
+                  <span>Excluir ({deleteCountdown}s)</span>
+                ) : (
+                  <span>Confirmar Exclusão</span>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

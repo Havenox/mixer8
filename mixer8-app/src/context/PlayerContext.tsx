@@ -24,7 +24,7 @@ interface IPlayerContext {
   duration: number;
   stemsVolume: Record<string, number>;
   masterVolume: number;
-  loadTrack: (track: ITrack) => void;
+  loadTrack: (track: ITrack | null) => void;
   togglePlay: () => void;
   seek: (seconds: number) => void;
   setStemVolume: (type: string, volume: number) => void;
@@ -114,14 +114,14 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return audioContextRef.current;
   };
 
-  const loadTrack = async (track: ITrack) => {
+  const loadTrack = async (track: ITrack | null) => {
     setIsPlaying(false);
     cleanupActiveStems();
     setCurrentTime(0);
     setDuration(0);
     setCurrentTrack(track);
 
-    if (!track.Stems || track.Stems.length === 0) {
+    if (!track || !track.Stems || track.Stems.length === 0) {
       return;
     }
 
