@@ -499,6 +499,205 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             return StatusCode(500, new { ErrorMessage = "DELETE_FAILED", Details = ex.Message });
         }
     }
+
+    [Authorize(Roles = "Admin")]
+    [HttpPut("{id}")]
+    [DisableRequestSizeLimit]
+    public async Task<IActionResult> Update(Guid id, [FromForm] UpdateTrackRequest request)
+    {
+        var track = await dbContext.Tracks
+            .Include(t => t.Stems)
+            .FirstOrDefaultAsync(t => t.TrackId == id);
+
+        if (track == null)
+        {
+            return NotFound(new { ErrorMessage = "TRACK_NOT_FOUND" });
+        }
+
+        using var transaction = await dbContext.Database.BeginTransactionAsync();
+        try
+        {
+            // 1. Atualizar metadados textuais
+            track.TrackTitle = request.TrackTitle.Trim();
+            track.ArtistName = request.ArtistName.Trim();
+
+            var stemsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "stems");
+            var trackDir = Path.Combine(stemsDir, id.ToString());
+            if (!Directory.Exists(trackDir))
+            {
+                Directory.CreateDirectory(trackDir);
+            }
+
+            // 2. Atualizar capa
+            if (request.CoverFile != null && request.CoverFile.Length > 0)
+            {
+                var coverExt = Path.GetExtension(request.CoverFile.FileName).ToLowerInvariant();
+                if (coverExt == ".jpg" || coverExt == ".jpeg" || coverExt == ".png")
+                {
+                    var coverPath = Path.Combine(trackDir, "cover.jpg");
+                    if (System.IO.File.Exists(coverPath))
+                    {
+                        System.IO.File.Delete(coverPath);
+                    }
+                    using (var stream = new FileStream(coverPath, FileMode.Create))
+                    {
+                        await request.CoverFile.CopyToAsync(stream);
+                    }
+                    track.CoverUrl = $"/stems/{id}/cover.jpg";
+                }
+            }
+
+            // 3. Deletar stems selecionadas
+            if (!string.IsNullOrWhiteSpace(request.DeleteStemIds))
+            {
+                var idsToDelete = request.DeleteStemIds.Split(',')
+                    .Select(s => s.Trim())
+                    .Where(s => Guid.TryParse(s, out _))
+                    .Select(Guid.Parse)
+                    .ToList();
+
+                foreach (var stemId in idsToDelete)
+                {
+                    var stem = track.Stems.FirstOrDefault(s => s.StemId == stemId);
+                    if (stem != null)
+                    {
+                        var physicalPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", stem.AudioUrl.TrimStart('/'));
+                        if (System.IO.File.Exists(physicalPath))
+                        {
+                            System.IO.File.Delete(physicalPath);
+                        }
+                        dbContext.Stems.Remove(stem);
+                    }
+                }
+            }
+
+            // 4. Processar Substituições de Stems Individuais (Chave: ReplaceStem_{stemId})
+            foreach (var file in Request.Form.Files)
+            {
+                if (file.Name.StartsWith("ReplaceStem_"))
+                {
+                    var stemIdStr = file.Name.Substring("ReplaceStem_".Length);
+                    if (Guid.TryParse(stemIdStr, out var stemId))
+                    {
+                        var oldStem = track.Stems.FirstOrDefault(s => s.StemId == stemId);
+                        if (oldStem != null && file.Length > 0)
+                        {
+                            var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+                            if (AllowedAudioExtensions.Contains(ext))
+                            {
+                                // Deleta o arquivo físico antigo
+                                var oldPhysicalPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", oldStem.AudioUrl.TrimStart('/'));
+                                if (System.IO.File.Exists(oldPhysicalPath))
+                                {
+                                    System.IO.File.Delete(oldPhysicalPath);
+                                }
+
+                                var newStemId = Guid.NewGuid();
+                                var stemType = MapFileNameToStemType(file.FileName);
+                                var stemFileName = $"{stemType}_{newStemId}.opus";
+                                var stemPath = Path.Combine(trackDir, stemFileName);
+
+                                using (var stream = file.OpenReadStream())
+                                {
+                                    var success = await ConvertToOpusAsync(stream, stemPath, stemType);
+                                    if (success)
+                                    {
+                                        oldStem.StemType = stemType;
+                                        oldStem.AudioUrl = $"/stems/{id}/{stemFileName}";
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 5. Processar Adição de Novas Stems (gerais/novas via Files)
+            if (request.Files != null && request.Files.Count > 0)
+            {
+                foreach (var file in request.Files)
+                {
+                    if (file.Length == 0) continue;
+                    var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+
+                    if (ext == ".zip")
+                    {
+                        using (var archiveStream = file.OpenReadStream())
+                        {
+                            using (var archive = new ZipArchive(archiveStream, ZipArchiveMode.Read))
+                            {
+                                foreach (var entry in archive.Entries)
+                                {
+                                    if (string.IsNullOrEmpty(entry.Name) || entry.Length == 0) continue;
+
+                                    var entryExt = Path.GetExtension(entry.Name).ToLowerInvariant();
+                                    if (!AllowedAudioExtensions.Contains(entryExt)) continue;
+
+                                    var newStemId = Guid.NewGuid();
+                                    var stemType = MapFileNameToStemType(entry.Name);
+                                    var stemFileName = $"{stemType}_{newStemId}.opus";
+                                    var stemPath = Path.Combine(trackDir, stemFileName);
+
+                                    using (var entryStream = entry.Open())
+                                    {
+                                        var success = await ConvertToOpusAsync(entryStream, stemPath, stemType);
+                                        if (!success) continue;
+                                    }
+
+                                    dbContext.Stems.Add(new Stem
+                                    {
+                                        StemId = newStemId,
+                                        TrackId = id,
+                                        StemType = stemType,
+                                        AudioUrl = $"/stems/{id}/{stemFileName}",
+                                        CreatedAt = DateTime.UtcNow
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    else if (AllowedAudioExtensions.Contains(ext))
+                    {
+                        var newStemId = Guid.NewGuid();
+                        var stemType = MapFileNameToStemType(file.FileName);
+                        var stemFileName = $"{stemType}_{newStemId}.opus";
+                        var stemPath = Path.Combine(trackDir, stemFileName);
+
+                        using (var stream = file.OpenReadStream())
+                        {
+                            var success = await ConvertToOpusAsync(stream, stemPath, stemType);
+                            if (success)
+                            {
+                                dbContext.Stems.Add(new Stem
+                                {
+                                    StemId = newStemId,
+                                    TrackId = id,
+                                    StemType = stemType,
+                                    AudioUrl = $"/stems/{id}/{stemFileName}",
+                                    CreatedAt = DateTime.UtcNow
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            await dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            var updatedTrack = await dbContext.Tracks
+                .Include(t => t.Stems)
+                .FirstOrDefaultAsync(t => t.TrackId == id);
+
+            return Ok(updatedTrack);
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            Console.WriteLine($"[UPDATE TRACK ERROR] Falha ao atualizar música: {ex.Message}");
+            return StatusCode(500, new { ErrorMessage = "UPDATE_FAILED", Details = ex.Message });
+        }
+    }
 }
 
 public class UploadTrackRequest
@@ -513,5 +712,14 @@ public class UploadDirectRequest
     public string TrackTitle { get; set; } = null!;
     public string ArtistName { get; set; } = null!;
     public IFormFile? CoverFile { get; set; }
+    public List<IFormFile> Files { get; set; } = new();
+}
+
+public class UpdateTrackRequest
+{
+    public string TrackTitle { get; set; } = null!;
+    public string ArtistName { get; set; } = null!;
+    public IFormFile? CoverFile { get; set; }
+    public string? DeleteStemIds { get; set; }
     public List<IFormFile> Files { get; set; } = new();
 }
