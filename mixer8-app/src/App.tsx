@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { PlayerProvider, usePlayer } from './context/PlayerContext';
+import { PlaylistProvider, usePlaylists } from './context/PlaylistContext';
 import type { ITrack } from './context/PlayerContext';
 import { PersistentLayout } from './components/PersistentLayout';
 import { Login } from './pages/Login';
@@ -9,7 +10,8 @@ import { Register } from './pages/Register';
 import { Dashboard } from './pages/Dashboard';
 import { Admin } from './pages/Admin';
 import { UploadDireto } from './pages/UploadDireto';
-import { Play, Sparkles, Disc, Flame, Music, Radio, Star, Loader2 } from 'lucide-react';
+import { PlaylistDetail } from './pages/PlaylistDetail';
+import { Play, Sparkles, Disc, Flame, Music, Radio, Star, Loader2, Plus } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const SERVER_URL = API_URL.replace('/api', '');
@@ -24,8 +26,17 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 const Explore: React.FC = () => {
   const { CurrentUser } = useAuth();
   const { loadTrack } = usePlayer();
+  const { openAddToPlaylist } = usePlaylists();
   const [tracks, setTracks] = useState<ITrack[]>([]);
   const [loading, setLoading] = useState(true);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; track: ITrack } | null>(null);
+
+  // Fechar menu de contexto ao clicar fora
+  useEffect(() => {
+    const closeMenu = () => setContextMenu(null);
+    window.addEventListener('click', closeMenu);
+    return () => window.removeEventListener('click', closeMenu);
+  }, []);
 
   useEffect(() => {
     const fetchTracks = async () => {
@@ -85,9 +96,20 @@ const Explore: React.FC = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {tracks.slice(0, 3).map((track, idx) => (
-              <div key={track.TrackId} className="bg-brand-card border border-brand-hover p-5 rounded-md hover:bg-brand-hover transition-all flex items-center justify-between group shadow-lg">
+              <div 
+                key={track.TrackId} 
+                className="bg-brand-card border border-brand-hover p-5 rounded-md hover:bg-brand-hover transition-all flex items-center justify-between group shadow-lg relative cursor-pointer"
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setContextMenu({
+                    x: e.clientX,
+                    y: e.clientY,
+                    track
+                  });
+                }}
+              >
                 <div className="flex items-center gap-4 truncate">
-                  <div className="w-12 h-12 bg-black border border-brand-hover rounded flex items-center justify-center text-brand-green shadow-md shrink-0 overflow-hidden">
+                  <div className="w-12 h-12 bg-black border border-brand-hover rounded flex items-center justify-center text-brand-green shadow-md shrink-0 overflow-hidden relative">
                     {track.CoverUrl ? (
                       <img 
                         src={track.CoverUrl.startsWith('http') ? track.CoverUrl : `${SERVER_URL}${track.CoverUrl}`} 
@@ -107,17 +129,52 @@ const Explore: React.FC = () => {
                     <span className="text-xs text-brand-gray truncate">{track.ArtistName}</span>
                   </div>
                 </div>
-                <button 
-                  onClick={() => loadTrack(track)}
-                  className="w-9 h-9 rounded-full bg-brand-green text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-95 group-hover:scale-100 hover:scale-105 shadow-md cursor-pointer shrink-0 animate-in fade-in duration-200"
-                >
-                  <Play className="w-4 h-4 fill-current translate-x-[0.5px]" />
-                </button>
+
+                <div className="flex items-center gap-2">
+                  {/* Botão rápido no hover */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openAddToPlaylist(track.TrackId, track.TrackTitle, track.ArtistName);
+                    }}
+                    className="w-8 h-8 rounded-full bg-black/60 border border-brand-hover hover:border-brand-green text-brand-green hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-105 transition-all shadow-md cursor-pointer duration-200"
+                    title="Adicionar à Playlist"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+
+                  <button 
+                    onClick={() => loadTrack(track)}
+                    className="w-9 h-9 rounded-full bg-brand-green text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-95 group-hover:scale-100 hover:scale-105 shadow-md cursor-pointer shrink-0"
+                  >
+                    <Play className="w-4 h-4 fill-current translate-x-[0.5px]" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* MENU DE CONTEXTO EM EXPLORAR */}
+      {contextMenu && (
+        <div 
+          className="fixed bg-brand-card border border-brand-hover p-1 rounded shadow-2xl z-[90] flex flex-col min-w-[170px] animate-in fade-in duration-100"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={e => e.stopPropagation()}
+        >
+          <button
+            onClick={() => {
+              openAddToPlaylist(contextMenu.track.TrackId, contextMenu.track.TrackTitle, contextMenu.track.ArtistName);
+              setContextMenu(null);
+            }}
+            className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-brand-green"
+          >
+            <Plus className="w-4 h-4 text-brand-green" />
+            <span>Adicionar à Playlist</span>
+          </button>
+        </div>
+      )}
 
       {/* Grid de Gêneros / Vibe */}
       {!loading && tracks.length > 0 && (
@@ -154,23 +211,26 @@ export const App: React.FC = () => {
   return (
     <AuthProvider>
       <PlayerProvider>
-        <Router>
-          <PersistentLayout>
-            <Routes>
-              {/* Rotas Públicas */}
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              
-              <Route path="/" element={<ProtectedRoute><Explore /></ProtectedRoute>} />
-              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
-              <Route path="/upload-direto" element={<ProtectedRoute><UploadDireto /></ProtectedRoute>} />
-              
-              {/* Fallback */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </PersistentLayout>
-        </Router>
+        <PlaylistProvider>
+          <Router>
+            <PersistentLayout>
+              <Routes>
+                {/* Rotas Públicas */}
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                
+                <Route path="/" element={<ProtectedRoute><Explore /></ProtectedRoute>} />
+                <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+                <Route path="/upload-direto" element={<ProtectedRoute><UploadDireto /></ProtectedRoute>} />
+                <Route path="/playlists/:id" element={<ProtectedRoute><PlaylistDetail /></ProtectedRoute>} />
+                
+                {/* Fallback */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </PersistentLayout>
+          </Router>
+        </PlaylistProvider>
       </PlayerProvider>
     </AuthProvider>
   );

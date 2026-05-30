@@ -3,10 +3,11 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   Play, UploadCloud, CheckCircle, Clock, FileAudio, 
-  Sparkles, ShieldAlert, Disc, AlertTriangle
+  Sparkles, ShieldAlert, Disc, AlertTriangle, Plus
 } from 'lucide-react';
 
 import { usePlayer } from '../context/PlayerContext';
+import { usePlaylists } from '../context/PlaylistContext';
 import type { ITrack } from '../context/PlayerContext';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -15,12 +16,21 @@ const SERVER_URL = API_URL.replace('/api', '');
 export const Dashboard: React.FC = () => {
   const { CurrentUser, Token } = useAuth();
   const { loadTrack } = usePlayer();
+  const { openAddToPlaylist } = usePlaylists();
   const location = useLocation();
   const navigate = useNavigate();
   
   const [tracks, setTracks] = useState<ITrack[]>([]);
   const [isLoadingTracks, setIsLoadingTracks] = useState(true);
   const [error, setError] = useState('');
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; track: ITrack } | null>(null);
+
+  // Fechar menu de contexto ao clicar fora
+  useEffect(() => {
+    const closeMenu = () => setContextMenu(null);
+    window.addEventListener('click', closeMenu);
+    return () => window.removeEventListener('click', closeMenu);
+  }, []);
 
   // Controle de Upload de arquivos
   const [isUploading, setIsUploading] = useState(false);
@@ -205,8 +215,32 @@ export const Dashboard: React.FC = () => {
           {tracks.map((track) => (
             <div 
               key={track.TrackId} 
-              className="bg-brand-card border border-brand-hover p-4 rounded-md hover:bg-brand-hover group transition-all relative"
+              className="bg-brand-card border border-brand-hover p-4 rounded-md hover:bg-brand-hover group transition-all relative cursor-pointer"
+              onContextMenu={(e) => {
+                if (track.ExtractionStatus === 'Pronto') {
+                  e.preventDefault();
+                  setContextMenu({
+                    x: e.clientX,
+                    y: e.clientY,
+                    track
+                  });
+                }
+              }}
             >
+              {/* Botão rápido de adicionar à playlist no hover */}
+              {track.ExtractionStatus === 'Pronto' && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openAddToPlaylist(track.TrackId, track.TrackTitle, track.ArtistName);
+                  }}
+                  className="absolute top-6 right-6 z-20 w-8 h-8 rounded-full bg-black/75 border border-brand-hover hover:border-brand-green text-brand-green hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-105 transition-all shadow-md cursor-pointer duration-200"
+                  title="Adicionar à Playlist"
+                >
+                  <Plus className="w-4.5 h-4.5" />
+                </button>
+              )}
+
               <div className="w-full aspect-square bg-black border border-brand-hover rounded mb-4 flex items-center justify-center relative overflow-hidden group shadow-md">
                 {track.CoverUrl ? (
                   <img 
@@ -384,6 +418,26 @@ export const Dashboard: React.FC = () => {
 
           </div>
 
+        </div>
+      )}
+
+      {/* MENU DE CONTEXTO PREMIUM (Botão Direito) */}
+      {contextMenu && (
+        <div 
+          className="fixed bg-brand-card border border-brand-hover p-1 rounded shadow-2xl z-[90] flex flex-col min-w-[170px] animate-in fade-in duration-100"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={e => e.stopPropagation()}
+        >
+          <button
+            onClick={() => {
+              openAddToPlaylist(contextMenu.track.TrackId, contextMenu.track.TrackTitle, contextMenu.track.ArtistName);
+              setContextMenu(null);
+            }}
+            className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-brand-green"
+          >
+            <Plus className="w-4 h-4 text-brand-green" />
+            <span>Adicionar à Playlist</span>
+          </button>
         </div>
       )}
 
