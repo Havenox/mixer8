@@ -143,7 +143,7 @@ export const Login: React.FC = () => {
         {/* Botões de Acesso Rápido */}
         <div className="grid grid-cols-2 gap-2 text-xs font-bold">
           <button 
-            onClick={() => handleQuickLogin('admin@mixer8.com', 'admin123')}
+            onClick={() => handleQuickLogin('admin@mixer8.com', 'mixer8')}
             disabled={isPending}
             className="py-2 px-3 bg-brand-hover border border-brand-hover text-white rounded hover:border-brand-green hover:text-brand-green transition-all flex flex-col items-center gap-0.5 cursor-pointer"
           >
@@ -151,7 +151,7 @@ export const Login: React.FC = () => {
             <span className="text-[9px] text-brand-gray font-normal">Painel CRM e Configs</span>
           </button>
           <button 
-            onClick={() => handleQuickLogin('paid@mixer8.com', 'paid123')}
+            onClick={() => handleQuickLogin('paiduser@mixer8.com', 'mixer8')}
             disabled={isPending}
             className="py-2 px-3 bg-brand-hover border border-brand-hover text-white rounded hover:border-brand-green hover:text-brand-green transition-all flex flex-col items-center gap-0.5 cursor-pointer"
           >
