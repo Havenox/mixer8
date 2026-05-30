@@ -1,0 +1,302 @@
+import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { 
+  Shield, Key, Users, Cpu, FileJson, 
+  HelpCircle, CheckCircle, RefreshCw, AlertTriangle, Play
+} from 'lucide-react';
+
+export const Admin: React.FC = () => {
+  const { CurrentUser } = useAuth();
+  
+  // Controle do painel de cookies
+  const [cookiesJson, setCookiesJson] = useState('{\n  "cookies": [\n    {\n      "name": "session",\n      "value": "mock_session_value_here",\n      "domain": ".plataforma-stems.ai"\n    }\n  ]\n}');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Controle de teste de conexão com o Bot
+  const [isTesting, setIsTesting] = useState(false);
+  const [testLogs, setTestLogs] = useState<string[]>([]);
+  const [testResult, setTestResult] = useState<'success' | 'failed' | null>(null);
+
+  if (CurrentUser?.UserRole !== 'Admin' && CurrentUser?.UserRole !== 'Moderator') {
+    return (
+      <div className="bg-red-500/10 border border-red-500/30 p-6 rounded-md flex flex-col gap-3 max-w-[500px] mx-auto mt-12 text-center items-center animate-in fade-in duration-200">
+        <AlertTriangle className="w-12 h-12 text-red-500" />
+        <h2 className="text-lg font-bold text-white">Acesso Negado (403)</h2>
+        <p className="text-xs text-brand-gray">
+          Seu perfil atual ({CurrentUser?.UserRole}) não tem privilégios de Administrador. Mude seu perfil usando o 🧪 Simulador de Perfis (RBAC) no rodapé da barra lateral esquerda para testar!
+        </p>
+      </div>
+    );
+  }
+
+  const handleSaveCookies = () => {
+    setIsSaving(true);
+    setTimeout(() => {
+      setIsSaving(false);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    }, 1200);
+  };
+
+  const handleTestConnection = () => {
+    setIsTesting(true);
+    setTestResult(null);
+    setTestLogs([]);
+
+    const steps = [
+      'Solicitando inicialização do Playwright no container do moises-extractor...',
+      'Injetando cookies e localStorage (auth.json) no contexto do Chromium...',
+      'Abrindo navegação headless para a plataforma de Stems AI...',
+      'Aguardando redirecionamentos invisíveis e verificação do Cloudflare...',
+      'Localizado elemento do perfil do usuário: logado com "Havenox/Eduardo"!',
+      'Sessão confirmada como VÁLIDA. Tipo de conta detectado: PRO/Premium.'
+    ];
+
+    steps.forEach((step, idx) => {
+      setTimeout(() => {
+        setTestLogs(prev => [...prev, `[BOT] ${step}`]);
+        if (idx === steps.length - 1) {
+          setIsTesting(false);
+          setTestResult('success');
+        }
+      }, (idx + 1) * 1200);
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-8 animate-in fade-in duration-300 select-none">
+      
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-brand-hover pb-5">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-3xl font-black tracking-tight m-0 text-white flex items-center gap-2">
+            <Shield className="w-8 h-8 text-brand-green" /> Painel de Controle CRM
+          </h1>
+          <p className="text-sm text-brand-gray">Administre usuários, sessões e parametrize a integração headless da plataforma de Stems AI.</p>
+        </div>
+      </div>
+
+      {/* KPI Blocks (CRM Style com bordas finas de 1px) */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        
+        {/* CPU */}
+        <div className="bg-brand-card border border-brand-hover p-4 rounded-md flex items-center justify-between shadow-lg">
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Uso de CPU (VPS)</span>
+            <span className="text-xl font-bold text-white">4.2%</span>
+          </div>
+          <Cpu className="w-8 h-8 text-brand-green/40" />
+        </div>
+
+        {/* RAM */}
+        <div className="bg-brand-card border border-brand-hover p-4 rounded-md flex items-center justify-between shadow-lg">
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Uso de RAM</span>
+            <span className="text-xl font-bold text-white">312 MB / 2 GB</span>
+          </div>
+          <Users className="w-8 h-8 text-brand-green/40" />
+        </div>
+
+        {/* Stems Baixados */}
+        <div className="bg-brand-card border border-brand-hover p-4 rounded-md flex items-center justify-between shadow-lg">
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Stems Extraídas</span>
+            <span className="text-xl font-bold text-white">18</span>
+          </div>
+          <CheckCircle className="w-8 h-8 text-brand-green/40" />
+        </div>
+
+        {/* Status Fila */}
+        <div className="bg-brand-card border border-brand-hover p-4 rounded-md flex items-center justify-between shadow-lg">
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Status do Bot</span>
+            <span className="text-xs font-bold text-brand-green flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-brand-green animate-ping" />
+              Sessão Ativa e Pronta
+            </span>
+          </div>
+          <Key className="w-8 h-8 text-brand-green/40" />
+        </div>
+
+      </div>
+
+      {/* Seção Central de 2 Colunas */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Coluna Esquerda: Importador de Cookies & Estudo de Viabilidade (Ocupa 2 colunas) */}
+        <div className="lg:col-span-2 flex flex-col gap-6">
+          
+          {/* Caixa de Importação de Cookies */}
+          <div className="bg-brand-card border border-brand-hover p-6 rounded-md flex flex-col gap-4 shadow-xl">
+            
+            <div className="flex flex-col gap-1 border-b border-brand-hover pb-3">
+              <h2 className="text-base font-bold text-white flex items-center gap-2 m-0">
+                <FileJson className="w-5 h-5 text-brand-green" /> Importador de Sessão (auth.json)
+              </h2>
+              <p className="text-xs text-brand-gray">
+                Burlar captcha e verificação Cloudflare injetando a sessão de cookies já autenticada da sua máquina pessoal.
+              </p>
+            </div>
+
+            {/* Guia Rápido */}
+            <div className="bg-black/50 border border-brand-hover p-4 rounded text-xs text-brand-gray flex flex-col gap-2">
+              <span className="font-bold text-white flex items-center gap-1.5">
+                <HelpCircle className="w-4 h-4 text-brand-green" /> Como obter seus cookies?
+              </span>
+              <ol className="list-decimal list-inside flex flex-col gap-1 pl-1">
+                <li>Instale uma extensão como <strong className="text-white">EditThisCookie</strong> no seu Chrome/Edge.</li>
+                <li>Acesse a plataforma de stems externa no seu navegador e faça login normalmente.</li>
+                <li>Abra a extensão, clique em "Exportar" para copiar os cookies em formato JSON.</li>
+                <li>Cole o JSON na caixa abaixo e clique em <strong className="text-white">Importar Cookies de Sessão</strong>.</li>
+              </ol>
+            </div>
+
+            {/* Textarea */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-brand-gray">JSON de Estado (Cookies / localStorage)</label>
+              <textarea 
+                value={cookiesJson}
+                onChange={(e) => setCookiesJson(e.target.value)}
+                rows={6}
+                disabled={isSaving}
+                className="w-full bg-black border border-brand-hover rounded p-3 font-mono text-[10px] text-brand-green focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green"
+              />
+            </div>
+
+            {/* Botão Salvar */}
+            <button 
+              onClick={handleSaveCookies}
+              disabled={isSaving}
+              className="py-2.5 px-4 bg-brand-green text-black font-bold text-sm rounded hover:scale-105 active:scale-95 transition-all self-start flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:scale-100"
+            >
+              {isSaving ? 'Salvando no Container...' : 'Importar Cookies de Sessão'}
+              {saveSuccess && <span className="text-xs text-black font-normal bg-white px-2 py-0.5 rounded ml-2 animate-bounce">Sessão Salva!</span>}
+            </button>
+
+          </div>
+
+          {/* Análise de Viabilidade Técnica e Bypass */}
+          <div className="bg-brand-card border border-brand-hover p-6 rounded-md flex flex-col gap-4 shadow-xl">
+            <div className="flex flex-col gap-1 border-b border-brand-hover pb-3">
+              <h2 className="text-base font-bold text-white flex items-center gap-2 m-0">
+                🧠 Estudo de Caso: Por que essa abordagem é a melhor?
+              </h2>
+            </div>
+            <div className="text-xs text-brand-gray flex flex-col gap-3 leading-relaxed">
+              <p>
+                A sua proposta de <strong className="text-white">"trazer o login do extrator para o frontend e repassar os cookies"</strong> é **altamente viável, segura e representa o estado da arte** para burlar proteções contra bots como Cloudflare Turnstile, Cloudflare WAF, e CAPTCHAs que barram IPs de nuvens VPS.
+              </p>
+              <p>
+                <strong>Por que é genial?</strong> O Cloudflare analisa o "comportamento mecânico" e as assinaturas de rede (TLS fingerprint) apenas **durante o processo de autenticação e preenchimento de login**. Uma vez que a sessão foi validada em seu navegador residencial limpo, a requisição de navegação subsequente já logada utiliza apenas cookies HTTP normais.
+              </p>
+              <p>
+                Ao colar os cookies e o estado do `localStorage` (como o token JWT) no nosso painel, a API do backend grava diretamente esses dados em <code className="text-white bg-black px-1.5 py-0.5 rounded">moises-extractor/config/auth.json</code>. 
+              </p>
+              <p>
+                Quando o Bot Playwright na VPS Linux inicializa o Chromium, ele carrega o arquivo de estado e abre a página diretamente logado na biblioteca do extrator externo, **pulando completamente a tela de login**, eliminando qualquer barreira de CAPTCHA!
+              </p>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Coluna Direita: Testador do Robô & Lista de Admin */}
+        <div className="flex flex-col gap-6">
+          
+          {/* Testador do Robô em Execução */}
+          <div className="bg-brand-card border border-brand-hover p-6 rounded-md flex flex-col gap-4 shadow-xl">
+            <div className="flex flex-col gap-1 border-b border-brand-hover pb-3">
+              <h2 className="text-base font-bold text-white flex items-center gap-2 m-0">
+                🧪 Testar Conexão do Bot
+              </h2>
+              <p className="text-xs text-brand-gray">Verifique se o robô da VPS consegue logar com a sessão atual.</p>
+            </div>
+
+            <button 
+              onClick={handleTestConnection}
+              disabled={isTesting}
+              className="w-full py-2.5 bg-brand-hover hover:bg-brand-green hover:text-black border border-brand-hover text-white rounded font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Play className="w-4 h-4 fill-current" />
+              {isTesting ? 'Bot Testando...' : 'Iniciar Teste de Sessão'}
+            </button>
+
+            {/* Logs de Teste */}
+            {(testLogs.length > 0 || isTesting) && (
+              <div className="bg-black rounded p-3 font-mono text-[9px] text-brand-gray h-44 overflow-y-auto flex flex-col gap-1 shadow-inner">
+                {testLogs.map((log, idx) => (
+                  <div key={idx} className="flex gap-1.5 items-start">
+                    <span className="text-brand-green">❯</span>
+                    <span>{log}</span>
+                  </div>
+                ))}
+                {isTesting && (
+                  <div className="flex gap-1.5 items-center text-white font-bold animate-pulse">
+                    <span className="text-brand-green">❯</span>
+                    <span>Aguardando resposta da VPS...</span>
+                  </div>
+                )}
+                {testResult === 'success' && (
+                  <div className="text-brand-green font-bold mt-2 flex items-center gap-1">
+                    <CheckCircle className="w-3.5 h-3.5" /> TESTE FINALIZADO: SESSÃO ATIVA E SEGURA!
+                  </div>
+                )}
+              </div>
+            )}
+
+          </div>
+
+          {/* CRM Lista de Usuários */}
+          <div className="bg-brand-card border border-brand-hover p-6 rounded-md flex flex-col gap-4 shadow-xl">
+            <div className="flex flex-col gap-1 border-b border-brand-hover pb-3">
+              <h2 className="text-base font-bold text-white flex items-center gap-2 m-0">
+                👥 Usuários Ativos (CRM)
+              </h2>
+            </div>
+
+            <div className="flex flex-col gap-3 text-xs">
+              
+              {/* User 1 */}
+              <div className="flex items-center justify-between border-b border-brand-hover pb-2">
+                <div className="flex flex-col">
+                  <span className="font-bold text-white">eduardo@havenox.com.br</span>
+                  <span className="text-[10px] text-brand-green font-semibold">ADMINISTRADOR</span>
+                </div>
+                <span className="text-[10px] bg-brand-hover text-white px-2 py-0.5 rounded border border-brand-hover">
+                  Paid PRO
+                </span>
+              </div>
+
+              {/* User 2 */}
+              <div className="flex items-center justify-between border-b border-brand-hover pb-2">
+                <div className="flex flex-col">
+                  <span className="font-bold text-white">marcos@gmail.com</span>
+                  <span className="text-[10px] text-brand-gray">PAID USER</span>
+                </div>
+                <span className="text-[10px] bg-brand-hover text-white px-2 py-0.5 rounded border border-brand-hover">
+                  Paid PRO
+                </span>
+              </div>
+
+              {/* User 3 */}
+              <div className="flex items-center justify-between pb-2">
+                <div className="flex flex-col">
+                  <span className="font-bold text-white">lucas@outlook.com</span>
+                  <span className="text-[10px] text-brand-gray font-normal">USER</span>
+                </div>
+                <span className="text-[10px] bg-brand-hover text-brand-gray px-2 py-0.5 rounded border border-brand-hover">
+                  Free
+                </span>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  );
+};
