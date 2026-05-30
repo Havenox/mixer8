@@ -1,7 +1,7 @@
 # Context Preservation (Save State) - Mixer8 Ecosystem
 
 **Data da Última Atualização:** 30/05/2026  
-**Status do Projeto:** Purga de Mocks Concluída, Player Multi-Stems Ativo e Uploader Direto (ZIP/MP3) Implementado com Sucesso.
+**Status do Projeto:** Purga de Mocks Concluída, Player Multi-Stems Ativo, Uploader Direto Implementado e Conteinerização/Conversão Opus Concluída.
 
 ---
 
@@ -34,9 +34,14 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
 7. **Uploader Direto de Stems (ZIP/MP3)**:
    * **Payload de Alta Resiliência**: Backend com limits de Kestrel e `FormOptions` configurados para tankar requisições multipartes de até 500 MB.
    * **Static Files com CORS**: Servidor estático em `wwwroot/stems` habilitado com injeção manual de CORS (`Access-Control-Allow-Origin: *`) para permitir carregamento de áudios no player via Web Audio API.
-   * **Validador de Sandbox**: Descompressão de ZIPs em memória (`ZipArchive`), extraindo e salvando estritamente arquivos com extensão `.mp3`, blindando o ecossistema contra scripts maliciosos.
+   * **Validador de Sandbox**: Descompressão de ZIPs em memória (`ZipArchive`), extraindo e salvando estritamente arquivos com extensão de áudio permitida, blindando o ecossistema contra scripts maliciosos.
    * **Mapeamento Heurístico C#**: Conversão em tempo de execução de termos em inglês (ex: `bass.mp3`) para português (`Baixo.mp3`) e associação a metadados, capa e persistência no banco com status `Pronto`.
    * **UX Drag-and-Drop**: Uploader em React com drag-and-drop, preview de capa com URL temporária e classificação preditiva instantânea do tipo de stem na UI.
+8. **Dockerização e Conversão Opus In-Memory**:
+   * **Dockerfiles Multi-Stage**: Criados Dockerfiles para a API do backend (com instalação do `ffmpeg` com `libopus`), Worker de background e Frontend (com servidor Nginx Alpine otimizado).
+   * **Orquestração Geral**: `docker-compose.yml` ajustado e ativado para subir todos os containers integrados sob volumes compartilhados de download e comunicação interna de rede.
+   * **Conversão Opus**: Toda stem recebida (seja via upload direto ou simulação do Worker) é transcodificada in-memory via pipes do FFmpeg para `.opus` (mono a 64k VBR para canais como Voz/Baixo, e estéreo a 96k VBR para os demais), reduzindo drasticamente o consumo de armazenamento sem perda perceptível de qualidade.
+   * **Worker Realista**: O `Worker.cs` localiza o arquivo do upload original, empacota-o em um arquivo ZIP `{trackId}_stems.zip` com 5 stems mockadas e chama a API pelo endpoint `/api/Tracks/{id}/ProcessStemsZip` para realizar a conversão centralizada.
 
 ---
 
@@ -45,4 +50,7 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
 * Parametrizar tempos de expiração de token JWT com renovação (refresh token).
 
 ---
-**Nota de Arquitetura:** *Nenhum dado ou tela simula atividade. A descompressão em memória evita I/O inútil de disco, e as stems físicas sob o uploader direto pulam totalmente o worker da VPS, garantindo a fidelidade e a agilidade de uso da plataforma Mixer8.*
+
+## ❓ Perguntas Abertas / Notas
+* O banco de dados PostgreSQL continua rodando de forma externa no homelab (`192.168.18.110`), mantendo-se comentado no compose para preservar a consistência relacional prévia.
+
