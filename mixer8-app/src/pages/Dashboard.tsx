@@ -6,26 +6,14 @@ import {
   Sparkles, Layers, ShieldAlert, Disc, Music, AlertTriangle
 } from 'lucide-react';
 
-interface IStem {
-  StemId: string;
-  TrackId: string;
-  StemType: string;
-  AudioUrl: string;
-}
-
-interface ITrack {
-  TrackId: string;
-  TrackTitle: string;
-  ArtistName: string;
-  ExtractionStatus: string;
-  CreatedAt: string;
-  Stems: IStem[];
-}
+import { usePlayer } from '../context/PlayerContext';
+import type { ITrack, IStem } from '../context/PlayerContext';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export const Dashboard: React.FC = () => {
   const { CurrentUser, Token } = useAuth();
+  const { loadTrack } = usePlayer();
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -222,7 +210,8 @@ export const Dashboard: React.FC = () => {
                 <Disc className="w-16 h-16 text-brand-green/20 group-hover:text-brand-green/40 transition-colors" />
                 <button 
                   disabled={track.ExtractionStatus !== 'Pronto'}
-                  className="absolute w-12 G-12 rounded-full bg-brand-green text-black flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 hover:scale-105 transition-all shadow-lg duration-250 cursor-pointer disabled:opacity-30 disabled:scale-100"
+                  onClick={() => loadTrack(track)}
+                  className="absolute w-12 h-12 rounded-full bg-brand-green text-black flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 hover:scale-105 transition-all shadow-lg duration-250 cursor-pointer disabled:opacity-30 disabled:scale-100"
                 >
                   <Play className="w-6 h-6 fill-current translate-x-[1px]" />
                 </button>
