@@ -169,7 +169,7 @@ using (var scope = app.Services.CreateScope())
             CreatedAt = DateTime.UtcNow,
             Stems = new List<Mixer8.Api.Domain.Stem>
             {
-                new Mixer8.Api.Domain.Stem { StemId = Guid.NewGuid(), TrackId = demoTrackId, StemType = "Vocais", AudioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", CreatedAt = DateTime.UtcNow },
+                new Mixer8.Api.Domain.Stem { StemId = Guid.NewGuid(), TrackId = demoTrackId, StemType = "Voz", AudioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", CreatedAt = DateTime.UtcNow },
                 new Mixer8.Api.Domain.Stem { StemId = Guid.NewGuid(), TrackId = demoTrackId, StemType = "Bateria", AudioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3", CreatedAt = DateTime.UtcNow },
                 new Mixer8.Api.Domain.Stem { StemId = Guid.NewGuid(), TrackId = demoTrackId, StemType = "Baixo", AudioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3", CreatedAt = DateTime.UtcNow },
                 new Mixer8.Api.Domain.Stem { StemId = Guid.NewGuid(), TrackId = demoTrackId, StemType = "Piano", AudioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3", CreatedAt = DateTime.UtcNow },

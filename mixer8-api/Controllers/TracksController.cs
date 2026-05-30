@@ -263,22 +263,28 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
     private static string MapFileNameToStemType(string fileName)
     {
         var lower = fileName.ToLowerInvariant();
+        if (lower.Contains("backing_vocals") || lower.Contains("backingvocals") || lower.Contains("vocal_de_apoio"))
+            return "Vocal";
         if (lower.Contains("vocals") || lower.Contains("vocais") || lower.Contains("voz"))
-            return "Vocais";
+            return "Voz";
         if (lower.Contains("drums") || lower.Contains("bateria") || lower.Contains("percussion"))
             return "Bateria";
         if (lower.Contains("bass") || lower.Contains("baixo"))
             return "Baixo";
+        if (lower.Contains("lead") || lower.Contains("solo"))
+            return "Guitarra Solo";
+        if (lower.Contains("rhythm") || lower.Contains("base"))
+            return "Guitarra Base";
         if (lower.Contains("guitar") || lower.Contains("guitarra"))
             return "Guitarra";
-        if (lower.Contains("keyboard") || lower.Contains("teclado"))
+        if (lower.Contains("keys") || lower.Contains("keyboard") || lower.Contains("teclado"))
             return "Teclado";
-        if (lower.Contains("piano"))
+        if (lower.Contains("piano") || lower.Contains("pian"))
             return "Piano";
-        if (lower.Contains("sopro") || lower.Contains("wind") || lower.Contains("brass") || lower.Contains("horns"))
-            return "Sopro";
         if (lower.Contains("strings") || lower.Contains("cordas") || lower.Contains("violin") || lower.Contains("cello"))
             return "Cordas";
+        if (lower.Contains("sopro") || lower.Contains("wind") || lower.Contains("brass") || lower.Contains("horns"))
+            return "Sopro";
         if (lower.Contains("metronome") || lower.Contains("metronomo") || lower.Contains("metrônomo") || lower.Contains("click"))
             return "Metrônomo";
         
@@ -397,7 +403,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
 
     private static async Task<bool> ConvertToOpusAsync(Stream inputStream, string outputFilePath, string stemType)
     {
-        bool forceMono = stemType == "Vocais" || stemType == "Baixo" || stemType == "Metrônomo";
+        bool forceMono = stemType == "Voz" || stemType == "Vocal" || stemType == "Vocais" || stemType == "Baixo" || stemType == "Metrônomo";
         string arguments = forceMono
             ? $"-y -i pipe:0 -ac 1 -c:a libopus -b:a 64k -vbr on -ar 48000 \"{outputFilePath}\""
             : $"-y -i pipe:0 -ac 2 -c:a libopus -b:a 96k -vbr on -ar 48000 \"{outputFilePath}\"";
