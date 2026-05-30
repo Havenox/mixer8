@@ -10,102 +10,139 @@ interface IAuthContext extends IAuthState {
 
 const AuthContext = createContext<IAuthContext | undefined>(undefined);
 
-// Default users for demonstration
-const DEFAULT_USERS: Record<string, { role: UserRole; pass: string }> = {
-  'admin@mixer8.com': { role: 'Admin', pass: 'admin123' },
-  'mod@mixer8.com': { role: 'Moderator', pass: 'mod123' },
-  'paid@mixer8.com': { role: 'PaidUser', pass: 'paid123' },
-  'user@mixer8.com': { role: 'User', pass: 'user123' }
-};
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [state, setState] = useState<IAuthState>(() => {
-    const saved = localStorage.getItem('mixer8_auth');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        // Ignorar erro e usar default
-      }
-    }
-    return {
-      IsAuthenticated: false,
-      CurrentUser: null,
-      Token: null
-    };
+  const [state, setState] = useState<IAuthState>({
+    IsAuthenticated: false,
+    CurrentUser: null,
+    Token: null
   });
 
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Restaura a sessão na inicialização fazendo o fetch no endpoint real /api/Auth/Me
   useEffect(() => {
-    localStorage.setItem('mixer8_auth', JSON.stringify(state));
-  }, [state]);
+    const restoreSession = async () => {
+      const savedToken = localStorage.getItem('mixer8_token');
+      if (savedToken) {
+        try {
+          const res = await fetch(`${API_URL}/Auth/Me`, {
+            headers: {
+              'Authorization': `Bearer ${savedToken}`
+            }
+          });
+
+          if (res.ok) {
+            const user: IUser = await res.json();
+            setState({
+              IsAuthenticated: true,
+              CurrentUser: user,
+              Token: savedToken
+            });
+          } else {
+            // Token expirado ou inválido
+            localStorage.removeItem('mixer8_token');
+          }
+        } catch {
+          // Erro de rede, mantém offline ou tenta carregar local temporariamente
+        }
+      }
+      setIsLoading(false);
+    };
+
+    restoreSession();
+  }, []);
 
   const Login = async (email: string, password: string): Promise<boolean> => {
-    // Simula delay de rede
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    try {
+      const res = await fetch(`${API_URL}/Auth/Login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ Email: email, Password: password })
+      });
 
-    const lowercaseEmail = email.toLowerCase();
-    const mockUser = DEFAULT_USERS[lowercaseEmail];
+      if (!res.ok) return false;
 
-    if (mockUser && password === mockUser.pass) {
+      const data = await res.json();
+      localStorage.setItem('mixer8_token', data.Token);
+
       const user: IUser = {
-        UserId: crypto.randomUUID(),
-        Email: lowercaseEmail,
-        UserRole: mockUser.role,
+        UserId: crypto.randomUUID(), // Temporário até fazer o Me
+        Email: data.Email,
+        UserRole: data.UserRole as UserRole,
         CreatedAt: new Date().toISOString()
       };
 
       setState({
         IsAuthenticated: true,
         CurrentUser: user,
-        Token: `mock-jwt-token-for-${user.UserId}`
+        Token: data.Token
       });
+
+      // Tenta carregar os dados reais completos do usuário
+      try {
+        const meRes = await fetch(`${API_URL}/Auth/Me`, {
+          headers: {
+            'Authorization': `Bearer ${data.Token}`
+          }
+        });
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          setState({
+            IsAuthenticated: true,
+            CurrentUser: meData,
+            Token: data.Token
+          });
+        }
+      } catch {
+        // Ignora falha silenciosa no Me, mantém dados básicos do login
+      }
+
       return true;
+    } catch {
+      return false;
     }
-
-    // Se o usuário não existir nos padrões, criamos um básico com senha padrão para testabilidade
-    if (password.length >= 6) {
-      const user: IUser = {
-        UserId: crypto.randomUUID(),
-        Email: lowercaseEmail,
-        UserRole: 'User',
-        CreatedAt: new Date().toISOString()
-      };
-
-      setState({
-        IsAuthenticated: true,
-        CurrentUser: user,
-        Token: `mock-jwt-token-for-${user.UserId}`
-      });
-      return true;
-    }
-
-    return false;
   };
 
   const Register = async (email: string, password: string, role: UserRole): Promise<boolean> => {
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    
-    const lowercaseEmail = email.toLowerCase();
-    
-    // Adiciona na lista temporária em memória para a sessão
-    DEFAULT_USERS[lowercaseEmail] = { role, pass: password };
+    try {
+      const res = await fetch(`${API_URL}/Auth/Register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ Email: email, Password: password, UserRole: role })
+      });
 
-    const user: IUser = {
-      UserId: crypto.randomUUID(),
-      Email: lowercaseEmail,
-      UserRole: role,
-      CreatedAt: new Date().toISOString()
-    };
+      if (!res.ok) return false;
 
-    setState({
-      IsAuthenticated: true,
-      CurrentUser: user,
-      Token: `mock-jwt-token-for-${user.UserId}`
-    });
-    return true;
+      const data = await res.json();
+      localStorage.setItem('mixer8_token', data.Token);
+
+      const user: IUser = {
+        UserId: crypto.randomUUID(),
+        Email: data.Email,
+        UserRole: data.UserRole as UserRole,
+        CreatedAt: new Date().toISOString()
+      };
+
+      setState({
+        IsAuthenticated: true,
+        CurrentUser: user,
+        Token: data.Token
+      });
+
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   const Logout = () => {
+    localStorage.removeItem('mixer8_token');
     setState({
       IsAuthenticated: false,
       CurrentUser: null,
@@ -114,6 +151,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const UpdateRole = (role: UserRole) => {
+    // Apenas simula localmente a mudança de Role para facilidade de testes RBAC na UI
     if (state.CurrentUser) {
       setState(prev => ({
         ...prev,
@@ -124,7 +162,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider value={{ ...state, Login, Register, Logout, UpdateRole }}>
-      {children}
+      {!isLoading && children}
     </AuthContext.Provider>
   );
 };

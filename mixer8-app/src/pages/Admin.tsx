@@ -1,22 +1,51 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
   Shield, Key, Users, Cpu, FileJson, 
   HelpCircle, CheckCircle, RefreshCw, AlertTriangle, Play
 } from 'lucide-react';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 export const Admin: React.FC = () => {
-  const { CurrentUser } = useAuth();
+  const { CurrentUser, Token } = useAuth();
   
   // Controle do painel de cookies
-  const [cookiesJson, setCookiesJson] = useState('{\n  "cookies": [\n    {\n      "name": "session",\n      "value": "mock_session_value_here",\n      "domain": ".plataforma-stems.ai"\n    }\n  ]\n}');
+  const [cookiesJson, setCookiesJson] = useState('[\n  {\n    "name": "session",\n    "value": "valor_real_dos_cookies_aqui",\n    "domain": ".plataforma-stems.ai",\n    "path": "/"\n  }\n]');
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   // Controle de teste de conexão com o Bot
   const [isTesting, setIsTesting] = useState(false);
   const [testLogs, setTestLogs] = useState<string[]>([]);
   const [testResult, setTestResult] = useState<'success' | 'failed' | null>(null);
+
+  // Status de Diagnóstico da Sessão
+  const [sessionAge, setSessionAge] = useState<number | null>(null);
+  const [sessionActive, setSessionActive] = useState<boolean>(false);
+
+  const fetchSessionStatus = async () => {
+    if (!Token) return;
+    try {
+      const res = await fetch(`${API_URL}/Admin/TestSession`, {
+        headers: {
+          'Authorization': `Bearer ${Token}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSessionActive(data.IsActive);
+        setSessionAge(data.IsActive ? data.SessionAgeHours : null);
+      }
+    } catch {
+      // Ignora falha silenciosa
+    }
+  };
+
+  useEffect(() => {
+    fetchSessionStatus();
+  }, []);
 
   if (CurrentUser?.UserRole !== 'Admin' && CurrentUser?.UserRole !== 'Moderator') {
     return (
@@ -30,13 +59,35 @@ export const Admin: React.FC = () => {
     );
   }
 
-  const handleSaveCookies = () => {
+  const handleSaveCookies = async () => {
+    if (!Token) return;
     setIsSaving(true);
-    setTimeout(() => {
+    setSaveError('');
+    setSaveSuccess(false);
+
+    try {
+      const res = await fetch(`${API_URL}/Admin/ImportSession`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${Token}`
+        },
+        body: JSON.stringify({ CookiesJson: cookiesJson })
+      });
+
+      if (res.ok) {
+        setSaveSuccess(true);
+        fetchSessionStatus();
+        setTimeout(() => setSaveSuccess(false), 3000);
+      } else {
+        const errorData = await res.json();
+        setSaveError(errorData.ErrorMessage || 'Falha ao importar sessão.');
+      }
+    } catch {
+      setSaveError('Erro de conexão ao tentar salvar cookies.');
+    } finally {
       setIsSaving(false);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
-    }, 1200);
+    }
   };
 
   const handleTestConnection = () => {
@@ -45,12 +96,12 @@ export const Admin: React.FC = () => {
     setTestLogs([]);
 
     const steps = [
-      'Solicitando inicialização do Playwright no container do moises-extractor...',
+      'Solicitando inicialização do Playwright no container do mixer8-extractor...',
       'Injetando cookies e localStorage (auth.json) no contexto do Chromium...',
       'Abrindo navegação headless para a plataforma de Stems AI...',
       'Aguardando redirecionamentos invisíveis e verificação do Cloudflare...',
       'Localizado elemento do perfil do usuário: logado com "Havenox/Eduardo"!',
-      'Sessão confirmada como VÁLIDA. Tipo de conta detectado: PRO/Premium.'
+      'Sessão confirmada como VÁLIDA e pronta para processamento.'
     ];
 
     steps.forEach((step, idx) => {
@@ -60,7 +111,7 @@ export const Admin: React.FC = () => {
           setIsTesting(false);
           setTestResult('success');
         }
-      }, (idx + 1) * 1200);
+      }, (idx + 1) * 1000);
     });
   };
 
@@ -77,7 +128,7 @@ export const Admin: React.FC = () => {
         </div>
       </div>
 
-      {/* KPI Blocks (CRM Style com bordas finas de 1px) */}
+      {/* KPI Blocks */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         
         {/* CPU */}
@@ -98,25 +149,27 @@ export const Admin: React.FC = () => {
           <Users className="w-8 h-8 text-brand-green/40" />
         </div>
 
-        {/* Stems Baixados */}
-        <div className="bg-brand-card border border-brand-hover p-4 rounded-md flex items-center justify-between shadow-lg">
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Stems Extraídas</span>
-            <span className="text-xl font-bold text-white">18</span>
-          </div>
-          <CheckCircle className="w-8 h-8 text-brand-green/40" />
-        </div>
-
         {/* Status Fila */}
         <div className="bg-brand-card border border-brand-hover p-4 rounded-md flex items-center justify-between shadow-lg">
           <div className="flex flex-col gap-1">
-            <span className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Status do Bot</span>
-            <span className="text-xs font-bold text-brand-green flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-brand-green animate-ping" />
-              Sessão Ativa e Pronta
+            <span className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Status do Extrator</span>
+            <span className={`text-xs font-bold flex items-center gap-1 ${sessionActive ? 'text-brand-green' : 'text-red-400'}`}>
+              <span className={`w-2 h-2 rounded-full ${sessionActive ? 'bg-brand-green animate-ping' : 'bg-red-400'}`} />
+              {sessionActive ? 'Sessão Ativa' : 'Sessão Inexistente'}
             </span>
           </div>
           <Key className="w-8 h-8 text-brand-green/40" />
+        </div>
+
+        {/* Idade da Sessão */}
+        <div className="bg-brand-card border border-brand-hover p-4 rounded-md flex items-center justify-between shadow-lg">
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Idade da Sessão</span>
+            <span className="text-xl font-bold text-white">
+              {sessionActive && sessionAge !== null ? `${sessionAge}h` : 'N/A'}
+            </span>
+          </div>
+          <RefreshCw className="w-8 h-8 text-brand-green/40" />
         </div>
 
       </div>
@@ -124,7 +177,6 @@ export const Admin: React.FC = () => {
       {/* Seção Central de 2 Colunas */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Coluna Esquerda: Importador de Cookies & Estudo de Viabilidade (Ocupa 2 colunas) */}
         <div className="lg:col-span-2 flex flex-col gap-6">
           
           {/* Caixa de Importação de Cookies */}
@@ -151,6 +203,12 @@ export const Admin: React.FC = () => {
                 <li>Cole o JSON na caixa abaixo e clique em <strong className="text-white">Importar Cookies de Sessão</strong>.</li>
               </ol>
             </div>
+
+            {saveError && (
+              <div className="bg-red-500/10 border border-red-500/30 p-3 rounded text-xs text-red-400">
+                {saveError}
+              </div>
+            )}
 
             {/* Textarea */}
             <div className="flex flex-col gap-1.5">
@@ -191,7 +249,7 @@ export const Admin: React.FC = () => {
                 <strong>Por que é genial?</strong> O Cloudflare analisa o "comportamento mecânico" e as assinaturas de rede (TLS fingerprint) apenas **durante o processo de autenticação e preenchimento de login**. Uma vez que a sessão foi validada em seu navegador residencial limpo, a requisição de navegação subsequente já logada utiliza apenas cookies HTTP normais.
               </p>
               <p>
-                Ao colar os cookies e o estado do `localStorage` (como o token JWT) no nosso painel, a API do backend grava diretamente esses dados em <code className="text-white bg-black px-1.5 py-0.5 rounded">moises-extractor/config/auth.json</code>. 
+                Ao colar os cookies e o estado do `localStorage` (como o token JWT) no nosso painel, a API do backend grava diretamente esses dados em <code className="text-white bg-black px-1.5 py-0.5 rounded">mixer8-extractor/config/auth.json</code>. 
               </p>
               <p>
                 Quando o Bot Playwright na VPS Linux inicializa o Chromium, ele carrega o arquivo de estado e abre a página diretamente logado na biblioteca do extrator externo, **pulando completamente a tela de login**, eliminando qualquer barreira de CAPTCHA!
@@ -215,7 +273,7 @@ export const Admin: React.FC = () => {
 
             <button 
               onClick={handleTestConnection}
-              disabled={isTesting}
+              disabled={isTesting || !sessionActive}
               className="w-full py-2.5 bg-brand-hover hover:bg-brand-green hover:text-black border border-brand-hover text-white rounded font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Play className="w-4 h-4 fill-current" />
@@ -256,8 +314,6 @@ export const Admin: React.FC = () => {
             </div>
 
             <div className="flex flex-col gap-3 text-xs">
-              
-              {/* User 1 */}
               <div className="flex items-center justify-between border-b border-brand-hover pb-2">
                 <div className="flex flex-col">
                   <span className="font-bold text-white">eduardo@havenox.com.br</span>
@@ -268,7 +324,6 @@ export const Admin: React.FC = () => {
                 </span>
               </div>
 
-              {/* User 2 */}
               <div className="flex items-center justify-between border-b border-brand-hover pb-2">
                 <div className="flex flex-col">
                   <span className="font-bold text-white">marcos@gmail.com</span>
@@ -278,18 +333,6 @@ export const Admin: React.FC = () => {
                   Paid PRO
                 </span>
               </div>
-
-              {/* User 3 */}
-              <div className="flex items-center justify-between pb-2">
-                <div className="flex flex-col">
-                  <span className="font-bold text-white">lucas@outlook.com</span>
-                  <span className="text-[10px] text-brand-gray font-normal">USER</span>
-                </div>
-                <span className="text-[10px] bg-brand-hover text-brand-gray px-2 py-0.5 rounded border border-brand-hover">
-                  Free
-                </span>
-              </div>
-
             </div>
           </div>
 
