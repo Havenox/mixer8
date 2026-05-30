@@ -1,0 +1,100 @@
+# Banco de Dados e Persistência (ADR-03)
+
+Este documento detalha o modelo relacional de dados para o banco de dados **PostgreSQL** do ecossistema **Mixer8**, bem como os mecanismos de controle transacional ACID e as rotinas de segundo plano.
+
+---
+
+## 1. Schema do Banco de Dados PostgreSQL (Destaques)
+
+Para garantir a soberania do backend e o mapeamento idêntico no TypeScript, todos os nomes de tabelas e colunas utilizam estritamente a grafia **PascalCase**.
+
+```mermaid
+erDiagram
+    Users ||--o{ Tracks : "Uploads"
+    Users ||--o{ Playlists : "Cria"
+    Users ||--o{ MixingPresets : "Salva"
+    Tracks ||--|{ Stems : "Contém (1 a 5)"
+    Tracks ||--o{ MixingPresets : "Mapeia"
+    Playlists ||--o{ PlaylistTracks : "Agrupa"
+    Tracks ||--o{ PlaylistTracks : "Pertence"
+
+    Users {
+        Guid UserId PK
+        String Email
+        String PasswordHash
+        String UserRole "Admin, Moderator, PaidUser, User"
+        DateTime CreatedAt
+    }
+
+    Tracks {
+        Guid TrackId PK
+        String TrackTitle
+        String ArtistName
+        Guid UploadedBy FK
+        String ExtractionStatus "Aguardando, Processando, Pronto, Falhou"
+        DateTime CreatedAt
+    }
+
+    Stems {
+        Guid StemId PK
+        Guid TrackId FK
+        String StemType "Vocals, Drums, Bass, Piano, Others"
+        String AudioUrl
+        DateTime CreatedAt
+    }
+
+    MixingPresets {
+        Guid PresetId PK
+        Guid TrackId FK
+        Guid UserId FK
+        String PresetName
+        Float VocalsVolume "0.0 - 1.0"
+        Float DrumsVolume
+        Float BassVolume
+        Float PianoVolume
+        Float OthersVolume
+        DateTime CreatedAt
+    }
+```
+
+---
+
+## 2. Resiliência ACID e Controle de Concorrência
+
+Para evitar problemas de concorrência ou corrupção de dados ao lidar com uploads simultâneos e processamentos de bots headless, implementamos as seguintes proteções na camada de persistência:
+
+### A. Bloqueio Transacional de Fila de Extração
+Quando o microserviço `moises-extractor` solicita à `mixer8-api` a próxima faixa pendente para conversão, o banco de dados realiza uma transação com isolamento estrito para evitar que múltiplas instâncias do bot processem a mesma música simultaneamente:
+
+```sql
+-- Exemplo de query atômica com bloqueio de linha no PostgreSQL
+BEGIN TRANSACTION;
+
+SELECT "TrackId" 
+FROM "Tracks" 
+WHERE "ExtractionStatus" = 'Aguardando'
+ORDER BY "CreatedAt" ASC
+LIMIT 1 
+FOR UPDATE SKIP LOCKED; -- Bloqueia a linha impedindo que outros workers a leiam
+
+-- O bot marca como 'Processando' imediatamente dentro da mesma transação
+UPDATE "Tracks" 
+SET "ExtractionStatus" = 'Processando' 
+WHERE "TrackId" = :trackId;
+
+COMMIT;
+```
+
+* **SKIP LOCKED**: Se outro container do bot já estiver lendo e processando uma track, a query pula a linha bloqueada silenciosamente e pega o próximo registro livre da fila. Isso garante **alta disponibilidade** e **resiliência ACID** caso escalemos horizontalmente o serviço na VPS.
+
+### B. Mutações em Lote Atômicas
+Ao concluir o download e extração das faixas, o microserviço atualiza o status no banco e insere as stems em um único bloco transacional. Se a inserção de qualquer uma das 5 stems falhar, o banco executa um `Rollback` automático, revertendo o status da música de volta para `Falhou` ou `Aguardando`, garantindo que nunca existam músicas "órfãs" com dados de stems incompletos na interface do usuário.
+
+---
+
+## 3. Processamentos em Background Decoplados
+
+A aplicação possui rotinas de background agendadas (Cron Jobs / Hosted Services) para tarefas de manutenção preventiva:
+
+1. **Limpeza de Arquivos Temporários**: Uma tarefa diária que varre a pasta `/app/downloads` temporária da API e do Extractor, removendo arquivos originais de upload e ZIPs antigos já descompactados cujos dados já foram persistidos nos storages de CDN, liberando espaço em disco na VPS.
+2. **Consolidação de Estatísticas de Audiência**: Agregador que contabiliza as execuções de tracks em lote a cada hora (evitando que requisições HTTP individuais do player inflem acessos simultâneos no banco de dados principal de forma síncrona).
