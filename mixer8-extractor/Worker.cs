@@ -1,4 +1,4 @@
-namespace Mixer8.MoisesExtractor;
+namespace Mixer8.Extractor;
 
 public class Worker(ILogger<Worker> logger) : BackgroundService
 {

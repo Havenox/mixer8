@@ -1,7 +1,7 @@
-﻿{
+{
   "$schema": "https://json.schemastore.org/launchsettings.json",
   "profiles": {
-    "Mixer8.MoisesExtractor": {
+    "Mixer8.Extractor": {
       "commandName": "Project",
       "dotnetRunMessages": true,
       "environmentVariables": {

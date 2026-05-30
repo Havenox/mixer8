@@ -1,4 +1,4 @@
-using Mixer8.MoisesExtractor;
+using Mixer8.Extractor;
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddHostedService<Worker>();

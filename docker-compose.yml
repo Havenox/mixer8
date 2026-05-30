@@ -2,14 +2,14 @@ version: '3.8'
 
 services:
   # =========================================================================
-  # 1. MICROSERVIÇO: Moises Extractor (.NET 10 - Headless Bot)
+  # 1. MICROSERVIÇO: Extrator de Stems (mixer8-extractor - .NET 10 Headless Bot)
   # =========================================================================
-  moises-extractor:
-    image: mixer8-moises-extractor:latest
+  mixer8-extractor:
+    image: mixer8-extractor:latest
     build:
-      context: ./moises-extractor
+      context: ./mixer8-extractor
       dockerfile: Dockerfile
-    container_name: mixer8_moises_extractor
+    container_name: mixer8_extractor
     restart: unless-stopped
     env_file:
       - .env
@@ -17,15 +17,14 @@ services:
       - DOTNET_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
     volumes:
       # Volume para persistir os downloads dos ZIPs na VPS
-      - ${MOISES_DOWNLOADS_DIR:-./moises-extractor/downloads}:/app/downloads
+      - ${EXTRACTOR_DOWNLOADS_DIR:-./mixer8-extractor/downloads}:/app/downloads
       # Volume para persistir os cookies e sessão do navegador (auth.json)
-      - ${MOISES_CONFIG_DIR:-./moises-extractor/config}:/app/config
-    # Opcional: Se expusermos uma fila ou endpoint simples para o extractor receber comandos
+      - ${EXTRACTOR_CONFIG_DIR:-./mixer8-extractor/config}:/app/config
     ports:
-      - "${MOISES_EXTRACTOR_PORT:-5010}:5010"
+      - "${EXTRACTOR_PORT:-5010}:5010"
 
   # =========================================================================
-  # 2. MICROSERVIÇO: Banco de Dados (Exemplo: PostgreSQL)
+  # 2. MICROSERVIÇO: Banco de Dados (PostgreSQL) - Externo (Comentado)
   # =========================================================================
   # db:
   #   image: postgres:15-alpine
@@ -53,22 +52,21 @@ services:
   #   container_name: mixer8_api
   #   restart: unless-stopped
   #   depends_on:
-  #     - db
-  #     - moises-extractor
+  #     - mixer8-extractor
   #   env_file:
   #     - .env
   #   ports:
   #     - "${API_PORT:-5000}:5000"
 
   # =========================================================================
-  # 4. FRONTEND WEB: mixer8-web (React + Vite + Shadcn + Tailwind) - Reservado para Futuro
+  # 4. FRONTEND WEB: mixer8-app (React + Vite + Shadcn + Tailwind) - Reservado para Futuro
   # =========================================================================
-  # web:
-  #   image: mixer8-web:latest
+  # app:
+  #   image: mixer8-app:latest
   #   build:
-  #     context: ./mixer8-web
+  #     context: ./mixer8-app
   #     dockerfile: Dockerfile
-  #   container_name: mixer8_web
+  #   container_name: mixer8_app
   #   restart: unless-stopped
   #   depends_on:
   #     - api
