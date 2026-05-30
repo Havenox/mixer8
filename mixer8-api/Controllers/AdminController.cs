@@ -45,7 +45,7 @@ public class AdminController(IConfiguration configuration) : ControllerBase
 
         // Grava fisicamente a sessão no arquivo auth.json que o Playwright usará para o bypass de login!
         var filePath = Path.Combine(configDir, "auth.json");
-        await File.WriteAllTextAsync(filePath, request.CookiesJson);
+        await System.IO.File.WriteAllTextAsync(filePath, request.CookiesJson);
 
         return Ok(new { SuccessMessage = "SESSION_IMPORTED_SUCCESSFULLY" });
     }
@@ -62,12 +62,12 @@ public class AdminController(IConfiguration configuration) : ControllerBase
         }
 
         var filePath = Path.Combine(configDir, "auth.json");
-        var active = File.Exists(filePath);
+        var active = System.IO.File.Exists(filePath);
 
         return Ok(new TestSessionResponse
         {
             IsActive = active,
-            SessionAgeHours = active ? Convert.ToInt32((DateTime.UtcNow - File.GetLastWriteTimeUtc(filePath)).TotalHours) : 0,
+            SessionAgeHours = active ? Convert.ToInt32((DateTime.UtcNow - System.IO.File.GetLastWriteTimeUtc(filePath)).TotalHours) : 0,
             PlatformUrl = "https://mixer8-extractor.local"
         });
     }
