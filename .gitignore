@@ -1,0 +1,73 @@
+# =========================================================================
+# GITIGNORE - PROJETO MIXER8
+# Configurado para C#/.NET 10, React/Vite/Node, Docker e arquivos sensíveis.
+# =========================================================================
+
+# === C# / .NET 10 Core ===
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Log]/
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.suo
+*.suo
+*.sln.docstates
+*.suo
+
+# === Node.js / React (Vite, Shadcn, Tailwind) ===
+node_modules/
+jspm_packages/
+web_deploy/
+.npm/
+.eslintcache
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# === Builds e Artefatos de Deploy ===
+dist/
+dist-ssr/
+build/
+out/
+publish/
+pw-browsers/
+
+# === Variáveis de Ambiente e Segredos (CRÍTICO) ===
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env.*
+!.env.example
+
+# === Configurações e Arquivos do Moises Extractor (Segurança) ===
+**/auth.json
+**/config/auth.json
+**/downloads/
+**/downloads/*
+!**/downloads/.gitkeep
+
+# === Docker ===
+.docker/
+docker-compose.override.yml
+
+# === Arquivos de Sistema ===
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

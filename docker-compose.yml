@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  # =========================================================================
+  # 1. MICROSERVIÇO: Moises Extractor (.NET 10 - Headless Bot)
+  # =========================================================================
+  moises-extractor:
+    image: mixer8-moises-extractor:latest
+    build:
+      context: ./moises-extractor
+      dockerfile: Dockerfile
+    container_name: mixer8_moises_extractor
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - DOTNET_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
+    volumes:
+      # Volume para persistir os downloads dos ZIPs na VPS
+      - ${MOISES_DOWNLOADS_DIR:-./moises-extractor/downloads}:/app/downloads
+      # Volume para persistir os cookies e sessão do navegador (auth.json)
+      - ${MOISES_CONFIG_DIR:-./moises-extractor/config}:/app/config
+    # Opcional: Se expusermos uma fila ou endpoint simples para o extractor receber comandos
+    ports:
+      - "${MOISES_EXTRACTOR_PORT:-5010}:5010"
+
+  # =========================================================================
+  # 2. MICROSERVIÇO: Banco de Dados (Exemplo: PostgreSQL)
+  # =========================================================================
+  db:
+    image: postgres:15-alpine
+    container_name: mixer8_postgres_db
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${DB_NAME:-mixer8_db}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-sua_senha_secreta_db}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # =========================================================================
+  # 3. BACKEND API: mixer8-api (.NET Core / Node.js) - Reservado para Futuro
+  # =========================================================================
+  # api:
+  #   image: mixer8-api:latest
+  #   build:
+  #     context: ./mixer8-api
+  #     dockerfile: Dockerfile
+  #   container_name: mixer8_api
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - db
+  #     - moises-extractor
+  #   env_file:
+  #     - .env
+  #   ports:
+  #     - "${API_PORT:-5000}:5000"
+
+  # =========================================================================
+  # 4. FRONTEND WEB: mixer8-web (React + Vite + Shadcn + Tailwind) - Reservado para Futuro
+  # =========================================================================
+  # web:
+  #   image: mixer8-web:latest
+  #   build:
+  #     context: ./mixer8-web
+  #     dockerfile: Dockerfile
+  #   container_name: mixer8_web
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - api
+  #   ports:
+  #     - "${WEB_PORT:-3000}:3000"
+
+volumes:
+  pgdata:
+    driver: local
