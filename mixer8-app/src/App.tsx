@@ -13,6 +13,7 @@ import { UploadDireto } from './pages/UploadDireto';
 import { PlaylistDetail } from './pages/PlaylistDetail';
 import { Playlists } from './pages/Playlists';
 import { Settings as SettingsPage } from './pages/Settings';
+import { PublicProfile } from './pages/PublicProfile';
 import { Play, Sparkles, Disc, Flame, Music, Radio, Loader2, Plus, Trash2, AlertTriangle, X, Settings, RefreshCw, ListMusic, Clock, User } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -898,11 +899,14 @@ export const App: React.FC = () => {
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                 <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
                 <Route path="/upload-direto" element={<ProtectedRoute><UploadDireto /></ProtectedRoute>} />
-                <Route path="/playlists/:id" element={<ProtectedRoute><PlaylistDetail /></ProtectedRoute>} />
+                <Route path="/playlists/:id" element={<PlaylistDetail />} />
                 <Route path="/playlists" element={<ProtectedRoute><Playlists /></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-                <Route path="/playlist/:id" element={<ProtectedRoute><PlaylistRedirect /></ProtectedRoute>} />
+                <Route path="/playlist/:id" element={<PlaylistRedirect />} />
                 
+                {/* Perfil Público (ex: /@paiduser) */}
+                <Route path="/:username" element={<PublicProfile />} />
+
                 {/* Fallback */}
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>

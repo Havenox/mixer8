@@ -52,11 +52,15 @@ interface IPlaylistDetail {
   IsSaved: boolean;
   Tracks: IPlaylistTrack[];
   Collaborators: IPlaylistCollaborator[];
+  OwnerUserName?: string;
+  OwnerFirstName?: string;
+  OwnerLastName?: string;
+  OwnerAvatarUrl?: string;
 }
 
 export const PlaylistDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const { Token, CurrentUser } = useAuth();
+  const { Token, CurrentUser, IsAuthenticated } = useAuth();
   const { loadTrack, currentTrack, isPlaying, togglePlay } = usePlayer();
   const { fetchPlaylists, openEditPlaylist, openDeletePlaylist, openAddToPlaylist } = usePlaylists();
   const navigate = useNavigate();
@@ -168,12 +172,14 @@ export const PlaylistDetail: React.FC = () => {
   }, []);
 
   const fetchPlaylistDetails = async () => {
-    if (!Token || !id) return;
+    if (!id) return;
     try {
+      const headers: Record<string, string> = {};
+      if (Token) {
+        headers['Authorization'] = `Bearer ${Token}`;
+      }
       const res = await fetch(`${API_URL}/Playlists/${id}`, {
-        headers: {
-          'Authorization': `Bearer ${Token}`
-        }
+        headers
       });
       if (res.ok) {
         const data = await res.json();
@@ -325,10 +331,22 @@ export const PlaylistDetail: React.FC = () => {
     return `${totalMinutes} min`;
   };
 
-  const getOwnerDisplayName = (email: string) => {
-    if (!email) return '';
-    const part = email.split('@')[0];
-    return part.charAt(0).toUpperCase() + part.slice(1);
+  const getOwnerDisplayName = (
+    firstName?: string,
+    lastName?: string,
+    userName?: string,
+    email?: string
+  ) => {
+    if (firstName && lastName) {
+      return `${firstName} ${lastName}`;
+    }
+    if (firstName) return firstName;
+    if (userName) return userName;
+    if (email) {
+      const part = email.split('@')[0];
+      return part.charAt(0).toUpperCase() + part.slice(1);
+    }
+    return 'Usuário';
   };
 
   const formatDistanceToNow = (dateStr: string) => {
@@ -410,6 +428,7 @@ export const PlaylistDetail: React.FC = () => {
 
   const handleTrackContextMenu = (e: React.MouseEvent, track: IPlaylistTrack) => {
     e.preventDefault();
+    if (!IsAuthenticated) return; // Desativa menu de contexto para usuários anônimos
     setContextMenu({
       x: e.clientX,
       y: e.clientY,
@@ -466,12 +485,32 @@ export const PlaylistDetail: React.FC = () => {
           )}
 
           <div className="flex items-center gap-2 text-xs text-brand-gray font-medium flex-wrap mt-2.5 select-none leading-none">
-            {/* Foto de perfil placeholder */}
+            {/* Foto de perfil real ou fallback do criador */}
             <div className="flex items-center gap-1.5 shrink-0 h-5">
-              <div className="w-5 h-5 rounded-full bg-brand-green text-black flex items-center justify-center font-black text-[10px] uppercase shadow-sm select-none">
-                {getOwnerDisplayName(playlist.OwnerEmail).charAt(0)}
-              </div>
-              <span className="text-white font-bold">{getOwnerDisplayName(playlist.OwnerEmail)}</span>
+              {playlist.OwnerAvatarUrl ? (
+                <img 
+                  src={playlist.OwnerAvatarUrl.startsWith('http') ? playlist.OwnerAvatarUrl : `${SERVER_URL}${playlist.OwnerAvatarUrl}`} 
+                  alt="Avatar do Criador" 
+                  className="w-5 h-5 rounded-full object-cover border border-brand-green/20 shadow-sm select-none"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              ) : (
+                <div className="w-5 h-5 rounded-full bg-brand-green text-black flex items-center justify-center font-black text-[10px] uppercase shadow-sm select-none">
+                  {getOwnerDisplayName(playlist.OwnerFirstName, playlist.OwnerLastName, playlist.OwnerUserName, playlist.OwnerEmail).charAt(0)}
+                </div>
+              )}
+              <span 
+                onClick={() => {
+                  if (playlist.OwnerUserName) {
+                    navigate(`/@${playlist.OwnerUserName}`);
+                  }
+                }}
+                className={`text-white font-bold ${playlist.OwnerUserName ? 'hover:underline cursor-pointer' : ''}`}
+              >
+                {getOwnerDisplayName(playlist.OwnerFirstName, playlist.OwnerLastName, playlist.OwnerUserName, playlist.OwnerEmail)}
+              </span>
             </div>
             
             <span className="text-brand-gray/40 font-normal select-none shrink-0">•</span>
