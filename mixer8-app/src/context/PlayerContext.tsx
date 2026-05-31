@@ -54,7 +54,7 @@ export const STANDARD_STEMS = [
   'Metrônomo'
 ];
 
-import { API_URL, SERVER_URL } from '../config';
+import { SERVER_URL } from '../config';
 
 export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentTrack, setCurrentTrack] = useState<ITrack | null>(null);

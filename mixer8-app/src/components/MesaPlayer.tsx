@@ -5,7 +5,7 @@ import {
   Sliders, RefreshCw, Disc, Layers, Music
 } from 'lucide-react';
 
-import { API_URL, SERVER_URL } from '../config';
+import { SERVER_URL } from '../config';
 
 export const MesaPlayer: React.FC = () => {
   const { 

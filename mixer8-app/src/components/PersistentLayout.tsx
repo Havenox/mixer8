@@ -10,7 +10,7 @@ import {
   ChevronLeft, ChevronRight
 } from 'lucide-react';
 
-import { API_URL, SERVER_URL } from '../config';
+import { SERVER_URL } from '../config';
 
 export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { IsAuthenticated, CurrentUser, Logout } = useAuth();

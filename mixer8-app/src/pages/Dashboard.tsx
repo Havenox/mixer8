@@ -10,7 +10,7 @@ import { usePlayer } from '../context/PlayerContext';
 import { usePlaylists } from '../context/PlaylistContext';
 import type { ITrack } from '../context/PlayerContext';
 
-import { API_URL } from '../config';
+import { API_URL, SERVER_URL } from '../config';
 
 export const Dashboard: React.FC = () => {
   const { CurrentUser, Token } = useAuth();
