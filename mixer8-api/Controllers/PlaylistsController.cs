@@ -105,6 +105,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             .Include(p => p.PlaylistTracks)
                 .ThenInclude(pt => pt.Track)
             .Include(p => p.PlaylistCollaborators)
+            .AsSplitQuery() // Otimiza a performance evitando produto cartesiano em múltiplas coleções
             .AsQueryable();
 
         // Se for admin, lista todas. Caso contrário, lista as que ele é dono, colaborador, ou públicas.
@@ -167,8 +168,11 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             .Include(p => p.PlaylistTracks)
                 .ThenInclude(pt => pt.Track)
                     .ThenInclude(t => t.Stems)
+            .Include(p => p.PlaylistTracks)
+                .ThenInclude(pt => pt.AddedByUser)
             .Include(p => p.PlaylistCollaborators)
                 .ThenInclude(pc => pc.User)
+            .AsSplitQuery() // Otimiza a performance evitando produto cartesiano em múltiplas coleções
             .FirstOrDefaultAsync(p => p.PlaylistId == id);
 
         if (playlist == null)
@@ -185,12 +189,6 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             .Where(u => u.UserId == playlist.OwnerId)
             .Select(u => u.Email)
             .FirstOrDefaultAsync() ?? "";
-
-        // Mapear e-mails de quem adicionou as músicas
-        var addedByIds = playlist.PlaylistTracks.Select(pt => pt.AddedById).Distinct().ToList();
-        var addedByEmails = await dbContext.Users
-            .Where(u => addedByIds.Contains(u.UserId))
-            .ToDictionaryAsync(u => u.UserId, u => u.Email);
 
         var firstTrackCover = playlist.PlaylistTracks
             .OrderBy(pt => pt.AddedAt)
@@ -211,26 +209,22 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             IsCollaborator = isCollaborator,
             Tracks = playlist.PlaylistTracks
                 .OrderBy(pt => pt.AddedAt)
-                .Select(pt =>
+                .Select(pt => new PlaylistTrackResponseDto
                 {
-                    addedByEmails.TryGetValue(pt.AddedById, out var adderEmail);
-                    return new PlaylistTrackResponseDto
+                    TrackId = pt.TrackId,
+                    TrackTitle = pt.Track.TrackTitle,
+                    ArtistName = pt.Track.ArtistName,
+                    CoverUrl = pt.Track.CoverUrl,
+                    AddedById = pt.AddedById,
+                    AddedByEmail = pt.AddedByUser != null ? pt.AddedByUser.Email : "",
+                    AddedAt = pt.AddedAt,
+                    Stems = pt.Track.Stems.Select(s => new PlaylistStemResponseDto
                     {
-                        TrackId = pt.TrackId,
-                        TrackTitle = pt.Track.TrackTitle,
-                        ArtistName = pt.Track.ArtistName,
-                        CoverUrl = pt.Track.CoverUrl,
-                        AddedById = pt.AddedById,
-                        AddedByEmail = adderEmail ?? "",
-                        AddedAt = pt.AddedAt,
-                        Stems = pt.Track.Stems.Select(s => new PlaylistStemResponseDto
-                        {
-                            StemId = s.StemId,
-                            TrackId = s.TrackId,
-                            StemType = s.StemType,
-                            AudioUrl = s.AudioUrl
-                        }).ToList()
-                    };
+                        StemId = s.StemId,
+                        TrackId = s.TrackId,
+                        StemType = s.StemType,
+                        AudioUrl = s.AudioUrl
+                    }).ToList()
                 }).ToList(),
             Collaborators = playlist.PlaylistCollaborators.Select(pc => new PlaylistCollaboratorResponseDto
             {
