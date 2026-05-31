@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { PlayerProvider, usePlayer } from './context/PlayerContext';
 import { PlaylistProvider, usePlaylists } from './context/PlaylistContext';
@@ -719,6 +719,12 @@ const Explore: React.FC = () => {
   );
 };
 
+// Redirecionador de /playlist/:id para /playlists/:id para resiliência de links errados
+const PlaylistRedirect: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  return <Navigate to={`/playlists/${id}`} replace />;
+};
+
 export const App: React.FC = () => {
   return (
     <AuthProvider>
@@ -737,6 +743,7 @@ export const App: React.FC = () => {
                 <Route path="/upload-direto" element={<ProtectedRoute><UploadDireto /></ProtectedRoute>} />
                 <Route path="/playlists/:id" element={<ProtectedRoute><PlaylistDetail /></ProtectedRoute>} />
                 <Route path="/playlists" element={<ProtectedRoute><Playlists /></ProtectedRoute>} />
+                <Route path="/playlist/:id" element={<ProtectedRoute><PlaylistRedirect /></ProtectedRoute>} />
                 
                 {/* Fallback */}
                 <Route path="*" element={<Navigate to="/" replace />} />
