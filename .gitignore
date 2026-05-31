@@ -72,7 +72,5 @@ docker-compose.override.yml
 ehthumbs.db
 Thumbs.db
 
-# === Uploads e Mídias Físicas (Stems/Capas) ===
-**/wwwroot/stems/
-**/wwwroot/stems/*
-!**/wwwroot/stems/.gitkeep
+# === Uploads e Mídias Físicas (wwwroot) ===
+**/wwwroot/

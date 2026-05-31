@@ -63,9 +63,8 @@ services:
     volumes:
       # Shared volume de downloads para persistir arquivos originais/ZIPs temporários
       - ${EXTRACTOR_DOWNLOADS_DIR:-./mixer8-extractor/downloads}:/app/downloads
-      # Mapeamento físico para as stems e capas gravadas localmente
-      - ./mixer8-api/wwwroot/stems:/app/wwwroot/stems
-      - ./mixer8-api/wwwroot/playlists:/app/wwwroot/playlists
+      # Mapeamento físico para todo o wwwroot (stems, playlists, profiles, etc.)
+      - ./mixer8-api/wwwroot:/app/wwwroot
     ports:
       - "${API_PORT:-5000}:5000"
 
