@@ -14,6 +14,7 @@ export const Settings: React.FC = () => {
   const [email, setEmail] = useState(CurrentUser?.Email || '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
   const [userName, setUserName] = useState(CurrentUser?.UserName || '');
   const [firstName, setFirstName] = useState(CurrentUser?.FirstName || '');
   const [lastName, setLastName] = useState(CurrentUser?.LastName || '');
@@ -95,8 +96,16 @@ export const Settings: React.FC = () => {
     }
 
     if (password) {
+      if (!currentPassword) {
+        setError('Por favor, informe a sua senha atual para confirmar a alteração.');
+        return;
+      }
       if (password.length < 6) {
         setError('A nova senha deve possuir no mínimo 6 caracteres.');
+        return;
+      }
+      if (password === currentPassword) {
+        setError('A nova senha não pode ser igual à senha atual.');
         return;
       }
       if (password !== confirmPassword) {
@@ -117,6 +126,7 @@ export const Settings: React.FC = () => {
         body: JSON.stringify({
           Email: email,
           Password: password || null,
+          CurrentPassword: currentPassword || null,
           UserName: userName,
           FirstName: firstName || null,
           LastName: lastName || null,
@@ -145,12 +155,17 @@ export const Settings: React.FC = () => {
         setSuccess('Configurações atualizadas com sucesso!');
         setPassword('');
         setConfirmPassword('');
+        setCurrentPassword('');
       } else {
         const errData = await res.json();
         if (errData.ErrorMessage === 'USERNAME_ALREADY_IN_USE') {
           setError('Nome de usuário não está disponível.');
         } else if (errData.ErrorMessage === 'EMAIL_ALREADY_IN_USE') {
           setError('E-mail já está em uso por outra conta.');
+        } else if (errData.ErrorMessage === 'CURRENT_PASSWORD_REQUIRED') {
+          setError('A senha atual é necessária para confirmar a alteração de senha.');
+        } else if (errData.ErrorMessage === 'CURRENT_PASSWORD_INVALID') {
+          setError('A senha atual informada é inválida.');
         } else {
           setError(errData.ErrorMessage || 'Erro ao atualizar perfil.');
         }
@@ -382,7 +397,26 @@ export const Settings: React.FC = () => {
             Segurança da Conta (Alterar Senha)
           </h2>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Senha Atual */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-brand-gray" htmlFor="currentPassword">
+                Senha Atual
+              </label>
+              <div className="relative">
+                <input
+                  id="currentPassword"
+                  type="password"
+                  value={currentPassword}
+                  disabled={isPending}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="w-full bg-brand-black border border-brand-hover rounded py-2 px-3 pl-10 text-sm text-white placeholder-brand-gray/50 focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green transition-all"
+                  placeholder="Digite sua senha atual"
+                />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gray" />
+              </div>
+            </div>
+
             {/* Nova Senha */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-brand-gray" htmlFor="newPassword">
