@@ -35,7 +35,7 @@ interface IPlaylistContext {
 const PlaylistContext = createContext<IPlaylistContext | undefined>(undefined);
 
 export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { Token, IsAuthenticated } = useAuth();
+  const { Token, IsAuthenticated, CurrentUser } = useAuth();
   const [playlists, setPlaylists] = useState<IPlaylist[]>([]);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -769,29 +769,46 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               )}
 
               {/* Botões do Formulário */}
-              <div className="flex justify-end gap-3 mt-1 pt-3 border-t border-brand-hover">
-                <button
-                  type="button"
-                  onClick={() => setPlaylistToEdit(null)}
-                  disabled={isSavingEdit}
-                  className="py-2 px-3 border border-brand-hover rounded text-xs font-semibold text-brand-gray hover:text-white cursor-pointer disabled:opacity-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSavingEdit || !editName.trim()}
-                  className="py-2 px-4 bg-brand-green text-black font-bold rounded text-xs hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:hover:scale-100 disabled:active:scale-100"
-                >
-                  {isSavingEdit ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Salvando...</span>
-                    </>
-                  ) : (
-                    <span>Salvar Alterações</span>
-                  )}
-                </button>
+              <div className="flex justify-between items-center mt-1 pt-3 border-t border-brand-hover">
+                {playlistToEdit && (playlistToEdit.IsOwner || CurrentUser?.UserRole === 'Admin') ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      openDeletePlaylist(playlistToEdit);
+                      setPlaylistToEdit(null);
+                    }}
+                    className="py-2 px-3.5 bg-red-950/20 hover:bg-red-900/40 border border-red-900/30 rounded font-bold text-xs text-red-400 hover:text-red-300 transition-all cursor-pointer shadow flex items-center gap-1.5"
+                    title="Excluir Playlist"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                    <span>Excluir Playlist</span>
+                  </button>
+                ) : <div />}
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setPlaylistToEdit(null)}
+                    disabled={isSavingEdit}
+                    className="py-2 px-3 border border-brand-hover rounded text-xs font-semibold text-brand-gray hover:text-white cursor-pointer disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingEdit || !editName.trim()}
+                    className="py-2 px-4 bg-brand-green text-black font-bold rounded text-xs hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:hover:scale-100 disabled:active:scale-100"
+                  >
+                    {isSavingEdit ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Salvando...</span>
+                      </>
+                    ) : (
+                      <span>Salvar Alterações</span>
+                    )}
+                  </button>
+                </div>
               </div>
             </form>
 

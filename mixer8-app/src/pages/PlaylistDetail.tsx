@@ -63,7 +63,7 @@ export const PlaylistDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { Token, CurrentUser, IsAuthenticated } = useAuth();
   const { loadTrack, currentTrack, isPlaying, togglePlay, downloadTrackForOffline, isTrackDownloaded, removeTrackOffline } = usePlayer();
-  const { fetchPlaylists, openEditPlaylist, openDeletePlaylist, openAddToPlaylist } = usePlaylists();
+  const { fetchPlaylists, openEditPlaylist, openAddToPlaylist } = usePlaylists();
   const navigate = useNavigate();
 
   const [playlist, setPlaylist] = useState<IPlaylistDetail | null>(null);
@@ -584,23 +584,6 @@ export const PlaylistDetail: React.FC = () => {
     openEditPlaylist(iPlaylist);
   };
 
-  const triggerGlobalDelete = () => {
-    const iPlaylist: IPlaylist = {
-      PlaylistId: playlist.PlaylistId,
-      Name: playlist.Name,
-      Visibility: playlist.Visibility,
-      Description: playlist.Description,
-      OwnerId: playlist.OwnerId,
-      OwnerEmail: playlist.OwnerEmail,
-      CoverUrl: playlist.CoverUrl,
-      CreatedAt: playlist.CreatedAt,
-      IsOwner: isPlaylistOwner,
-      IsCollaborator: isCollaborator,
-      IsSaved: playlist.IsSaved || false,
-      TracksCount: playlist.Tracks.length
-    };
-    openDeletePlaylist(iPlaylist);
-  };
 
   const handleTrackContextMenu = (e: React.MouseEvent, track: IPlaylistTrack) => {
     e.preventDefault();
@@ -724,17 +707,17 @@ export const PlaylistDetail: React.FC = () => {
         </div>
 
         {/* Ações (Configurações & Download) */}
-        <div className="flex gap-2 self-stretch md:self-end justify-end mt-4 md:mt-0 shrink-0">
+        <div className="flex gap-3 self-stretch md:self-end justify-end mt-4 md:mt-0 shrink-0 items-center">
           {isPremium && (
             <button
               onClick={handlePlaylistDownloadClick}
               disabled={playlistDownloadStatus === 'loading'}
-              className={`flex items-center gap-2 py-2 px-3.5 rounded font-bold text-xs transition-all cursor-pointer shadow border ${
+              className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shadow hover:scale-105 active:scale-95 ${
                 playlistDownloadStatus === 'downloaded'
-                  ? 'bg-brand-hover border-brand-green/30 text-brand-green hover:bg-brand-hover/80'
+                  ? 'bg-brand-green text-black border-none'
                   : playlistDownloadStatus === 'loading'
-                  ? 'bg-brand-hover border-brand-hover text-brand-gray/60 cursor-not-allowed'
-                  : 'bg-brand-hover border-brand-hover text-brand-gray hover:text-white hover:bg-brand-hover/80'
+                  ? 'bg-transparent border border-brand-green/30 text-brand-green cursor-not-allowed'
+                  : 'bg-transparent border border-brand-gray/30 text-brand-gray hover:text-white hover:border-white'
               }`}
               title={
                 playlistDownloadStatus === 'downloaded'
@@ -747,37 +730,19 @@ export const PlaylistDetail: React.FC = () => {
               {playlistDownloadStatus === 'loading' ? (
                 <Loader2 className="w-4 h-4 animate-spin text-brand-green" />
               ) : (
-                <Download className={`w-4 h-4 ${playlistDownloadStatus === 'downloaded' ? 'text-brand-green fill-brand-green' : 'text-brand-gray'}`} />
+                <Download className={`w-4 h-4 ${playlistDownloadStatus === 'downloaded' ? 'fill-current text-black' : ''}`} />
               )}
-              <span>
-                {playlistDownloadStatus === 'downloaded'
-                  ? 'Baixado'
-                  : playlistDownloadStatus === 'loading'
-                  ? 'Baixando...'
-                  : 'Baixar Offline'}
-              </span>
             </button>
           )}
 
           {isOwnerOrAdmin && (
-            <>
-              <button
-                onClick={triggerGlobalEdit}
-                className="flex items-center gap-2 py-2 px-3.5 bg-brand-hover hover:bg-brand-hover/80 rounded font-bold text-xs text-white transition-all cursor-pointer shadow border border-brand-hover"
-                title="Configurações da Playlist"
-              >
-                <Settings className="w-4 h-4 text-brand-green" />
-                <span>Configurações</span>
-              </button>
-              <button
-                onClick={triggerGlobalDelete}
-                className="flex items-center gap-2 py-2 px-3.5 bg-brand-hover hover:bg-brand-hover/80 rounded font-bold text-xs text-red-400 hover:text-red-300 transition-all cursor-pointer shadow border border-brand-hover"
-                title="Excluir Playlist"
-              >
-                <Trash2 className="w-4 h-4 text-red-500" />
-                <span>Excluir</span>
-              </button>
-            </>
+            <button
+              onClick={triggerGlobalEdit}
+              className="w-8 h-8 rounded-full flex items-center justify-center bg-transparent border border-brand-gray/30 hover:border-white text-brand-gray hover:text-white hover:bg-white/5 transition-all cursor-pointer shadow hover:scale-105 active:scale-95"
+              title="Configurações da Playlist"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
           )}
         </div>
       </div>
