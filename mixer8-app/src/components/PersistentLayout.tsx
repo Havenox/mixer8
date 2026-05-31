@@ -234,13 +234,6 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
       <div className="flex-1 flex flex-col h-screen overflow-hidden bg-brand-dark">
         {/* Barra superior transparente */}
         <div className="h-16 flex items-center justify-end px-8 select-none shrink-0 border-b border-brand-hover">
-          <div className="flex items-center gap-3 text-xs text-brand-gray">
-            <span>Status do Extrator: </span>
-            <span className="flex items-center gap-1.5 text-brand-green font-semibold">
-              <span className="w-2 h-2 rounded-full bg-brand-green animate-ping" />
-              SESSÃO ATIVA (Bot Pronto)
-            </span>
-          </div>
         </div>
 
         {/* Scroll Container para as Páginas */}

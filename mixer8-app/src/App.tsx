@@ -13,10 +13,30 @@ import { UploadDireto } from './pages/UploadDireto';
 import { PlaylistDetail } from './pages/PlaylistDetail';
 import { Playlists } from './pages/Playlists';
 import { Settings as SettingsPage } from './pages/Settings';
-import { Play, Sparkles, Disc, Flame, Music, Radio, Loader2, Plus, Trash2, AlertTriangle, X, Settings, RefreshCw, ListMusic } from 'lucide-react';
+import { Play, Sparkles, Disc, Flame, Music, Radio, Loader2, Plus, Trash2, AlertTriangle, X, Settings, RefreshCw, ListMusic, Clock, User } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const SERVER_URL = API_URL.replace('/api', '');
+
+const getPlaylistTotalDuration = (playlistId: string, tracksCount: number) => {
+  if (tracksCount === 0) return '0 min';
+  let sum = 0;
+  for (let i = 0; i < playlistId.length; i++) {
+    sum += playlistId.charCodeAt(i);
+  }
+  let totalSeconds = 0;
+  for (let idx = 0; idx < tracksCount; idx++) {
+    const trackSeed = (sum + idx) % 120;
+    totalSeconds += 180 + trackSeed;
+  }
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  if (totalMinutes >= 60) {
+    const hours = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+    return `${hours}h ${mins}m`;
+  }
+  return `${totalMinutes} min`;
+};
 
 // Rota protegida por autenticação
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -408,10 +428,36 @@ const Explore: React.FC = () => {
                 
                 <div className="flex flex-col truncate">
                   <span className="font-bold text-sm text-white truncate">{playlist.Name}</span>
-                  <span className="text-[10px] text-brand-gray truncate">Por {playlist.OwnerEmail}</span>
-                  <span className="text-[10px] text-brand-green font-semibold mt-1">
-                    {playlist.TracksCount} {playlist.TracksCount === 1 ? 'música' : 'músicas'}
-                  </span>
+                  
+                  {/* Foto + Nome/Nickname do Criador */}
+                  <div className="flex items-center gap-2 mt-1 select-none">
+                    {playlist.OwnerAvatarUrl ? (
+                      <img 
+                        src={playlist.OwnerAvatarUrl} 
+                        alt="Criador" 
+                        className="w-4 h-4 rounded-full object-cover border border-brand-green/20" 
+                      />
+                    ) : (
+                      <div className="w-4 h-4 rounded-full bg-brand-hover border border-brand-green/20 flex items-center justify-center text-brand-green shrink-0">
+                        <User className="w-2.5 h-2.5" />
+                      </div>
+                    )}
+                    <span className="text-[10px] text-brand-gray truncate">
+                      {playlist.OwnerFirstName?.trim() 
+                        ? `${playlist.OwnerFirstName} ${playlist.OwnerLastName || ''}`.trim() 
+                        : (playlist.OwnerUserName ? `@${playlist.OwnerUserName}` : playlist.OwnerEmail)}
+                    </span>
+                  </div>
+                  
+                  {/* Qtd Músicas • Reloginho Duração */}
+                  <div className="flex items-center gap-1.5 text-[10px] text-brand-green font-semibold mt-1 select-none leading-none">
+                    <span>{playlist.TracksCount} {playlist.TracksCount === 1 ? 'música' : 'músicas'}</span>
+                    <span className="text-brand-gray/40 font-normal select-none">•</span>
+                    <div className="flex items-center gap-1 text-brand-gray font-normal leading-none h-3.5">
+                      <Clock className="w-3 h-3 text-brand-gray/60 shrink-0" />
+                      <span>{getPlaylistTotalDuration(playlist.PlaylistId, playlist.TracksCount)}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}

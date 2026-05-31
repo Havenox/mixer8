@@ -18,6 +18,10 @@ export interface IPlaylist {
   IsCollaborator: boolean;
   IsSaved: boolean;
   TracksCount: number;
+  OwnerUserName?: string;
+  OwnerFirstName?: string;
+  OwnerLastName?: string;
+  OwnerAvatarUrl?: string;
 }
 
 interface IPlaylistContext {
