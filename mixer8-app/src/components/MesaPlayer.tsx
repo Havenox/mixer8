@@ -75,7 +75,7 @@ export const MesaPlayer: React.FC = () => {
     <div className="fixed bottom-0 left-0 right-0 h-24 bg-brand-black border-t border-brand-hover px-3 md:px-6 flex items-center justify-between z-50 shadow-2xl animate-in slide-in-from-bottom duration-300">
       
       {/* Esquerda: Info da Música Real */}
-      <div className="flex items-center gap-2.5 md:gap-4 flex-1 md:flex-initial min-w-0 md:w-1/4 md:min-w-[200px]">
+      <div className="flex items-center gap-2.5 md:gap-4 flex-1 md:flex-none min-w-0 md:w-1/4 md:min-w-[200px]">
         <div className="w-10 h-10 md:w-14 md:h-14 bg-brand-card border border-brand-hover rounded flex items-center justify-center relative overflow-hidden group shadow-lg shrink-0">
           {currentTrack.CoverUrl ? (
             <img 
@@ -104,7 +104,7 @@ export const MesaPlayer: React.FC = () => {
       </div>
 
       {/* Centro: Controles de Player Sincronizado */}
-      <div className="flex flex-col items-center gap-1 md:gap-2 flex-[2] md:flex-initial max-w-[600px] min-w-0 px-2">
+      <div className="flex flex-col items-center gap-1 md:gap-2 flex-[2] md:flex-1 max-w-[600px] w-full min-w-0 px-2">
         {/* Botões do Player */}
         <div className="flex items-center gap-4 md:gap-6">
           <button 
@@ -166,7 +166,7 @@ export const MesaPlayer: React.FC = () => {
       </div>
 
       {/* Direita: Mixagem DAW & Volume Geral */}
-      <div className="flex items-center gap-2 md:gap-4 flex-1 md:flex-initial md:w-1/4 justify-end min-w-0 md:min-w-[220px] relative select-none">
+      <div className="flex items-center gap-2 md:gap-4 flex-1 md:flex-none md:w-1/4 justify-end min-w-0 md:min-w-[220px] relative select-none">
         
         {/* Botão de Mixer apenas se houver múltiplas stems */}
         {hasMultipleStems ? (
