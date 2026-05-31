@@ -38,14 +38,8 @@ public class AuthController(Mixer8DbContext dbContext, IConfiguration configurat
             UpdatedAt = DateTime.UtcNow
         };
 
-        var roleStr = request.UserRole ?? "User";
-        var roleEnum = roleStr switch
-        {
-            "Admin" => UserRoleType.Admin,
-            "Moderator" => UserRoleType.Moderator,
-            "PaidUser" => UserRoleType.PaidUser,
-            _ => UserRoleType.User
-        };
+        var roleEnum = UserRoleType.User;
+        var roleStr = "User";
 
         var userRole = new UserRole
         {
@@ -146,7 +140,6 @@ public class RegisterRequest
 {
     public string Email { get; set; } = null!;
     public string Password { get; set; } = null!;
-    public string? UserRole { get; set; }
 }
 
 public class LoginRequest
