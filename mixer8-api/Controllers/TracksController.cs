@@ -105,6 +105,9 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             }
         }
 
+        var durationDouble = await GetAudioDurationAsync(filePath);
+        var durationSecs = (int)Math.Round(durationDouble);
+
         var track = new Track
         {
             TrackId = trackId,
@@ -112,7 +115,8 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             ArtistName = request.ArtistName.Trim(),
             UploadedBy = userId,
             ExtractionStatus = "Aguardando", // Disponível para o Worker capturar
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            Duration = durationSecs
         };
 
         dbContext.Tracks.Add(track);
@@ -288,6 +292,21 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             return BadRequest(new { ErrorMessage = "NO_VALID_AUDIO_FILES" });
         }
 
+        int maxDuration = 0;
+        foreach (var stem in stemsList)
+        {
+            var physicalPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", stem.AudioUrl.TrimStart('/'));
+            if (System.IO.File.Exists(physicalPath))
+            {
+                var durationDouble = await GetAudioDurationAsync(physicalPath);
+                var durationSecs = (int)Math.Round(durationDouble);
+                if (durationSecs > maxDuration)
+                {
+                    maxDuration = durationSecs;
+                }
+            }
+        }
+
         var track = new Track
         {
             TrackId = trackId,
@@ -297,7 +316,8 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             ExtractionStatus = "Pronto", // Salvo diretamente no status final
             CreatedAt = DateTime.UtcNow,
             Stems = stemsList,
-            CoverUrl = coverUrl
+            CoverUrl = coverUrl,
+            Duration = maxDuration
         };
 
         dbContext.Tracks.Add(track);
@@ -424,8 +444,24 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             return BadRequest(new { ErrorMessage = "NO_VALID_AUDIO_FILES_IN_ZIP" });
         }
 
+        int maxDuration = 0;
+        foreach (var stem in stemsList)
+        {
+            var physicalPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", stem.AudioUrl.TrimStart('/'));
+            if (System.IO.File.Exists(physicalPath))
+            {
+                var durationDouble = await GetAudioDurationAsync(physicalPath);
+                var durationSecs = (int)Math.Round(durationDouble);
+                if (durationSecs > maxDuration)
+                {
+                    maxDuration = durationSecs;
+                }
+            }
+        }
+
         dbContext.Stems.AddRange(stemsList);
         track.ExtractionStatus = "Pronto";
+        track.Duration = maxDuration;
         await dbContext.SaveChangesAsync();
 
         // Limpeza dos arquivos temporários de downloads para economizar armazenamento
@@ -496,6 +532,43 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             Console.WriteLine($"[FFMPEG ERROR] Falha ao executar conversão Opus via FFmpeg: {ex.Message}");
             return false;
         }
+    }
+
+    private static async Task<double> GetAudioDurationAsync(string filePath)
+    {
+        var startInfo = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "ffprobe",
+            Arguments = $"-v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 \"{filePath}\"",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var process = new System.Diagnostics.Process { StartInfo = startInfo };
+        try
+        {
+            process.Start();
+            var output = await process.StandardOutput.ReadToEndAsync();
+            var error = await process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync();
+
+            if (process.ExitCode == 0 && double.TryParse(output.Trim(), System.Globalization.CultureInfo.InvariantCulture, out var duration))
+            {
+                return duration;
+            }
+            else
+            {
+                Console.WriteLine($"[FFPROBE ERROR] ExitCode {process.ExitCode}. Output: {output}. Error: {error}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[FFPROBE EXCEPTION] Falha ao ler duração: {ex.Message}");
+        }
+
+        return 0;
     }
 
     [Authorize(Roles = "Admin")]
@@ -771,6 +844,28 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                     }
                 }
             }
+
+            // Recalcular a duração das stems que restaram + novas
+            int maxDuration = 0;
+            var allStems = dbContext.Stems.Local.Where(s => s.TrackId == id && !deletedStemIds.Contains(s.StemId))
+                .Concat(track.Stems.Where(s => !deletedStemIds.Contains(s.StemId)))
+                .DistinctBy(s => s.StemId)
+                .ToList();
+
+            foreach (var stem in allStems)
+            {
+                var physicalPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", stem.AudioUrl.TrimStart('/'));
+                if (System.IO.File.Exists(physicalPath))
+                {
+                    var durationDouble = await GetAudioDurationAsync(physicalPath);
+                    var durationSecs = (int)Math.Round(durationDouble);
+                    if (durationSecs > maxDuration)
+                    {
+                        maxDuration = durationSecs;
+                    }
+                }
+            }
+            track.Duration = maxDuration;
 
             await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
