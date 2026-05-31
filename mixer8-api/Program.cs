@@ -134,10 +134,41 @@ using (var scope = app.Services.CreateScope())
                     UserId = Guid.NewGuid(),
                     Email = normalizedEmail,
                     PasswordHash = SecurityHelper.HashPassword("mixer8"),
-                    UserRole = seed.Role,
-                    CreatedAt = DateTime.UtcNow
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
                 };
+
+                var roleEnum = seed.Role switch
+                {
+                    "Admin" => Mixer8.Api.Domain.UserRoleType.Admin,
+                    "Moderator" => Mixer8.Api.Domain.UserRoleType.Moderator,
+                    "PaidUser" => Mixer8.Api.Domain.UserRoleType.PaidUser,
+                    _ => Mixer8.Api.Domain.UserRoleType.User
+                };
+
+                var newRole = new Mixer8.Api.Domain.UserRole
+                {
+                    UserRoleId = Guid.NewGuid(),
+                    UserId = newUser.UserId,
+                    Role = roleEnum,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                var newProfile = new Mixer8.Api.Domain.UserProfile
+                {
+                    UserProfileId = Guid.NewGuid(),
+                    UserId = newUser.UserId,
+                    Name = seed.Role,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                    Preferences = new Mixer8.Api.Domain.UserProfilePreferences()
+                };
+
                 db.Users.Add(newUser);
+                db.UserRoles.Add(newRole);
+                db.UserProfiles.Add(newProfile);
+
                 Console.WriteLine($"[DB SEED] Adicionando usuário semente: {normalizedEmail} ({seed.Role})");
                 seedApplied = true;
             }

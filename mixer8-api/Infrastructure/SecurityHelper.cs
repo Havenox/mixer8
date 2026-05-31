@@ -38,7 +38,7 @@ public static class SecurityHelper
     /// <summary>
     /// Gera o token Bearer JWT assinado contendo os Claims do Usuário para controle RBAC.
     /// </summary>
-    public static string GenerateJwtToken(User user, string secretKey, int expirationDays)
+    public static string GenerateJwtToken(User user, string role, string secretKey, int expirationDays)
     {
         var tokenHandler = new JwtSecurityTokenHandler();
         var key = Encoding.ASCII.GetBytes(secretKey);
@@ -49,7 +49,7 @@ public static class SecurityHelper
             {
                 new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
                 new Claim(ClaimTypes.Email, user.Email),
-                new Claim(ClaimTypes.Role, user.UserRole)
+                new Claim(ClaimTypes.Role, role)
             }),
             Expires = DateTime.UtcNow.AddDays(expirationDays),
             SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)

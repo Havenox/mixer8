@@ -9,6 +9,8 @@ namespace Mixer8.Api.Infrastructure;
 public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbContext(options)
 {
     public DbSet<User> Users { get; set; } = null!;
+    public DbSet<UserRole> UserRoles { get; set; } = null!;
+    public DbSet<UserProfile> UserProfiles { get; set; } = null!;
     public DbSet<Track> Tracks { get; set; } = null!;
     public DbSet<Stem> Stems { get; set; } = null!;
     public DbSet<Playlist> Playlists { get; set; } = null!;
@@ -21,6 +23,8 @@ public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbCont
 
         // Mapeia nomes das tabelas de forma soberana (PascalCase)
         modelBuilder.Entity<User>().ToTable("Users");
+        modelBuilder.Entity<UserRole>().ToTable("UserRoles");
+        modelBuilder.Entity<UserProfile>().ToTable("UserProfiles");
         modelBuilder.Entity<Track>().ToTable("Tracks");
         modelBuilder.Entity<Stem>().ToTable("Stems");
         modelBuilder.Entity<Playlist>().ToTable("Playlists");
@@ -29,13 +33,36 @@ public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbCont
 
         // Chaves primárias
         modelBuilder.Entity<User>().HasKey(u => u.UserId);
+        modelBuilder.Entity<UserRole>().HasKey(ur => ur.UserRoleId);
+        modelBuilder.Entity<UserProfile>().HasKey(up => up.UserProfileId);
         modelBuilder.Entity<Track>().HasKey(t => t.TrackId);
         modelBuilder.Entity<Stem>().HasKey(s => s.StemId);
         modelBuilder.Entity<Playlist>().HasKey(p => p.PlaylistId);
         modelBuilder.Entity<PlaylistTrack>().HasKey(pt => new { pt.PlaylistId, pt.TrackId });
         modelBuilder.Entity<PlaylistCollaborator>().HasKey(pc => new { pc.PlaylistId, pc.UserId });
 
-        // Configura relacionamentos
+        // Configura relacionamentos 1-para-1
+        modelBuilder.Entity<User>()
+            .HasOne(u => u.UserRole)
+            .WithOne()
+            .HasForeignKey<UserRole>(ur => ur.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<User>()
+            .HasOne(u => u.UserProfile)
+            .WithOne()
+            .HasForeignKey<UserProfile>(up => up.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Mapear preferências do perfil de usuário em formato JSON
+        modelBuilder.Entity<UserProfile>()
+            .OwnsOne(up => up.Preferences, builder =>
+            {
+                builder.ToJson();
+                builder.OwnsOne(p => p.Notifications);
+            });
+
+        // Configura relacionamentos das faixas e stems
         modelBuilder.Entity<Track>()
             .HasMany(t => t.Stems)
             .WithOne()
