@@ -354,7 +354,7 @@ export const Dashboard: React.FC = () => {
       {/* Grid de Tracks */}
       {isLoadingTracks ? (
         <div className="text-xs text-brand-gray animate-pulse font-semibold">
-          Carregando músicas do PostgreSQL...
+          Carregando...
         </div>
       ) : tracks.length === 0 ? (
         <div className="text-xs text-brand-gray font-semibold">

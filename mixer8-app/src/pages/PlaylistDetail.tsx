@@ -353,7 +353,7 @@ export const PlaylistDetail: React.FC = () => {
     return (
       <div className="h-full flex items-center justify-center gap-2.5 text-brand-gray select-none">
         <Loader2 className="w-6 h-6 animate-spin text-brand-green" />
-        <span className="font-semibold text-sm">Buscando playlist do PostgreSQL...</span>
+        <span className="font-semibold text-sm">Carregando...</span>
       </div>
     );
   }
