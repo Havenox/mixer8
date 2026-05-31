@@ -434,7 +434,7 @@ const Explore: React.FC = () => {
                   <div className="flex items-center gap-2 mt-1 select-none">
                     {playlist.OwnerAvatarUrl ? (
                       <img 
-                        src={playlist.OwnerAvatarUrl} 
+                        src={playlist.OwnerAvatarUrl.startsWith('http') ? playlist.OwnerAvatarUrl : `${SERVER_URL}${playlist.OwnerAvatarUrl}`} 
                         alt="Criador" 
                         className="w-4 h-4 rounded-full object-cover border border-brand-green/20" 
                       />

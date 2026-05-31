@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
   User, Mail, Lock, Phone, FileText, 
-  Image, Save, AlertTriangle, CheckCircle 
+  Image, Save, AlertTriangle, CheckCircle,
+  Upload, Loader2
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const SERVER_URL = API_URL.replace('/api', '');
 
 export const Settings: React.FC = () => {
   const { CurrentUser, Token, UpdateCurrentUser } = useAuth();
@@ -21,6 +23,7 @@ export const Settings: React.FC = () => {
   const [phone, setPhone] = useState(CurrentUser?.Phone || '');
   const [bio, setBio] = useState(CurrentUser?.Bio || '');
   const [avatarUrl, setAvatarUrl] = useState(CurrentUser?.AvatarUrl || '');
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   // Validação do UserName
   const [userNameStatus, setUserNameStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid'>('idle');
@@ -29,6 +32,54 @@ export const Settings: React.FC = () => {
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setError('');
+    setSuccess('');
+    setIsUploadingAvatar(true);
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch(`${API_URL}/Auth/Profile/Avatar`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${Token}`
+        },
+        body: formData
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setAvatarUrl(data.AvatarUrl);
+
+        // Atualizar o usuário logado
+        const meRes = await fetch(`${API_URL}/Auth/Me`, {
+          headers: {
+            'Authorization': `Bearer ${Token}`
+          }
+        });
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          UpdateCurrentUser(meData);
+        }
+
+        setSuccess('Imagem de perfil enviada e atualizada com sucesso!');
+      } else {
+        const errData = await res.json();
+        setError(errData.ErrorMessage || 'Erro ao enviar imagem de perfil.');
+      }
+    } catch {
+      setError('Erro de conexão ao enviar a imagem de perfil.');
+    } finally {
+      setIsUploadingAvatar(false);
+      e.target.value = '';
+    }
+  };
 
   // Checagem em tempo real do UserName com debounce
   useEffect(() => {
@@ -303,36 +354,74 @@ export const Settings: React.FC = () => {
             </div>
           </div>
 
-          {/* Coluna Direita: Preview do Avatar */}
-          <div className="w-full md:w-48 flex flex-col items-center gap-4 border border-brand-hover bg-brand-black/30 p-4 rounded-md shrink-0">
+          {/* Coluna Direita: Preview e Upload de Avatar */}
+          <div className="w-full md:w-52 flex flex-col items-center gap-4 border border-brand-hover bg-brand-black/30 p-4 rounded-md shrink-0 select-none">
             <span className="text-xs font-bold text-brand-gray uppercase tracking-wider">Avatar</span>
             
-            <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-brand-green flex items-center justify-center bg-brand-hover">
+            <div className="w-28 h-28 rounded-full overflow-hidden border-2 border-brand-green flex items-center justify-center bg-brand-hover relative group shadow-2xl">
               {avatarUrl ? (
                 <img 
-                  src={avatarUrl} 
+                  src={avatarUrl.startsWith('http') ? avatarUrl : `${SERVER_URL}${avatarUrl}`} 
                   className="w-full h-full object-cover" 
                   alt="Avatar Preview" 
                   onError={(e) => {
-                    // Se quebrar, limpa ou mostra default
                     e.currentTarget.style.display = 'none';
                   }}
                 />
               ) : (
-                <User className="w-10 h-10 text-brand-green" />
+                <User className="w-12 h-12 text-brand-green/45" />
+              )}
+
+              {isUploadingAvatar && (
+                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                  <Loader2 className="w-6 h-6 animate-spin text-brand-green" />
+                </div>
               )}
             </div>
 
+            {/* Input de arquivo físico estilo Spotify */}
+            <div className="w-full flex flex-col gap-2">
+              <input
+                id="avatar-file-input"
+                type="file"
+                accept="image/png, image/jpeg, image/jpg, image/webp"
+                disabled={isPending || isUploadingAvatar}
+                onChange={handleAvatarUpload}
+                className="hidden"
+              />
+              <label
+                htmlFor="avatar-file-input"
+                className={`w-full py-2 px-3 bg-brand-green hover:bg-brand-green/90 text-black text-xs font-bold rounded cursor-pointer transition-all flex items-center justify-center gap-2 hover:scale-105 active:scale-95 duration-200 select-none ${
+                  (isPending || isUploadingAvatar) ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                {isUploadingAvatar ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Enviando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload Foto</span>
+                  </>
+                )}
+              </label>
+            </div>
+
+            <div className="w-full h-[1px] bg-brand-hover my-1" />
+
+            {/* URL externa opcional */}
             <div className="w-full flex flex-col gap-1.5">
               <label className="text-[10px] font-semibold text-brand-gray" htmlFor="avatarUrl">
-                URL da Imagem de Perfil
+                Ou URL Externa da Imagem
               </label>
               <div className="relative">
                 <input
                   id="avatarUrl"
                   type="text"
                   value={avatarUrl}
-                  disabled={isPending}
+                  disabled={isPending || isUploadingAvatar}
                   onChange={(e) => setAvatarUrl(e.target.value)}
                   className="w-full bg-brand-black border border-brand-hover rounded py-1.5 px-2 pl-8 text-[11px] text-white focus:outline-none focus:border-brand-green transition-all"
                   placeholder="https://imagem.com/foto.jpg"

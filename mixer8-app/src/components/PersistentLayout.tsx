@@ -10,6 +10,9 @@ import {
   ChevronLeft, ChevronRight
 } from 'lucide-react';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const SERVER_URL = API_URL.replace('/api', '');
+
 export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { IsAuthenticated, CurrentUser, Logout } = useAuth();
   const { currentTrack } = usePlayer();
@@ -346,7 +349,7 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
                 <div className="flex items-center gap-3 truncate w-full justify-center">
                   {CurrentUser.AvatarUrl ? (
                     <img 
-                      src={CurrentUser.AvatarUrl} 
+                      src={CurrentUser.AvatarUrl.startsWith('http') ? CurrentUser.AvatarUrl : `${SERVER_URL}${CurrentUser.AvatarUrl}`} 
                       className="w-9 h-9 rounded-full object-cover border border-brand-green/20 shrink-0" 
                       alt="Avatar" 
                       onError={(e) => {
