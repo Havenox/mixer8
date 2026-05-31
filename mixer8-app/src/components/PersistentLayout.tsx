@@ -5,7 +5,7 @@ import { usePlayer } from '../context/PlayerContext';
 import { MesaPlayer } from './MesaPlayer';
 import { 
   Home, Library, PlusCircle, Shield, 
-  LogOut, User, Sparkles, ChevronDown, Layers, ListMusic
+  LogOut, User, ChevronDown, Layers, ListMusic
 } from 'lucide-react';
 import type { UserRole } from '../types/Auth';
 
@@ -35,11 +35,8 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
       <div className="w-64 bg-black flex flex-col justify-between p-6 border-r border-brand-hover select-none shrink-0">
         <div className="flex flex-col gap-6">
           {/* Logo */}
-          <div className="flex items-center gap-3 px-2">
-            <Sparkles className="w-8 h-8 text-brand-green animate-pulse" />
-            <span className="font-black text-xl tracking-tighter uppercase text-white">
-              Mixer<span className="text-brand-green">8</span>
-            </span>
+          <div className="flex items-center px-2">
+            <img src="/mixer8-logo.webp" alt="Mixer8 Logo" className="h-8 w-auto object-contain select-none" />
           </div>
 
           {/* Menus principais */}

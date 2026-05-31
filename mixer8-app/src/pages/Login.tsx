@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Sparkles, Mail, Lock, ArrowRight, AlertTriangle } from 'lucide-react';
+import { Mail, Lock, ArrowRight, AlertTriangle } from 'lucide-react';
 
 export const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -63,11 +63,8 @@ export const Login: React.FC = () => {
         
         {/* Header */}
         <div className="flex flex-col items-center text-center gap-2">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-9 h-9 text-brand-green animate-pulse" />
-            <span className="font-black text-2xl tracking-tighter uppercase text-white">
-              Mixer<span className="text-brand-green">8</span>
-            </span>
+          <div className="flex items-center">
+            <img src="/mixer8-logo.webp" alt="Mixer8 Logo" className="h-10 w-auto object-contain select-none" />
           </div>
           <h2 className="text-xl font-bold text-white mt-2">Seja bem-vindo de volta</h2>
           <p className="text-xs text-brand-gray">Acesse sua conta para curtir e mixar suas stems</p>
