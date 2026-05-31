@@ -6,7 +6,8 @@ import { MesaPlayer } from './MesaPlayer';
 import { 
   Home, Library, PlusCircle, Shield, 
   LogOut, User, Layers, ListMusic,
-  Settings, HelpCircle, CreditCard, Lock
+  Settings, HelpCircle, CreditCard, Lock,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 
 export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -16,6 +17,9 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
   const navigate = useNavigate();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    return localStorage.getItem('mixer8_sidebar_collapsed') === 'true';
+  });
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Fecha o menu de contexto ao clicar fora dele
@@ -28,6 +32,11 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Persiste a preferência da sidebar no localStorage
+  useEffect(() => {
+    localStorage.setItem('mixer8_sidebar_collapsed', String(isSidebarCollapsed));
+  }, [isSidebarCollapsed]);
 
   const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
   if ((!IsAuthenticated || !CurrentUser) && isAuthPage) {
@@ -47,120 +56,160 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
   return (
     <div className={`flex h-screen bg-brand-black text-white overflow-hidden transition-all duration-300 ${currentTrack ? 'pb-24' : ''}`}>
       
-      {/* 1. SIDEBAR (Estilo Mesa de Som) */}
-      <div className="w-64 bg-black flex flex-col justify-between p-6 border-r border-brand-hover select-none shrink-0">
-        <div className="flex flex-col gap-6">
-          {/* Logo */}
-          <div className="flex items-center px-2">
-            <img src="/mixer8-logo.webp" alt="Mixer8 Logo" className="h-8 w-auto object-contain select-none" />
+      {/* 1. SIDEBAR (Estilo Mesa de Som Retrátil) */}
+      <div className={`bg-black flex flex-col justify-between border-r border-brand-hover select-none shrink-0 transition-all duration-300 ${
+        isSidebarCollapsed ? 'w-20 p-4 py-6 items-center' : 'w-64 p-6'
+      }`}>
+        <div className="flex flex-col gap-6 w-full">
+          {/* Cabeçalho: Logo + Botão de Retração */}
+          <div className={`flex items-center justify-between w-full ${isSidebarCollapsed ? 'flex-col gap-4' : 'px-2'}`}>
+            {!isSidebarCollapsed && (
+              <img src="/mixer8-logo.webp" alt="Mixer8 Logo" className="h-8 w-auto object-contain select-none" />
+            )}
+            <button
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              className="p-1.5 rounded bg-brand-hover hover:text-brand-green text-brand-gray border border-transparent hover:border-brand-green/20 transition-all cursor-pointer shadow-md"
+              title={isSidebarCollapsed ? "Expandir Navegação" : "Recolher Navegação"}
+            >
+              {isSidebarCollapsed ? <ChevronRight className="w-4.5 h-4.5" /> : <ChevronLeft className="w-4.5 h-4.5" />}
+            </button>
           </div>
 
           {/* Menus principais */}
-          <nav className="flex flex-col gap-3 font-semibold text-sm text-brand-gray">
+          <nav className="flex flex-col gap-3 font-semibold text-sm text-brand-gray w-full">
             <Link 
               to="/" 
-              className={`flex items-center gap-4 py-2 px-3 rounded-md hover:text-white transition-colors ${
-                location.pathname === '/' ? 'text-white bg-brand-hover' : ''
-              }`}
+              className={`flex items-center rounded-md hover:text-white transition-colors ${
+                isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'gap-4 py-2 px-3 w-full'
+              } ${location.pathname === '/' ? 'text-white bg-brand-hover' : ''}`}
+              title={isSidebarCollapsed ? "Explorar" : undefined}
             >
-              <Home className="w-5 h-5" />
-              <span>Explorar</span>
+              <Home className="w-5 h-5 shrink-0" />
+              {!isSidebarCollapsed && <span>Explorar</span>}
             </Link>
             
             {IsAuthenticated ? (
               <Link 
                 to="/dashboard" 
-                className={`flex items-center gap-4 py-2 px-3 rounded-md hover:text-white transition-colors ${
-                  location.pathname === '/dashboard' ? 'text-white bg-brand-hover' : ''
-                }`}
+                className={`flex items-center rounded-md hover:text-white transition-colors ${
+                  isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'gap-4 py-2 px-3 w-full'
+                } ${location.pathname === '/dashboard' ? 'text-white bg-brand-hover' : ''}`}
+                title={isSidebarCollapsed ? "Biblioteca" : undefined}
               >
-                <Library className="w-5 h-5" />
-                <span>Biblioteca</span>
+                <Library className="w-5 h-5 shrink-0" />
+                {!isSidebarCollapsed && <span>Biblioteca</span>}
               </Link>
             ) : (
               <div 
                 onClick={() => navigate('/login')}
-                className="flex items-center justify-between py-2 px-3 rounded-md font-semibold text-sm text-brand-gray/40 cursor-pointer hover:text-white/80 transition-all group"
+                className={`flex items-center justify-between rounded-md font-semibold text-sm text-brand-gray/40 cursor-pointer hover:text-white/80 transition-all group ${
+                  isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'py-2 px-3 w-full'
+                }`}
+                title={isSidebarCollapsed ? "Biblioteca (Requer Login)" : undefined}
               >
-                <div className="flex items-center gap-4">
-                  <Library className="w-5 h-5" />
-                  <span>Biblioteca</span>
+                <div className="flex items-center gap-4 min-w-0">
+                  <Library className="w-5 h-5 shrink-0" />
+                  {!isSidebarCollapsed && <span className="truncate">Biblioteca</span>}
                 </div>
-                <Lock className="w-3.5 h-3.5 text-brand-gray/40 group-hover:text-brand-green" />
+                {!isSidebarCollapsed && <Lock className="w-3.5 h-3.5 text-brand-gray/40 group-hover:text-brand-green shrink-0" />}
               </div>
             )}
 
             {IsAuthenticated ? (
               <Link 
                 to="/playlists" 
-                className={`flex items-center gap-4 py-2 px-3 rounded-md hover:text-white transition-colors ${
-                  location.pathname.startsWith('/playlists') ? 'text-white bg-brand-hover' : ''
-                }`}
+                className={`flex items-center rounded-md hover:text-white transition-colors ${
+                  isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'gap-4 py-2 px-3 w-full'
+                } ${location.pathname.startsWith('/playlists') ? 'text-white bg-brand-hover' : ''}`}
+                title={isSidebarCollapsed ? "Playlists" : undefined}
               >
-                <ListMusic className="w-5 h-5 text-brand-green" />
-                <span>Playlists</span>
+                <ListMusic className="w-5 h-5 text-brand-green shrink-0" />
+                {!isSidebarCollapsed && <span>Playlists</span>}
               </Link>
             ) : (
               <div 
                 onClick={() => navigate('/login')}
-                className="flex items-center justify-between py-2 px-3 rounded-md font-semibold text-sm text-brand-gray/40 cursor-pointer hover:text-white/80 transition-all group"
+                className={`flex items-center justify-between rounded-md font-semibold text-sm text-brand-gray/40 cursor-pointer hover:text-white/80 transition-all group ${
+                  isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'py-2 px-3 w-full'
+                }`}
+                title={isSidebarCollapsed ? "Playlists (Requer Login)" : undefined}
               >
-                <div className="flex items-center gap-4">
-                  <ListMusic className="w-5 h-5" />
-                  <span>Playlists</span>
+                <div className="flex items-center gap-4 min-w-0">
+                  <ListMusic className="w-5 h-5 text-brand-green shrink-0" />
+                  {!isSidebarCollapsed && <span className="truncate">Playlists</span>}
                 </div>
-                <Lock className="w-3.5 h-3.5 text-brand-gray/40 group-hover:text-brand-green" />
+                {!isSidebarCollapsed && <Lock className="w-3.5 h-3.5 text-brand-gray/40 group-hover:text-brand-green shrink-0" />}
               </div>
             )}
           </nav>
 
-          <div className="h-[1px] bg-brand-hover my-2" />
+          <div className="h-[1px] bg-brand-hover my-1 w-full" />
 
           {/* Menus de ação (Exclusivo PaidUser / Admin) */}
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[10px] text-brand-gray font-bold uppercase tracking-wider px-3 mb-1">
-              Ferramentas Stems
-            </span>
+          <div className="flex flex-col gap-1.5 w-full">
+            {!isSidebarCollapsed && (
+              <span className="text-[10px] text-brand-gray font-bold uppercase tracking-wider px-3 mb-1 block">
+                Ferramentas Stems
+              </span>
+            )}
             
             {IsAuthenticated && CurrentUser ? (
               (CurrentUser.UserRole === 'PaidUser' || CurrentUser.UserRole === 'Admin') ? (
                 <>
                   <Link 
                     to="/dashboard?action=upload" 
-                    className="flex items-center gap-4 py-2 px-3 rounded-md font-semibold text-sm text-brand-gray hover:text-white hover:bg-brand-hover transition-all"
+                    className={`flex items-center rounded-md font-semibold text-sm text-brand-gray hover:text-white hover:bg-brand-hover transition-all ${
+                      isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'gap-4 py-2 px-3 w-full'
+                    }`}
+                    title={isSidebarCollapsed ? "Upload e Separar" : undefined}
                   >
-                    <PlusCircle className="w-5 h-5 text-brand-green" />
-                    <span>Upload e Separar</span>
+                    <PlusCircle className="w-5 h-5 text-brand-green shrink-0" />
+                    {!isSidebarCollapsed && <span>Upload e Separar</span>}
                   </Link>
                   <Link 
                     to="/upload-direto" 
-                    className={`flex items-center gap-4 py-2 px-3 rounded-md font-semibold text-sm text-brand-gray hover:text-white hover:bg-brand-hover transition-all ${
-                      location.pathname === '/upload-direto' ? 'text-white bg-brand-hover' : ''
-                    }`}
+                    className={`flex items-center rounded-md font-semibold text-sm text-brand-gray hover:text-white hover:bg-brand-hover transition-all ${
+                      isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'gap-4 py-2 px-3 w-full'
+                    } ${location.pathname === '/upload-direto' ? 'text-white bg-brand-hover' : ''}`}
+                    title={isSidebarCollapsed ? "Upload Direto (Mesa)" : undefined}
                   >
-                    <Layers className="w-5 h-5 text-brand-green" />
-                    <span>Upload Direto (Mesa)</span>
+                    <Layers className="w-5 h-5 text-brand-green shrink-0" />
+                    {!isSidebarCollapsed && <span>Upload Direto (Mesa)</span>}
                   </Link>
                 </>
               ) : (
                 <>
-                  <div className="flex items-center justify-between py-2 px-3 rounded-md font-semibold text-sm text-brand-gray/40 cursor-not-allowed select-none group relative">
-                    <div className="flex items-center gap-4">
-                      <PlusCircle className="w-5 h-5 text-brand-gray/40" />
-                      <span>Upload e Separar</span>
+                  <div 
+                    className={`flex items-center justify-between rounded-md font-semibold text-sm text-brand-gray/40 cursor-not-allowed select-none group relative ${
+                      isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'py-2 px-3 w-full'
+                    }`}
+                    title={isSidebarCollapsed ? "Upload e Separar (Premium)" : undefined}
+                  >
+                    <div className="flex items-center gap-4 min-w-0">
+                      <PlusCircle className="w-5 h-5 text-brand-gray/40 shrink-0" />
+                      {!isSidebarCollapsed && <span className="truncate">Upload e Separar</span>}
                     </div>
-                    <span className="text-[9px] bg-brand-hover text-brand-green border border-brand-green/20 px-1 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                      PRO
-                    </span>
+                    {!isSidebarCollapsed && (
+                      <span className="text-[9px] bg-brand-hover text-brand-green border border-brand-green/20 px-1 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        PRO
+                      </span>
+                    )}
                   </div>
-                  <div className="flex items-center justify-between py-2 px-3 rounded-md font-semibold text-sm text-brand-gray/40 cursor-not-allowed select-none group relative">
-                    <div className="flex items-center gap-4">
-                      <Layers className="w-5 h-5 text-brand-gray/40" />
-                      <span>Upload Direto (Mesa)</span>
+                  <div 
+                    className={`flex items-center justify-between rounded-md font-semibold text-sm text-brand-gray/40 cursor-not-allowed select-none group relative ${
+                      isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'py-2 px-3 w-full'
+                    }`}
+                    title={isSidebarCollapsed ? "Upload Direto (Premium)" : undefined}
+                  >
+                    <div className="flex items-center gap-4 min-w-0">
+                      <Layers className="w-5 h-5 text-brand-gray/40 shrink-0" />
+                      {!isSidebarCollapsed && <span className="truncate">Upload Direto</span>}
                     </div>
-                    <span className="text-[9px] bg-brand-hover text-brand-green border border-brand-green/20 px-1 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                      PRO
-                    </span>
+                    {!isSidebarCollapsed && (
+                      <span className="text-[9px] bg-brand-hover text-brand-green border border-brand-green/20 px-1 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        PRO
+                      </span>
+                    )}
                   </div>
                 </>
               )
@@ -168,23 +217,29 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
               <>
                 <div 
                   onClick={() => navigate('/login')}
-                  className="flex items-center justify-between py-2 px-3 rounded-md font-semibold text-sm text-brand-gray/40 cursor-pointer hover:text-white/80 transition-all group"
+                  className={`flex items-center justify-between rounded-md font-semibold text-sm text-brand-gray/40 cursor-pointer hover:text-white/80 transition-all group ${
+                    isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'py-2 px-3 w-full'
+                  }`}
+                  title={isSidebarCollapsed ? "Upload e Separar (Requer Login)" : undefined}
                 >
-                  <div className="flex items-center gap-4">
-                    <PlusCircle className="w-5 h-5 text-brand-gray/40" />
-                    <span>Upload e Separar</span>
+                  <div className="flex items-center gap-4 min-w-0">
+                    <PlusCircle className="w-5 h-5 text-brand-gray/40 shrink-0" />
+                    {!isSidebarCollapsed && <span className="truncate">Upload e Separar</span>}
                   </div>
-                  <Lock className="w-3.5 h-3.5 text-brand-gray/40 group-hover:text-brand-green" />
+                  {!isSidebarCollapsed && <Lock className="w-3.5 h-3.5 text-brand-gray/40 group-hover:text-brand-green shrink-0" />}
                 </div>
                 <div 
                   onClick={() => navigate('/login')}
-                  className="flex items-center justify-between py-2 px-3 rounded-md font-semibold text-sm text-brand-gray/40 cursor-pointer hover:text-white/80 transition-all group"
+                  className={`flex items-center justify-between rounded-md font-semibold text-sm text-brand-gray/40 cursor-pointer hover:text-white/80 transition-all group ${
+                    isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'py-2 px-3 w-full'
+                  }`}
+                  title={isSidebarCollapsed ? "Upload Direto (Requer Login)" : undefined}
                 >
-                  <div className="flex items-center gap-4">
-                    <Layers className="w-5 h-5 text-brand-gray/40" />
-                    <span>Upload Direto (Mesa)</span>
+                  <div className="flex items-center gap-4 min-w-0">
+                    <Layers className="w-5 h-5 text-brand-gray/40 shrink-0" />
+                    {!isSidebarCollapsed && <span className="truncate">Upload Direto</span>}
                   </div>
-                  <Lock className="w-3.5 h-3.5 text-brand-gray/40 group-hover:text-brand-green" />
+                  {!isSidebarCollapsed && <Lock className="w-3.5 h-3.5 text-brand-gray/40 group-hover:text-brand-green shrink-0" />}
                 </div>
               </>
             )}
@@ -192,30 +247,35 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
 
           {/* Menus de Admin / Mod */}
           {IsAuthenticated && CurrentUser && (CurrentUser.UserRole === 'Admin' || CurrentUser.UserRole === 'Moderator') && (
-            <div className="flex flex-col gap-1.5 mt-2">
-              <span className="text-[10px] text-brand-gray font-bold uppercase tracking-wider px-3 mb-1">
-                Administração
-              </span>
+            <div className="flex flex-col gap-1.5 w-full">
+              {!isSidebarCollapsed && (
+                <span className="text-[10px] text-brand-gray font-bold uppercase tracking-wider px-3 mb-1 block">
+                  Administração
+                </span>
+              )}
               <Link 
                 to="/admin" 
-                className={`flex items-center gap-4 py-2 px-3 rounded-md font-semibold text-sm text-brand-gray hover:text-white hover:bg-brand-hover transition-all ${
-                  location.pathname === '/admin' ? 'text-white bg-brand-hover' : ''
-                }`}
+                className={`flex items-center rounded-md font-semibold text-sm text-brand-gray hover:text-white hover:bg-brand-hover transition-all ${
+                  isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'gap-4 py-2 px-3 w-full'
+                } ${location.pathname === '/admin' ? 'text-white bg-brand-hover' : ''}`}
+                title={isSidebarCollapsed ? "Painel Admin (CRM)" : undefined}
               >
-                <Shield className="w-5 h-5 text-brand-green" />
-                <span>Painel Admin (CRM)</span>
+                <Shield className="w-5 h-5 text-brand-green shrink-0" />
+                {!isSidebarCollapsed && <span>Painel Admin (CRM)</span>}
               </Link>
             </div>
           )}
         </div>
 
         {/* Rodapé da Sidebar: Info do Usuário */}
-        <div className="relative border-t border-brand-hover pt-4 animate-in fade-in duration-300" ref={menuRef}>
+        <div className="relative border-t border-brand-hover pt-4 animate-in fade-in duration-300 w-full flex justify-center" ref={menuRef}>
           {IsAuthenticated && CurrentUser ? (
             <>
               {/* Menu de Contexto do Perfil */}
               {isMenuOpen && (
-                <div className="absolute bottom-16 left-0 w-52 bg-brand-card border border-brand-hover rounded-md shadow-2xl p-2 z-50 flex flex-col gap-1 animate-in slide-in-from-bottom-2 fade-in duration-200">
+                <div className={`absolute bottom-16 bg-brand-card border border-brand-hover rounded-md shadow-2xl p-2 z-50 flex flex-col gap-1 animate-in slide-in-from-bottom-2 fade-in duration-200 ${
+                  isSidebarCollapsed ? 'left-16 w-48' : 'left-0 w-52'
+                }`}>
                   <div className="px-3 py-1.5 text-[10px] text-brand-gray font-bold uppercase tracking-wider select-none">
                     Conta e Perfil
                   </div>
@@ -254,41 +314,50 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
               {/* Bloco de Informações do Usuário (Clique abre o menu) */}
               <div 
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className={`flex items-center justify-between p-2 rounded-md hover:bg-brand-hover/50 cursor-pointer select-none transition-all ${
+                className={`flex items-center justify-between rounded-md hover:bg-brand-hover/50 cursor-pointer select-none transition-all ${
                   isMenuOpen ? 'bg-brand-hover/40' : ''
-                }`}
+                } ${isSidebarCollapsed ? 'p-1' : 'p-2 w-full'}`}
+                title={isSidebarCollapsed ? displayName : undefined}
               >
-                <div className="flex items-center gap-3 truncate w-full">
+                <div className="flex items-center gap-3 truncate w-full justify-center">
                   {CurrentUser.AvatarUrl ? (
                     <img 
                       src={CurrentUser.AvatarUrl} 
-                      className="w-9 h-9 rounded-full object-cover border border-brand-green/20" 
+                      className="w-9 h-9 rounded-full object-cover border border-brand-green/20 shrink-0" 
                       alt="Avatar" 
                       onError={(e) => {
-                        // Fallback em caso de URL quebrada
                         e.currentTarget.style.display = 'none';
                       }}
                     />
                   ) : (
-                    <div className="w-9 h-9 rounded-full bg-brand-hover border border-brand-green/20 flex items-center justify-center text-brand-green">
+                    <div className="w-9 h-9 rounded-full bg-brand-hover border border-brand-green/20 flex items-center justify-center text-brand-green shrink-0">
                       <User className="w-4 h-4" />
                     </div>
                   )}
-                  <div className="flex flex-col truncate">
-                    <span className="text-xs font-semibold text-white truncate">{displayName}</span>
-                    <span className="text-[9px] text-brand-green font-bold uppercase tracking-wider">
-                      {CurrentUser.UserRole}
-                    </span>
-                  </div>
+                  {!isSidebarCollapsed && (
+                    <div className="flex flex-col truncate flex-1">
+                      <span className="text-xs font-semibold text-white truncate">{displayName}</span>
+                      <span className="text-[9px] text-brand-green font-bold uppercase tracking-wider">
+                        {CurrentUser.UserRole}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </>
           ) : (
             <Link 
               to="/login"
-              className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-brand-green text-black font-bold text-xs rounded hover:scale-105 active:scale-95 transition-all shadow select-none duration-200"
+              className={`flex items-center justify-center bg-brand-green text-black font-bold rounded hover:scale-105 active:scale-95 transition-all shadow select-none duration-200 ${
+                isSidebarCollapsed ? 'w-10 h-10 rounded-full' : 'w-full py-2.5 px-4 text-xs'
+              }`}
+              title="Entrar / Criar Conta"
             >
-              <span>Entrar / Criar Conta</span>
+              {isSidebarCollapsed ? (
+                <LogOut className="w-4 h-4 rotate-180" />
+              ) : (
+                <span>Entrar / Criar Conta</span>
+              )}
             </Link>
           )}
         </div>
