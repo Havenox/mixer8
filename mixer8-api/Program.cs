@@ -180,6 +180,72 @@ using (var scope = app.Services.CreateScope())
             Console.WriteLine("[DB SEED] Usuários semente gravados com sucesso!");
         }
 
+        // Auto-reparo para usuários existentes migrados
+        var allUsers = db.Users.Include(u => u.UserRole).Include(u => u.UserProfile).ToList();
+        bool repairNeeded = false;
+        foreach (var u in allUsers)
+        {
+            // Ativa o usuário se estiver inativo devido ao default value da migration
+            if (!u.IsActive)
+            {
+                u.IsActive = true;
+                repairNeeded = true;
+                Console.WriteLine($"[DB REPAIR] Ativando usuário legado: {u.Email}");
+            }
+
+            if (u.UserRole == null)
+            {
+                var roleEnum = u.Email.ToLower().Trim() switch
+                {
+                    "admin@mixer8.com" => Mixer8.Api.Domain.UserRoleType.Admin,
+                    "moderator@mixer8.com" => Mixer8.Api.Domain.UserRoleType.Moderator,
+                    "paiduser@mixer8.com" => Mixer8.Api.Domain.UserRoleType.PaidUser,
+                    _ => Mixer8.Api.Domain.UserRoleType.User
+                };
+
+                var newRole = new Mixer8.Api.Domain.UserRole
+                {
+                    UserRoleId = Guid.NewGuid(),
+                    UserId = u.UserId,
+                    Role = roleEnum,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                db.UserRoles.Add(newRole);
+                repairNeeded = true;
+                Console.WriteLine($"[DB REPAIR] Criando UserRole ({roleEnum}) para usuário legado: {u.Email}");
+            }
+
+            if (u.UserProfile == null)
+            {
+                var roleStr = u.Email.ToLower().Trim() switch
+                {
+                    "admin@mixer8.com" => "Admin",
+                    "moderator@mixer8.com" => "Moderator",
+                    "paiduser@mixer8.com" => "PaidUser",
+                    _ => "User"
+                };
+
+                var newProfile = new Mixer8.Api.Domain.UserProfile
+                {
+                    UserProfileId = Guid.NewGuid(),
+                    UserId = u.UserId,
+                    Name = roleStr,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                    Preferences = new Mixer8.Api.Domain.UserProfilePreferences()
+                };
+                db.UserProfiles.Add(newProfile);
+                repairNeeded = true;
+                Console.WriteLine($"[DB REPAIR] Criando UserProfile para usuário legado: {u.Email}");
+            }
+        }
+
+        if (repairNeeded)
+        {
+            db.SaveChanges();
+            Console.WriteLine("[DB REPAIR] Ajustes de dados legados gravados com sucesso!");
+        }
+
         // Seed de música de demonstração com audios publicos da Soundhelix e nomes em português (Moises)
         var demoTrackId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         var existingDemo = db.Tracks.Include(t => t.Stems).FirstOrDefault(t => t.TrackId == demoTrackId);
