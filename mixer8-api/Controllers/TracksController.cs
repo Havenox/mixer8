@@ -18,7 +18,10 @@ namespace Mixer8.Api.Controllers;
 [Route("api/[controller]")]
 public class TracksController(Mixer8DbContext dbContext, IConfiguration configuration) : ControllerBase
 {
-    private static readonly string[] AllowedAudioExtensions = { ".mp3", ".wav", ".ogg", ".aac", ".flac", ".opus", ".m4a", ".wma" };
+    private static readonly string[] AllowedMediaExtensions = { 
+        ".mp3", ".wav", ".ogg", ".aac", ".flac", ".opus", ".m4a", ".wma",
+        ".mp4", ".mkv", ".avi", ".mov", ".flv", ".webm", ".m4v", ".3gp", ".ts"
+    };
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] int? page, [FromQuery] int? limit)
     {
@@ -83,19 +86,23 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         var trackId = Guid.NewGuid();
         var fileExtension = Path.GetExtension(request.File.FileName).ToLowerInvariant();
         
-        if (!AllowedAudioExtensions.Contains(fileExtension))
+        if (!AllowedMediaExtensions.Contains(fileExtension))
         {
             return BadRequest(new { ErrorMessage = "INVALID_AUDIO_FORMAT" });
         }
 
-        // O nome do arquivo no disco será o próprio ID do banco, evitando conflitos de caracteres especiais
-        var fileName = $"{trackId}{fileExtension}";
+        // O nome do arquivo no disco será o ID com extensão .opus
+        var fileName = $"{trackId}.opus";
         var filePath = Path.Combine(downloadsDir, fileName);
 
-        // Salva fisicamente o arquivo original recebido via upload
-        using (var stream = new FileStream(filePath, FileMode.Create))
+        // Extrai e converte a mídia em memória para Opus estéreo, salvando apenas o .opus leve no disco
+        using (var stream = request.File.OpenReadStream())
         {
-            await request.File.CopyToAsync(stream);
+            var success = await ConvertToOpusAsync(stream, filePath, forceMono: false);
+            if (!success)
+            {
+                return StatusCode(500, new { ErrorMessage = "AUDIO_CONVERSION_FAILED" });
+            }
         }
 
         var track = new Track
@@ -163,6 +170,28 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             }
         }
 
+        // Pré-calculando se é faixa única
+        int validFileCount = 0;
+        foreach (var file in request.Files)
+        {
+            if (file.Length == 0) continue;
+            var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+            if (ext == ".zip")
+            {
+                using var archiveStream = file.OpenReadStream();
+                using var archive = new ZipArchive(archiveStream, ZipArchiveMode.Read);
+                validFileCount += archive.Entries.Count(entry => 
+                    !string.IsNullOrEmpty(entry.Name) && 
+                    entry.Length > 0 && 
+                    AllowedMediaExtensions.Contains(Path.GetExtension(entry.Name).ToLowerInvariant()));
+            }
+            else if (AllowedMediaExtensions.Contains(ext))
+            {
+                validFileCount++;
+            }
+        }
+        bool isSingleTrack = validFileCount == 1;
+
         var stemsList = new List<Stem>();
 
         // Processamento das Stems (Arquivos de áudio diretos ou .zip compactado)
@@ -184,15 +213,17 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
 
                             var entryExt = Path.GetExtension(entry.Name).ToLowerInvariant();
                             // Validador de tipo estrito de áudio: Apenas áudios permitidos são persistidos!
-                            if (!AllowedAudioExtensions.Contains(entryExt)) continue;
+                            if (!AllowedMediaExtensions.Contains(entryExt)) continue;
 
                             var stemType = MapFileNameToStemType(entry.Name);
                             var stemFileName = $"{stemType}.opus";
                             var stemPath = Path.Combine(trackDir, stemFileName);
 
+                            bool forceMono = ShouldForceMono(stemType, isSingleTrack);
+
                             using (var entryStream = entry.Open())
                             {
-                                var success = await ConvertToOpusAsync(entryStream, stemPath, stemType);
+                                var success = await ConvertToOpusAsync(entryStream, stemPath, forceMono);
                                 if (!success) continue;
                             }
 
@@ -215,15 +246,17 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                     }
                 }
             }
-            else if (AllowedAudioExtensions.Contains(ext))
+            else if (AllowedMediaExtensions.Contains(ext))
             {
                 var stemType = MapFileNameToStemType(file.FileName);
                 var stemFileName = $"{stemType}.opus";
                 var stemPath = Path.Combine(trackDir, stemFileName);
 
+                bool forceMono = ShouldForceMono(stemType, isSingleTrack);
+
                 using (var stream = file.OpenReadStream())
                 {
-                    var success = await ConvertToOpusAsync(stream, stemPath, stemType);
+                    var success = await ConvertToOpusAsync(stream, stemPath, forceMono);
                     if (success)
                     {
                         var existing = stemsList.FirstOrDefault(s => s.StemType == stemType);
@@ -352,7 +385,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                     if (string.IsNullOrEmpty(entry.Name) || entry.Length == 0) continue;
 
                     var entryExt = Path.GetExtension(entry.Name).ToLowerInvariant();
-                    if (!AllowedAudioExtensions.Contains(entryExt)) continue;
+                    if (!AllowedMediaExtensions.Contains(entryExt)) continue;
 
                     var stemType = MapFileNameToStemType(entry.Name);
                     var stemFileName = $"{stemType}.opus";
@@ -360,7 +393,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
 
                     using (var entryStream = entry.Open())
                     {
-                        var success = await ConvertToOpusAsync(entryStream, stemPath, stemType);
+                        var success = await ConvertToOpusAsync(entryStream, stemPath, ShouldForceMono(stemType, isSingleTrack: false));
                         if (!success) continue;
                     }
 
@@ -414,9 +447,14 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         return Ok(track);
     }
 
-    private static async Task<bool> ConvertToOpusAsync(Stream inputStream, string outputFilePath, string stemType)
+    private static bool ShouldForceMono(string stemType, bool isSingleTrack)
     {
-        bool forceMono = stemType == "Voz" || stemType == "Vocal" || stemType == "Vocais" || stemType == "Baixo" || stemType == "Metrônomo";
+        if (isSingleTrack) return false;
+        return stemType == "Voz" || stemType == "Vocal" || stemType == "Vocais" || stemType == "Baixo" || stemType == "Metrônomo";
+    }
+
+    private static async Task<bool> ConvertToOpusAsync(Stream inputStream, string outputFilePath, bool forceMono)
+    {
         string arguments = forceMono
             ? $"-y -i pipe:0 -ac 1 -c:a libopus -b:a 64k -vbr on -ar 48000 \"{outputFilePath}\""
             : $"-y -i pipe:0 -ac 2 -c:a libopus -b:a 96k -vbr on -ar 48000 \"{outputFilePath}\"";
@@ -566,15 +604,16 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             }
 
             // 3. Deletar stems selecionadas
+            var deletedStemIds = new List<Guid>();
             if (!string.IsNullOrWhiteSpace(request.DeleteStemIds))
             {
-                var idsToDelete = request.DeleteStemIds.Split(',')
+                deletedStemIds = request.DeleteStemIds.Split(',')
                     .Select(s => s.Trim())
                     .Where(s => Guid.TryParse(s, out _))
                     .Select(Guid.Parse)
                     .ToList();
 
-                foreach (var stemId in idsToDelete)
+                foreach (var stemId in deletedStemIds)
                 {
                     var stem = track.Stems.FirstOrDefault(s => s.StemId == stemId);
                     if (stem != null)
@@ -589,6 +628,33 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                 }
             }
 
+            // Calcular se o total final de stems é faixa única para decidir a regra de mono
+            int existingStemsCountAfterDelete = track.Stems.Count(s => !deletedStemIds.Contains(s.StemId));
+            int newStemsCount = 0;
+            if (request.Files != null)
+            {
+                foreach (var file in request.Files)
+                {
+                    if (file.Length == 0) continue;
+                    var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+                    if (ext == ".zip")
+                    {
+                        using var archiveStream = file.OpenReadStream();
+                        using var archive = new ZipArchive(archiveStream, ZipArchiveMode.Read);
+                        newStemsCount += archive.Entries.Count(entry => 
+                            !string.IsNullOrEmpty(entry.Name) && 
+                            entry.Length > 0 && 
+                            AllowedMediaExtensions.Contains(Path.GetExtension(entry.Name).ToLowerInvariant()));
+                    }
+                    else if (AllowedMediaExtensions.Contains(ext))
+                    {
+                        newStemsCount++;
+                    }
+                }
+            }
+            int totalStemsCount = existingStemsCountAfterDelete + newStemsCount;
+            bool isSingleTrack = totalStemsCount <= 1;
+
             // 4. Processar Substituições de Stems Individuais (Chave: ReplaceStem_{stemId})
             foreach (var file in Request.Form.Files)
             {
@@ -601,7 +667,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                         if (oldStem != null && file.Length > 0)
                         {
                             var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-                            if (AllowedAudioExtensions.Contains(ext))
+                            if (AllowedMediaExtensions.Contains(ext))
                             {
                                 // Deleta o arquivo físico antigo
                                 var oldPhysicalPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", oldStem.AudioUrl.TrimStart('/'));
@@ -615,9 +681,11 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                                 var stemFileName = $"{stemType}_{newStemId}.opus";
                                 var stemPath = Path.Combine(trackDir, stemFileName);
 
+                                bool forceMono = ShouldForceMono(stemType, isSingleTrack);
+
                                 using (var stream = file.OpenReadStream())
                                 {
-                                    var success = await ConvertToOpusAsync(stream, stemPath, stemType);
+                                    var success = await ConvertToOpusAsync(stream, stemPath, forceMono);
                                     if (success)
                                     {
                                         oldStem.StemType = stemType;
@@ -649,16 +717,18 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                                     if (string.IsNullOrEmpty(entry.Name) || entry.Length == 0) continue;
 
                                     var entryExt = Path.GetExtension(entry.Name).ToLowerInvariant();
-                                    if (!AllowedAudioExtensions.Contains(entryExt)) continue;
+                                    if (!AllowedMediaExtensions.Contains(entryExt)) continue;
 
                                     var newStemId = Guid.NewGuid();
                                     var stemType = MapFileNameToStemType(entry.Name);
                                     var stemFileName = $"{stemType}_{newStemId}.opus";
                                     var stemPath = Path.Combine(trackDir, stemFileName);
 
+                                    bool forceMono = ShouldForceMono(stemType, isSingleTrack);
+
                                     using (var entryStream = entry.Open())
                                     {
-                                        var success = await ConvertToOpusAsync(entryStream, stemPath, stemType);
+                                        var success = await ConvertToOpusAsync(entryStream, stemPath, forceMono);
                                         if (!success) continue;
                                     }
 
@@ -674,16 +744,18 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                             }
                         }
                     }
-                    else if (AllowedAudioExtensions.Contains(ext))
+                    else if (AllowedMediaExtensions.Contains(ext))
                     {
                         var newStemId = Guid.NewGuid();
                         var stemType = MapFileNameToStemType(file.FileName);
                         var stemFileName = $"{stemType}_{newStemId}.opus";
                         var stemPath = Path.Combine(trackDir, stemFileName);
 
+                        bool forceMono = ShouldForceMono(stemType, isSingleTrack);
+
                         using (var stream = file.OpenReadStream())
                         {
-                            var success = await ConvertToOpusAsync(stream, stemPath, stemType);
+                            var success = await ConvertToOpusAsync(stream, stemPath, forceMono);
                             if (success)
                             {
                                 dbContext.Stems.Add(new Stem
