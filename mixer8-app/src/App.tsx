@@ -16,8 +16,7 @@ import { Settings as SettingsPage } from './pages/Settings';
 import { PublicProfile } from './pages/PublicProfile';
 import { Play, Sparkles, Disc, Flame, Music, Radio, Loader2, Plus, Trash2, AlertTriangle, X, Settings, RefreshCw, ListMusic, Clock, User } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-const SERVER_URL = API_URL.replace('/api', '');
+import { API_URL, SERVER_URL } from './config';
 
 const getPlaylistTotalDuration = (playlistId: string, tracksCount: number) => {
   if (tracksCount === 0) return '0 min';

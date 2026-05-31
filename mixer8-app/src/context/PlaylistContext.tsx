@@ -2,8 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { X, Plus, Loader2, Check, AlertTriangle, Trash2, ListMusic } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-const SERVER_URL = API_URL.replace('/api', '');
+import { API_URL, SERVER_URL } from '../config';
 
 export interface IPlaylist {
   PlaylistId: string;

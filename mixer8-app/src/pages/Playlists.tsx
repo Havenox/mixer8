@@ -5,8 +5,7 @@ import type { IPlaylist } from '../context/PlaylistContext';
 import { useAuth } from '../context/AuthContext';
 import { ListMusic, PlusCircle, Lock, Globe, EyeOff, Play, Edit, Trash2, MoreVertical, Clock, AlertTriangle } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-const SERVER_URL = API_URL.replace('/api', '');
+import { API_URL, SERVER_URL } from '../config';
 
 const getPlaylistTotalDuration = (playlistId: string, tracksCount: number) => {
   if (tracksCount === 0) return '0 min';

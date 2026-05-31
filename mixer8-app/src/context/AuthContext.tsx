@@ -10,7 +10,7 @@ interface IAuthContext extends IAuthState {
 
 const AuthContext = createContext<IAuthContext | undefined>(undefined);
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { API_URL } from '../config';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, setState] = useState<IAuthState>({
