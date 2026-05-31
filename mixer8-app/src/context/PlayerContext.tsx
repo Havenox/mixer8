@@ -33,6 +33,8 @@ interface IPlayerContext {
   toggleStemMute: (type: string) => void;
   toggleStemSolo: (type: string) => void;
   setMasterVolume: (volume: number) => void;
+  downloadTrackForOffline: (track: ITrack) => Promise<void>;
+  isTrackDownloaded: (track: ITrack) => Promise<boolean>;
 }
 
 const PlayerContext = createContext<IPlayerContext | undefined>(undefined);
@@ -59,12 +61,26 @@ import { useAuth } from './AuthContext';
 
 const CACHE_NAME = 'mixer8-stems-cache';
 
-const getCachedOrFetchAudioUrl = async (url: string): Promise<string> => {
+const getCachedOrFetchAudioUrl = async (url: string, isPremiumUser: boolean): Promise<string> => {
   if (typeof window === 'undefined' || !window.caches) {
     return url;
   }
   try {
     const cache = await caches.open(CACHE_NAME);
+    const expiryKey = `mixer8_cache_expiry_${url}`;
+    const expiry = localStorage.getItem(expiryKey);
+    
+    // Para usuários Premium, ignoramos a expiração (offline eterno)
+    if (expiry && !isPremiumUser) {
+      const expiresAt = parseInt(expiry, 10);
+      if (Date.now() > expiresAt) {
+        console.log('[CACHE] Cache expirou para:', url);
+        await cache.delete(url);
+        localStorage.removeItem(expiryKey);
+        return url;
+      }
+    }
+
     const cachedResponse = await cache.match(url);
     if (cachedResponse) {
       console.log('[CACHE] Hit! Carregando do cache local:', url);
@@ -77,7 +93,7 @@ const getCachedOrFetchAudioUrl = async (url: string): Promise<string> => {
   return url;
 };
 
-const cacheAudioInBackground = async (url: string) => {
+const cacheAudioInBackground = async (url: string, durationInSeconds: number, isPremiumUser: boolean) => {
   if (typeof window === 'undefined' || !window.caches) return;
   try {
     const cache = await caches.open(CACHE_NAME);
@@ -86,7 +102,16 @@ const cacheAudioInBackground = async (url: string) => {
       const res = await fetch(url);
       if (res.ok) {
         await cache.put(url, res.clone());
-        console.log('[CACHE] Audio cacheado com sucesso em background:', url);
+        
+        if (!isPremiumUser) {
+          // Define a expiração apenas para usuários não Premium: duração da música * 10 em segundos
+          const ttlSeconds = durationInSeconds * 10;
+          const expiresAt = Date.now() + ttlSeconds * 1000;
+          localStorage.setItem(`mixer8_cache_expiry_${url}`, expiresAt.toString());
+          console.log(`[CACHE] Audio cacheado em background. Expira em ${ttlSeconds}s:`, url);
+        } else {
+          console.log(`[CACHE] Audio cacheado permanentemente em background (Premium):`, url);
+        }
       }
     }
   } catch (err) {
@@ -94,8 +119,36 @@ const cacheAudioInBackground = async (url: string) => {
   }
 };
 
+const cleanExpiredAudioCache = async (isPremiumUser: boolean) => {
+  if (isPremiumUser) {
+    console.log('[CACHE-GC] Usuário Premium ativo. Pulando limpeza de expirados.');
+    return;
+  }
+  if (typeof window === 'undefined' || !window.caches) return;
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    const keys = Object.keys(localStorage);
+    for (const key of keys) {
+      if (key.startsWith('mixer8_cache_expiry_')) {
+        const url = key.replace('mixer8_cache_expiry_', '');
+        const expiry = localStorage.getItem(key);
+        if (expiry) {
+          const expiresAt = parseInt(expiry, 10);
+          if (Date.now() > expiresAt) {
+            console.log('[CACHE-GC] Removendo cache expirado:', url);
+            await cache.delete(url);
+            localStorage.removeItem(key);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[CACHE-GC] Erro na limpeza de expirados:', err);
+  }
+};
+
 export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { Token } = useAuth();
+  const { Token, CurrentUser } = useAuth();
   const [currentTrack, setCurrentTrack] = useState<ITrack | null>(null);
   const [currentPlaylistId, setCurrentPlaylistId] = useState<string | null>(null);
   const [currentAlbumId, setCurrentAlbumId] = useState<string | null>(null);
@@ -138,6 +191,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const syncBarrierResolveRef = useRef<(() => void) | null>(null);
   const isSyncingRef = useRef(false);
 
+  // Determina se o usuário tem privilégio Premium (PaidUser, Admin, Moderator)
+  const isPremium = CurrentUser?.UserRole === 'PaidUser' || CurrentUser?.UserRole === 'Admin' || CurrentUser?.UserRole === 'Moderator';
+
   // Atualiza os ganhos de todas as stems ativas com base em volume, mute e solo
   const updateAudioGains = (
     volumes: Record<string, number>,
@@ -169,15 +225,17 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  // Limpa tudo ao desmontar
+  // Limpa tudo ao desmontar e executa Garbage Collector do cache ao montar/atualizar autenticação
   useEffect(() => {
+    cleanExpiredAudioCache(isPremium);
+
     return () => {
       cleanupActiveStems();
       if (audioContextRef.current) {
         audioContextRef.current.close();
       }
     };
-  }, []);
+  }, [CurrentUser]);
 
   // Loop de alinhamento contínuo contra drift (desvio) rodando a cada 250ms
   useEffect(() => {
@@ -298,7 +356,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const fullAudioUrl = stem.AudioUrl.startsWith('http')
           ? stem.AudioUrl
           : `${SERVER_URL}${stem.AudioUrl}`;
-        const url = await getCachedOrFetchAudioUrl(fullAudioUrl);
+        const url = await getCachedOrFetchAudioUrl(fullAudioUrl, isPremium);
         return {
           ...stem,
           ResolvedUrl: url
@@ -444,11 +502,12 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Dispara o download em cache de background após 3 segundos para priorizar reprodução inicial
     setTimeout(() => {
       if (activeStemsRef.current === loadedStems) {
+        const trackDuration = masterAudioElement?.duration || 180;
         track.Stems.forEach(stem => {
           const fullAudioUrl = stem.AudioUrl.startsWith('http')
             ? stem.AudioUrl
             : `${SERVER_URL}${stem.AudioUrl}`;
-          cacheAudioInBackground(fullAudioUrl);
+          cacheAudioInBackground(fullAudioUrl, trackDuration, isPremium);
         });
       }
     }, 3000);
@@ -653,6 +712,60 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => clearInterval(interval);
   }, [isPlaying, currentTrack, duration, currentPlaylistId, currentAlbumId, Token]);
 
+  const downloadTrackForOffline = async (track: ITrack) => {
+    if (!isPremium) {
+      console.warn('[CACHE] Usuário não é Premium. Download para offline bloqueado.');
+      return;
+    }
+    try {
+      console.log(`[CACHE] Iniciando download offline completo da faixa: ${track.TrackTitle}`);
+      await Promise.all(
+        track.Stems.map(async stem => {
+          const fullAudioUrl = stem.AudioUrl.startsWith('http')
+            ? stem.AudioUrl
+            : `${SERVER_URL}${stem.AudioUrl}`;
+          
+          if (typeof window !== 'undefined' && window.caches) {
+            const cache = await caches.open(CACHE_NAME);
+            const cachedResponse = await cache.match(fullAudioUrl);
+            if (!cachedResponse) {
+              const res = await fetch(fullAudioUrl);
+              if (res.ok) {
+                await cache.put(fullAudioUrl, res.clone());
+              }
+            }
+            // Garante que não há nenhuma expiração configurada para este arquivo
+            const expiryKey = `mixer8_cache_expiry_${fullAudioUrl}`;
+            localStorage.removeItem(expiryKey);
+          }
+        })
+      );
+      console.log(`[CACHE] Download concluído com sucesso: ${track.TrackTitle}`);
+      window.dispatchEvent(new CustomEvent('track-downloaded', { detail: { trackId: track.TrackId } }));
+    } catch (err) {
+      console.error('[CACHE] Erro no download offline da faixa:', err);
+    }
+  };
+
+  const isTrackDownloaded = async (track: ITrack): Promise<boolean> => {
+    if (typeof window === 'undefined' || !window.caches || !track.Stems || track.Stems.length === 0) {
+      return false;
+    }
+    try {
+      const cache = await caches.open(CACHE_NAME);
+      for (const stem of track.Stems) {
+        const fullAudioUrl = stem.AudioUrl.startsWith('http')
+          ? stem.AudioUrl
+          : `${SERVER_URL}${stem.AudioUrl}`;
+        const matched = await cache.match(fullAudioUrl);
+        if (!matched) return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   return (
     <PlayerContext.Provider
       value={{
@@ -670,7 +783,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setStemVolume,
         toggleStemMute,
         toggleStemSolo,
-        setMasterVolume
+        setMasterVolume,
+        downloadTrackForOffline,
+        isTrackDownloaded
       }}
     >
       {children}

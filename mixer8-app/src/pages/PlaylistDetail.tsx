@@ -5,7 +5,7 @@ import { usePlayer } from '../context/PlayerContext';
 import { usePlaylists } from '../context/PlaylistContext';
 import type { IPlaylist } from '../context/PlaylistContext';
 import { 
-  Play, Pause, Disc, Music, Users,
+  Play, Pause, Disc, Music, Users, Download,
   Loader2, ArrowLeft, Settings, Trash2,
   Clock, X, AlertTriangle, Plus, Minus,
   Lock, Globe, EyeOff
@@ -62,7 +62,7 @@ interface IPlaylistDetail {
 export const PlaylistDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { Token, CurrentUser, IsAuthenticated } = useAuth();
-  const { loadTrack, currentTrack, isPlaying, togglePlay } = usePlayer();
+  const { loadTrack, currentTrack, isPlaying, togglePlay, downloadTrackForOffline } = usePlayer();
   const { fetchPlaylists, openEditPlaylist, openDeletePlaylist, openAddToPlaylist } = usePlaylists();
   const navigate = useNavigate();
 
@@ -833,6 +833,34 @@ export const PlaylistDetail: React.FC = () => {
             <Plus className="w-4 h-4 text-brand-green shrink-0" />
             <span>Adicionar à playlist</span>
           </button>
+
+          {/* Opção para download offline - Apenas para Premium/PaidUser/Admin/Moderator */}
+          {(CurrentUser?.UserRole === 'PaidUser' || CurrentUser?.UserRole === 'Admin' || CurrentUser?.UserRole === 'Moderator') && (
+            <button
+              onClick={async () => {
+                const trackToDownload = {
+                  TrackId: contextMenu.track.TrackId,
+                  TrackTitle: contextMenu.track.TrackTitle,
+                  ArtistName: contextMenu.track.ArtistName,
+                  CoverUrl: contextMenu.track.CoverUrl,
+                  ExtractionStatus: 'Pronto',
+                  CreatedAt: contextMenu.track.AddedAt,
+                  Stems: contextMenu.track.Stems.map(s => ({
+                    StemId: s.StemId,
+                    TrackId: s.TrackId,
+                    StemType: s.StemType,
+                    AudioUrl: s.AudioUrl
+                  }))
+                };
+                setContextMenu(null);
+                await downloadTrackForOffline(trackToDownload);
+              }}
+              className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-brand-green"
+            >
+              <Download className="w-4 h-4 text-brand-green shrink-0" />
+              <span>Salvar para ouvir offline</span>
+            </button>
+          )}
 
           {/* Opção para remover da playlist (dono, colaboradores ou admin) */}
           {canModifyPlaylist && (
