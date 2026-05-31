@@ -20,13 +20,28 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
 {
     private static readonly string[] AllowedAudioExtensions = { ".mp3", ".wav", ".ogg", ".aac", ".flac", ".opus", ".m4a", ".wma" };
     [HttpGet]
-    public async Task<IActionResult> GetAll()
+    public async Task<IActionResult> GetAll([FromQuery] int? page, [FromQuery] int? limit)
     {
-        var tracks = await dbContext.Tracks
+        var query = dbContext.Tracks
             .Include(t => t.Stems)
-            .OrderByDescending(t => t.CreatedAt)
-            .ToListAsync();
+            .OrderByDescending(t => t.CreatedAt);
 
+        if (page.HasValue && limit.HasValue)
+        {
+            var p = page.Value;
+            var l = limit.Value;
+            if (p < 1) p = 1;
+            if (l < 1) l = 10;
+
+            var paginatedTracks = await query
+                .Skip((p - 1) * l)
+                .Take(l)
+                .ToListAsync();
+
+            return Ok(paginatedTracks);
+        }
+
+        var tracks = await query.ToListAsync();
         return Ok(tracks);
     }
 

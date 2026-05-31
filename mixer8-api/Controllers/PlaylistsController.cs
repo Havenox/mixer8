@@ -108,13 +108,18 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             .AsSplitQuery() // Otimiza a performance evitando produto cartesiano em múltiplas coleções
             .AsQueryable();
 
-        // Se for admin, lista todas. Caso contrário, lista as que ele é dono, colaborador, ou públicas.
+        var savedPlaylistIds = await dbContext.SavedPlaylists
+            .Where(sp => sp.UserId == userId)
+            .Select(sp => sp.PlaylistId)
+            .ToListAsync();
+
+        // Se for admin, lista todas. Caso contrário, lista as que ele é dono, colaborador, ou salvou.
         if (!isAdmin)
         {
             playlistsQuery = playlistsQuery.Where(p =>
                 p.OwnerId == userId ||
                 p.PlaylistCollaborators.Any(pc => pc.UserId == userId) ||
-                p.Visibility == "Public"
+                savedPlaylistIds.Contains(p.PlaylistId)
             );
         }
 
@@ -146,6 +151,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
                 CreatedAt = p.CreatedAt,
                 IsOwner = p.OwnerId == userId,
                 IsCollaborator = p.PlaylistCollaborators.Any(pc => pc.UserId == userId),
+                IsSaved = savedPlaylistIds.Contains(p.PlaylistId),
                 TracksCount = p.PlaylistTracks.Count
             };
         })
@@ -195,6 +201,9 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             .Select(pt => pt.Track.CoverUrl)
             .FirstOrDefault();
 
+        var isSaved = await dbContext.SavedPlaylists
+            .AnyAsync(sp => sp.UserId == userId && sp.PlaylistId == id);
+
         var detailDto = new PlaylistDetailResponseDto
         {
             PlaylistId = playlist.PlaylistId,
@@ -207,6 +216,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             CreatedAt = playlist.CreatedAt,
             IsOwner = isOwner,
             IsCollaborator = isCollaborator,
+            IsSaved = isSaved,
             Tracks = playlist.PlaylistTracks
                 .OrderBy(pt => pt.AddedAt)
                 .Select(pt => new PlaylistTrackResponseDto
@@ -511,6 +521,118 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
 
         return Ok(new { Success = true });
     }
+
+    [HttpPost("{id}/Save")]
+    public async Task<IActionResult> SavePlaylist(Guid id)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+            return Unauthorized(new { ErrorMessage = "INVALID_TOKEN_CLAIMS" });
+
+        var playlist = await dbContext.Playlists.FindAsync(id);
+        if (playlist == null)
+            return NotFound(new { ErrorMessage = "PLAYLIST_NOT_FOUND" });
+
+        if (playlist.OwnerId == userId)
+            return BadRequest(new { ErrorMessage = "CANNOT_SAVE_OWN_PLAYLIST" });
+
+        if (playlist.Visibility != "Public")
+            return BadRequest(new { ErrorMessage = "CANNOT_SAVE_NON_PUBLIC_PLAYLIST" });
+
+        var alreadySaved = await dbContext.SavedPlaylists
+            .AnyAsync(sp => sp.UserId == userId && sp.PlaylistId == id);
+
+        if (alreadySaved)
+            return Ok(new { Success = true });
+
+        var savedPlaylist = new SavedPlaylist
+        {
+            SavedPlaylistId = Guid.NewGuid(),
+            UserId = userId,
+            PlaylistId = id,
+            SavedAt = DateTime.UtcNow
+        };
+
+        dbContext.SavedPlaylists.Add(savedPlaylist);
+        await dbContext.SaveChangesAsync();
+
+        return Ok(new { Success = true });
+    }
+
+    [HttpDelete("{id}/Save")]
+    public async Task<IActionResult> UnsavePlaylist(Guid id)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+            return Unauthorized(new { ErrorMessage = "INVALID_TOKEN_CLAIMS" });
+
+        var savedPlaylist = await dbContext.SavedPlaylists
+            .FirstOrDefaultAsync(sp => sp.UserId == userId && sp.PlaylistId == id);
+
+        if (savedPlaylist == null)
+            return Ok(new { Success = true });
+
+        dbContext.SavedPlaylists.Remove(savedPlaylist);
+        await dbContext.SaveChangesAsync();
+
+        return Ok(new { Success = true });
+    }
+
+    [HttpGet("Popular")]
+    public async Task<IActionResult> GetPopularPlaylists()
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+            return Unauthorized(new { ErrorMessage = "INVALID_TOKEN_CLAIMS" });
+
+        var playlists = await dbContext.Playlists
+            .Include(p => p.PlaylistTracks)
+                .ThenInclude(pt => pt.Track)
+            .Include(p => p.PlaylistCollaborators)
+            .AsSplitQuery()
+            .Where(p => p.Visibility == "Public" && p.OwnerId != userId && !p.PlaylistCollaborators.Any(pc => pc.UserId == userId))
+            .OrderByDescending(p => p.PlaylistTracks.Count)
+            .Take(10)
+            .ToListAsync();
+
+        var userIds = playlists.Select(p => p.OwnerId).Distinct().ToList();
+        var userEmails = await dbContext.Users
+            .Where(u => userIds.Contains(u.UserId))
+            .ToDictionaryAsync(u => u.UserId, u => u.Email);
+
+        var savedPlaylistIds = await dbContext.SavedPlaylists
+            .Where(sp => sp.UserId == userId)
+            .Select(sp => sp.PlaylistId)
+            .ToListAsync();
+
+        var result = playlists.Select(p =>
+        {
+            var firstTrackCover = p.PlaylistTracks
+                .OrderBy(pt => pt.AddedAt)
+                .Select(pt => pt.Track.CoverUrl)
+                .FirstOrDefault();
+
+            userEmails.TryGetValue(p.OwnerId, out var email);
+
+            return new PlaylistResponseDto
+            {
+                PlaylistId = p.PlaylistId,
+                Name = p.Name,
+                Visibility = p.Visibility,
+                Description = p.Description,
+                OwnerId = p.OwnerId,
+                OwnerEmail = email ?? "",
+                CoverUrl = p.CoverUrl ?? firstTrackCover,
+                CreatedAt = p.CreatedAt,
+                IsOwner = false,
+                IsCollaborator = false,
+                IsSaved = savedPlaylistIds.Contains(p.PlaylistId),
+                TracksCount = p.PlaylistTracks.Count
+            };
+        }).ToList();
+
+        return Ok(result);
+    }
 }
 
 public class CreatePlaylistRequest
@@ -552,6 +674,7 @@ public class PlaylistResponseDto
     public DateTime CreatedAt { get; set; }
     public bool IsOwner { get; set; }
     public bool IsCollaborator { get; set; }
+    public bool IsSaved { get; set; }
     public int TracksCount { get; set; }
 }
 
@@ -567,6 +690,7 @@ public class PlaylistDetailResponseDto
     public DateTime CreatedAt { get; set; }
     public bool IsOwner { get; set; }
     public bool IsCollaborator { get; set; }
+    public bool IsSaved { get; set; }
     public List<PlaylistTrackResponseDto> Tracks { get; set; } = new();
     public List<PlaylistCollaboratorResponseDto> Collaborators { get; set; } = new();
 }
