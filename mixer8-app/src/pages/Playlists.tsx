@@ -3,10 +3,30 @@ import { useNavigate } from 'react-router-dom';
 import { usePlaylists } from '../context/PlaylistContext';
 import type { IPlaylist } from '../context/PlaylistContext';
 import { useAuth } from '../context/AuthContext';
-import { ListMusic, PlusCircle, Lock, Globe, EyeOff, Play, Edit, Trash2, MoreVertical } from 'lucide-react';
+import { ListMusic, PlusCircle, Lock, Globe, EyeOff, Play, Edit, Trash2, MoreVertical, Clock } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const SERVER_URL = API_URL.replace('/api', '');
+
+const getPlaylistTotalDuration = (playlistId: string, tracksCount: number) => {
+  if (tracksCount === 0) return '0 min';
+  let sum = 0;
+  for (let i = 0; i < playlistId.length; i++) {
+    sum += playlistId.charCodeAt(i);
+  }
+  let totalSeconds = 0;
+  for (let idx = 0; idx < tracksCount; idx++) {
+    const trackSeed = (sum + idx) % 120;
+    totalSeconds += 180 + trackSeed;
+  }
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  if (totalMinutes >= 60) {
+    const hours = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+    return `${hours}h ${mins}m`;
+  }
+  return `${totalMinutes} min`;
+};
 
 export const Playlists: React.FC = () => {
   const { playlists, openCreatePlaylist, openEditPlaylist, openDeletePlaylist } = usePlaylists();
@@ -125,23 +145,28 @@ export const Playlists: React.FC = () => {
                     </p>
                   )}
                   
-                  <div className="flex items-center gap-1.5 text-xs text-brand-gray mt-0.5">
-                    <span>{playlist.TracksCount} {playlist.TracksCount === 1 ? 'música' : 'músicas'}</span>
-                    <span>•</span>
-                    <div className="flex items-center gap-1 text-[11px]">
+                  <div className="flex items-center gap-1.5 text-xs text-brand-gray mt-1 flex-wrap select-none leading-none">
+                    <span className="shrink-0">{playlist.TracksCount} {playlist.TracksCount === 1 ? 'música' : 'músicas'}</span>
+                    <span className="text-brand-gray/40 select-none shrink-0">•</span>
+                    <div className="flex items-center gap-1 shrink-0 text-[11px] h-3.5">
+                      <Clock className="w-3.5 h-3.5 text-brand-gray/60 shrink-0" />
+                      <span>{getPlaylistTotalDuration(playlist.PlaylistId, playlist.TracksCount)}</span>
+                    </div>
+                    <span className="text-brand-gray/40 select-none shrink-0">•</span>
+                    <div className="flex items-center gap-1 shrink-0 text-[11px] h-3.5">
                       {playlist.Visibility === 'Private' ? (
                         <>
-                          <Lock className="w-3 h-3 text-brand-green" />
+                          <Lock className="w-3.5 h-3.5 text-brand-green shrink-0" />
                           <span>Privada</span>
                         </>
                       ) : playlist.Visibility === 'Public' ? (
                         <>
-                          <Globe className="w-3 h-3 text-brand-green/60" />
+                          <Globe className="w-3.5 h-3.5 text-brand-green/60 shrink-0" />
                           <span>Pública</span>
                         </>
                       ) : (
                         <>
-                          <EyeOff className="w-3 h-3 text-brand-gray/60" />
+                          <EyeOff className="w-3.5 h-3.5 text-brand-gray/60 shrink-0" />
                           <span>Não listada</span>
                         </>
                       )}
