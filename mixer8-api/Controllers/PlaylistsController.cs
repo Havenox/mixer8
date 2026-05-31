@@ -168,13 +168,17 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [AllowAnonymous]
     public async Task<IActionResult> GetPlaylistById(Guid id)
     {
+        Guid? userId = null;
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
-            return Unauthorized(new { ErrorMessage = "INVALID_TOKEN_CLAIMS" });
+        if (userIdClaim != null && Guid.TryParse(userIdClaim, out var parsedUserId))
+        {
+            userId = parsedUserId;
+        }
 
-        var isAdmin = User.IsInRole("Admin");
+        var isAdmin = userId.HasValue && User.IsInRole("Admin");
 
         var playlist = await dbContext.Playlists
             .Include(p => p.PlaylistTracks)
@@ -190,25 +194,32 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
         if (playlist == null)
             return NotFound(new { ErrorMessage = "PLAYLIST_NOT_FOUND" });
 
-        var isOwner = playlist.OwnerId == userId;
-        var isCollaborator = playlist.PlaylistCollaborators.Any(pc => pc.UserId == userId);
+        var isOwner = userId.HasValue && playlist.OwnerId == userId.Value;
+        var isCollaborator = userId.HasValue && playlist.PlaylistCollaborators.Any(pc => pc.UserId == userId.Value);
 
         // Se for privada e não for dono/colaborador/admin, nega acesso
         if (playlist.Visibility == "Private" && !isOwner && !isCollaborator && !isAdmin)
+        {
+            if (!userId.HasValue)
+                return Unauthorized(new { ErrorMessage = "AUTHENTICATION_REQUIRED" });
             return Forbid();
+        }
 
         var ownerEmail = await dbContext.Users
             .Where(u => u.UserId == playlist.OwnerId)
             .Select(u => u.Email)
             .FirstOrDefaultAsync() ?? "";
 
+        var ownerProfile = await dbContext.UserProfiles
+            .FirstOrDefaultAsync(up => up.UserId == playlist.OwnerId);
+
         var firstTrackCover = playlist.PlaylistTracks
             .OrderBy(pt => pt.AddedAt)
             .Select(pt => pt.Track.CoverUrl)
             .FirstOrDefault();
 
-        var isSaved = await dbContext.SavedPlaylists
-            .AnyAsync(sp => sp.UserId == userId && sp.PlaylistId == id);
+        var isSaved = userId.HasValue && await dbContext.SavedPlaylists
+            .AnyAsync(sp => sp.UserId == userId.Value && sp.PlaylistId == id);
 
         var detailDto = new PlaylistDetailResponseDto
         {
@@ -223,6 +234,10 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             IsOwner = isOwner,
             IsCollaborator = isCollaborator,
             IsSaved = isSaved,
+            OwnerUserName = ownerProfile?.UserName,
+            OwnerFirstName = ownerProfile?.FirstName,
+            OwnerLastName = ownerProfile?.LastName,
+            OwnerAvatarUrl = ownerProfile?.AvatarUrl,
             Tracks = playlist.PlaylistTracks
                 .OrderBy(pt => pt.AddedAt)
                 .Select(pt => new PlaylistTrackResponseDto
@@ -711,6 +726,10 @@ public class PlaylistDetailResponseDto
     public bool IsOwner { get; set; }
     public bool IsCollaborator { get; set; }
     public bool IsSaved { get; set; }
+    public string? OwnerUserName { get; set; }
+    public string? OwnerFirstName { get; set; }
+    public string? OwnerLastName { get; set; }
+    public string? OwnerAvatarUrl { get; set; }
     public List<PlaylistTrackResponseDto> Tracks { get; set; } = new();
     public List<PlaylistCollaboratorResponseDto> Collaborators { get; set; } = new();
 }

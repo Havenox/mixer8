@@ -286,6 +286,73 @@ public class AuthController(Mixer8DbContext dbContext, IConfiguration configurat
             UserRole = roleStr
         });
     }
+
+    [HttpGet("Profile/{username}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetPublicProfile(string username)
+    {
+        if (string.IsNullOrWhiteSpace(username))
+        {
+            return BadRequest(new { ErrorMessage = "USERNAME_REQUIRED" });
+        }
+
+        var normalized = username.Trim().ToLower();
+        var profile = await dbContext.UserProfiles
+            .FirstOrDefaultAsync(up => up.UserName == normalized);
+
+        if (profile == null)
+        {
+            return NotFound(new { ErrorMessage = "USER_NOT_FOUND" });
+        }
+
+        var userPlaylists = await dbContext.Playlists
+            .Include(p => p.PlaylistTracks)
+            .Where(p => p.OwnerId == profile.UserId && p.Visibility == "Public")
+            .OrderByDescending(p => p.CreatedAt)
+            .ToListAsync();
+
+        var publicPlaylistsDto = userPlaylists.Select(p =>
+        {
+            var firstTrackCover = p.PlaylistTracks
+                .OrderBy(pt => pt.AddedAt)
+                .Select(pt => pt.Track.CoverUrl)
+                .FirstOrDefault();
+
+            return new PlaylistResponseDto
+            {
+                PlaylistId = p.PlaylistId,
+                Name = p.Name,
+                Visibility = p.Visibility,
+                Description = p.Description,
+                OwnerId = p.OwnerId,
+                OwnerEmail = "",
+                CoverUrl = p.CoverUrl ?? firstTrackCover,
+                CreatedAt = p.CreatedAt,
+                IsOwner = false,
+                IsCollaborator = false,
+                IsSaved = false,
+                TracksCount = p.PlaylistTracks.Count,
+                OwnerUserName = profile.UserName,
+                OwnerFirstName = profile.FirstName,
+                OwnerLastName = profile.LastName,
+                OwnerAvatarUrl = profile.AvatarUrl
+            };
+        }).ToList();
+
+        var response = new PublicProfileResponseDto
+        {
+            UserName = profile.UserName,
+            FirstName = profile.FirstName,
+            LastName = profile.LastName,
+            Bio = profile.Bio,
+            AvatarUrl = profile.AvatarUrl,
+            FollowersCount = 0,
+            FollowingCount = 0,
+            PublicPlaylists = publicPlaylistsDto
+        };
+
+        return Ok(response);
+    }
 }
 
 public class RegisterRequest
@@ -339,4 +406,16 @@ public class UpdateProfileRequest
     public string? Phone { get; set; }
     public string? Bio { get; set; }
     public string? AvatarUrl { get; set; }
+}
+
+public class PublicProfileResponseDto
+{
+    public string UserName { get; set; } = null!;
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; }
+    public string? Bio { get; set; }
+    public string? AvatarUrl { get; set; }
+    public int FollowersCount { get; set; }
+    public int FollowingCount { get; set; }
+    public List<PlaylistResponseDto> PublicPlaylists { get; set; } = new();
 }
