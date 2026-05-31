@@ -307,10 +307,13 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
                     <Settings className="w-4 h-4 text-brand-green" />
                     <span>Configurações</span>
                   </button>
-                  <div className="flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded text-white/40 cursor-not-allowed select-none text-left w-full">
-                    <User className="w-4 h-4 text-white/20" />
+                  <button 
+                    onClick={() => { navigate(`/@${CurrentUser.UserName}`); setIsMenuOpen(false); }}
+                    className="flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded text-white hover:bg-brand-hover hover:text-brand-green transition-colors text-left w-full cursor-pointer"
+                  >
+                    <User className="w-4 h-4 text-brand-green" />
                     <span>Meu Perfil</span>
-                  </div>
+                  </button>
                   <div className="flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded text-white/40 cursor-not-allowed select-none text-left w-full">
                     <CreditCard className="w-4 h-4 text-white/20" />
                     <span>Minha Assinatura</span>
