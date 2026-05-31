@@ -98,7 +98,7 @@ export const Admin: React.FC = () => {
         <AlertTriangle className="w-12 h-12 text-red-500" />
         <h2 className="text-lg font-bold text-white">Acesso Negado (403)</h2>
         <p className="text-xs text-brand-gray">
-          Seu perfil atual ({CurrentUser?.UserRole}) não tem privilégios de Administrador. Mude seu perfil usando o 🧪 Simulador de Perfis (RBAC) no rodapé da barra lateral esquerda para testar!
+          Seu perfil atual ({CurrentUser?.UserRole}) não tem privilégios de Administrador. Entre em contato com o suporte ou utilize um login adequado.
         </p>
       </div>
     );

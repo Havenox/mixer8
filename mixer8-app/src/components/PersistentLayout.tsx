@@ -5,12 +5,11 @@ import { usePlayer } from '../context/PlayerContext';
 import { MesaPlayer } from './MesaPlayer';
 import { 
   Home, Library, PlusCircle, Shield, 
-  LogOut, User, ChevronDown, Layers, ListMusic
+  LogOut, User, Layers, ListMusic
 } from 'lucide-react';
-import type { UserRole } from '../types/Auth';
 
 export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { IsAuthenticated, CurrentUser, Logout, UpdateRole } = useAuth();
+  const { IsAuthenticated, CurrentUser, Logout } = useAuth();
   const { currentTrack } = usePlayer();
   const location = useLocation();
   const navigate = useNavigate();
@@ -22,10 +21,6 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
   const handleLogout = () => {
     Logout();
     navigate('/login');
-  };
-
-  const handleRoleToggle = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    UpdateRole(e.target.value as UserRole);
   };
 
   return (
@@ -152,26 +147,6 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
               <span className="text-[10px] text-brand-green font-bold uppercase tracking-wider">
                 {CurrentUser.UserRole}
               </span>
-            </div>
-          </div>
-
-          {/* Simulador de Troca de Nível (Exclusivo Dev) */}
-          <div className="flex flex-col gap-1.5 bg-brand-card border border-brand-hover p-2 rounded-md">
-            <label className="text-[9px] text-brand-gray font-bold uppercase">
-              🧪 Simulador de Perfis (RBAC)
-            </label>
-            <div className="relative">
-              <select 
-                value={CurrentUser.UserRole} 
-                onChange={handleRoleToggle}
-                className="w-full bg-brand-hover text-xs font-semibold text-white py-1 px-2 pr-6 rounded border border-brand-hover appearance-none cursor-pointer focus:outline-none"
-              >
-                <option value="Admin">Admin</option>
-                <option value="Moderator">Moderator</option>
-                <option value="PaidUser">PaidUser (PRO)</option>
-                <option value="User">User (Gratuito)</option>
-              </select>
-              <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-gray pointer-events-none" />
             </div>
           </div>
 

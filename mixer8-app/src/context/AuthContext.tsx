@@ -5,7 +5,6 @@ interface IAuthContext extends IAuthState {
   Login: (email: string, password: string) => Promise<boolean>;
   Register: (email: string, password: string, role: UserRole) => Promise<boolean>;
   Logout: () => void;
-  UpdateRole: (role: UserRole) => void;
 }
 
 const AuthContext = createContext<IAuthContext | undefined>(undefined);
@@ -150,18 +149,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  const UpdateRole = (role: UserRole) => {
-    // Apenas simula localmente a mudança de Role para facilidade de testes RBAC na UI
-    if (state.CurrentUser) {
-      setState(prev => ({
-        ...prev,
-        CurrentUser: prev.CurrentUser ? { ...prev.CurrentUser, UserRole: role } : null
-      }));
-    }
-  };
-
   return (
-    <AuthContext.Provider value={{ ...state, Login, Register, Logout, UpdateRole }}>
+    <AuthContext.Provider value={{ ...state, Login, Register, Logout }}>
       {!isLoading && children}
     </AuthContext.Provider>
   );

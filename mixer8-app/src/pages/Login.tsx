@@ -37,24 +37,6 @@ export const Login: React.FC = () => {
   };
 
   // Login rápido para testar
-  const handleQuickLogin = async (quickEmail: string, quickPass: string) => {
-    setEmail(quickEmail);
-    setPassword(quickPass);
-    setError('');
-    setIsPending(true);
-    
-    try {
-      const success = await authLogin(quickEmail, quickPass);
-      if (success) {
-        navigate('/');
-      }
-    } catch {
-      setError('Erro no login rápido.');
-    } finally {
-      setIsPending(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-brand-black flex flex-col justify-center items-center px-4 py-12 select-none">
       
@@ -127,35 +109,6 @@ export const Login: React.FC = () => {
             {!isPending && <ArrowRight className="w-4 h-4" />}
           </button>
         </form>
-
-        {/* Divisor */}
-        <div className="relative flex py-1 items-center">
-          <div className="flex-grow border-t border-brand-hover"></div>
-          <span className="flex-shrink mx-4 text-[10px] text-brand-gray font-bold uppercase tracking-wider">
-            Acesso Rápido de Teste
-          </span>
-          <div className="flex-grow border-t border-brand-hover"></div>
-        </div>
-
-        {/* Botões de Acesso Rápido */}
-        <div className="grid grid-cols-2 gap-2 text-xs font-bold">
-          <button 
-            onClick={() => handleQuickLogin('admin@mixer8.com', 'mixer8')}
-            disabled={isPending}
-            className="py-2 px-3 bg-brand-hover border border-brand-hover text-white rounded hover:border-brand-green hover:text-brand-green transition-all flex flex-col items-center gap-0.5 cursor-pointer"
-          >
-            <span>Admin</span>
-            <span className="text-[9px] text-brand-gray font-normal">Painel CRM e Configs</span>
-          </button>
-          <button 
-            onClick={() => handleQuickLogin('paiduser@mixer8.com', 'mixer8')}
-            disabled={isPending}
-            className="py-2 px-3 bg-brand-hover border border-brand-hover text-white rounded hover:border-brand-green hover:text-brand-green transition-all flex flex-col items-center gap-0.5 cursor-pointer"
-          >
-            <span>Paid User (PRO)</span>
-            <span className="text-[9px] text-brand-gray font-normal">DAW Mixer e Upload</span>
-          </button>
-        </div>
 
         {/* Cadastro */}
         <div className="text-center text-xs text-brand-gray border-t border-brand-hover pt-4">
