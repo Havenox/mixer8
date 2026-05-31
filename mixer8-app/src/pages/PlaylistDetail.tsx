@@ -7,7 +7,8 @@ import type { IPlaylist } from '../context/PlaylistContext';
 import { 
   Play, Pause, Disc, Music, Users,
   Loader2, ArrowLeft, Settings, Trash2,
-  Clock, X, AlertTriangle, Plus, Minus
+  Clock, X, AlertTriangle, Plus, Minus,
+  Lock, Globe, EyeOff
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -303,6 +304,32 @@ export const PlaylistDetail: React.FC = () => {
     return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
+  const getMockDurationSeconds = (trackId: string) => {
+    let sum = 0;
+    for (let i = 0; i < trackId.length; i++) {
+      sum += trackId.charCodeAt(i);
+    }
+    return 180 + (sum % 120);
+  };
+
+  const getPlaylistTotalDurationString = (tracks: IPlaylistTrack[]) => {
+    if (tracks.length === 0) return '0 min';
+    const totalSeconds = tracks.reduce((acc, t) => acc + getMockDurationSeconds(t.TrackId), 0);
+    const totalMinutes = Math.floor(totalSeconds / 60);
+    if (totalMinutes >= 60) {
+      const hours = Math.floor(totalMinutes / 60);
+      const mins = totalMinutes % 60;
+      return `${hours}h ${mins}m`;
+    }
+    return `${totalMinutes} min`;
+  };
+
+  const getOwnerDisplayName = (email: string) => {
+    if (!email) return '';
+    const part = email.split('@')[0];
+    return part.charAt(0).toUpperCase() + part.slice(1);
+  };
+
   const formatDistanceToNow = (dateStr: string) => {
     try {
       const date = new Date(dateStr);
@@ -435,12 +462,46 @@ export const PlaylistDetail: React.FC = () => {
             </p>
           )}
 
-          <div className="flex items-center gap-2 text-xs text-brand-gray font-medium flex-wrap">
-            <span className="text-white font-bold">{playlist.OwnerEmail}</span>
-            <span>•</span>
-            <span>{playlist.Tracks.length} {playlist.Tracks.length === 1 ? 'música' : 'músicas'}</span>
-            <span>•</span>
-            <span>Criada em {new Date(playlist.CreatedAt).toLocaleDateString('pt-BR')}</span>
+          <div className="flex items-center gap-2 text-xs text-brand-gray font-medium flex-wrap mt-2.5 select-none leading-none">
+            {/* Foto de perfil placeholder */}
+            <div className="flex items-center gap-1.5 shrink-0 h-5">
+              <div className="w-5 h-5 rounded-full bg-brand-green text-black flex items-center justify-center font-black text-[10px] uppercase shadow-sm select-none">
+                {getOwnerDisplayName(playlist.OwnerEmail).charAt(0)}
+              </div>
+              <span className="text-white font-bold">{getOwnerDisplayName(playlist.OwnerEmail)}</span>
+            </div>
+            
+            <span className="text-brand-gray/40 font-normal select-none shrink-0">•</span>
+            
+            <span className="shrink-0">{playlist.Tracks.length} {playlist.Tracks.length === 1 ? 'música' : 'músicas'}</span>
+            
+            <span className="text-brand-gray/40 font-normal select-none shrink-0">•</span>
+            
+            <div className="flex items-center gap-1 shrink-0 text-brand-gray select-none h-4">
+              <Clock className="w-3.5 h-3.5 text-brand-gray/60 shrink-0" />
+              <span>{getPlaylistTotalDurationString(playlist.Tracks)}</span>
+            </div>
+            
+            <span className="text-brand-gray/40 font-normal select-none shrink-0">•</span>
+            
+            <div className="flex items-center gap-1 shrink-0 text-brand-gray select-none uppercase text-[10px] font-bold h-4">
+              {playlist.Visibility === 'Private' ? (
+                <>
+                  <Lock className="w-3.5 h-3.5 text-brand-green shrink-0" />
+                  <span>Privada</span>
+                </>
+              ) : playlist.Visibility === 'Public' ? (
+                <>
+                  <Globe className="w-3.5 h-3.5 text-brand-green/60 shrink-0" />
+                  <span>Pública</span>
+                </>
+              ) : (
+                <>
+                  <EyeOff className="w-3.5 h-3.5 text-brand-gray/60 shrink-0" />
+                  <span>Não Listada</span>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
