@@ -41,6 +41,8 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [newPlaylistDescription, setNewPlaylistDescription] = useState('');
   const [newPlaylistVisibility, setNewPlaylistVisibility] = useState('Public');
+  const [newCoverFile, setNewCoverFile] = useState<File | null>(null);
+  const [newCoverPreview, setNewCoverPreview] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [playlistTracksMap, setPlaylistTracksMap] = useState<Record<string, string[]>>({}); // playlistId -> trackIds[]
@@ -76,6 +78,8 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setNewPlaylistName('');
     setNewPlaylistDescription('');
     setNewPlaylistVisibility('Public');
+    setNewCoverFile(null);
+    setNewCoverPreview(null);
     setError('');
   };
 
@@ -204,17 +208,21 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setError('');
 
     try {
+      const formData = new FormData();
+      formData.append('Name', newPlaylistName.trim());
+      formData.append('Description', newPlaylistDescription.trim());
+      formData.append('Visibility', newPlaylistVisibility);
+
+      if (newCoverFile) {
+        formData.append('CoverFile', newCoverFile);
+      }
+
       const res = await fetch(`${API_URL}/Playlists`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${Token}`
         },
-        body: JSON.stringify({
-          Name: newPlaylistName.trim(),
-          Description: newPlaylistDescription.trim(),
-          Visibility: newPlaylistVisibility
-        })
+        body: formData
       });
 
       if (res.ok) {
@@ -536,6 +544,58 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 rows={2}
                 className="w-full bg-black border border-brand-hover rounded p-2 text-xs text-white focus:outline-none focus:border-brand-green resize-none"
               />
+            </div>
+
+            {/* Capa da Playlist */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Capa da Playlist (Opcional)</label>
+              <div className="flex items-center gap-4 bg-black/40 border border-brand-hover p-3 rounded">
+                <div className="w-14 h-14 bg-black rounded overflow-hidden flex items-center justify-center text-brand-green border border-brand-hover shrink-0 relative">
+                  {newCoverPreview ? (
+                    <img 
+                      src={newCoverPreview} 
+                      alt="Capa" 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <ListMusic className="w-5 h-5 animate-pulse" />
+                  )}
+                </div>
+                <div className="flex flex-col gap-1 flex-1">
+                  <span className="text-[9px] text-brand-gray leading-normal">Defina uma imagem de capa personalizada (JPG, PNG ou WEBP).</span>
+                  <div className="flex items-center gap-2 mt-1">
+                    <label className="py-1 px-2.5 bg-brand-hover text-white font-bold rounded text-[9px] hover:bg-brand-hover/80 transition-colors cursor-pointer select-none">
+                      Escolher Imagem
+                      <input 
+                        type="file"
+                        accept="image/*"
+                        disabled={isCreating}
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setNewCoverFile(file);
+                            setNewCoverPreview(URL.createObjectURL(file));
+                          }
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {newCoverPreview && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewCoverFile(null);
+                          setNewCoverPreview(null);
+                        }}
+                        className="py-1 px-2.5 border border-red-900/50 hover:bg-red-950/20 text-red-400 font-bold rounded text-[9px] cursor-pointer"
+                      >
+                        Remover
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="flex flex-col gap-1.5">
