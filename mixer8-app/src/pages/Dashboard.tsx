@@ -585,8 +585,8 @@ export const Dashboard: React.FC = () => {
             }}
             className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-brand-green"
           >
-            <Plus className="w-4 h-4 text-brand-green" />
-            <span>Adicionar à Playlist</span>
+            <Plus className="w-4 h-4 text-brand-green shrink-0" />
+            <span>Adicionar à playlist</span>
           </button>
 
           {CurrentUser?.UserRole === 'Admin' && (
@@ -599,18 +599,21 @@ export const Dashboard: React.FC = () => {
                 }}
                 className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-brand-green"
               >
-                <Settings className="w-4 h-4 text-brand-green" />
+                <Settings className="w-4 h-4 text-brand-green shrink-0" />
                 <span>Editar Música</span>
               </button>
+              
+              {/* Mini sessão de exclusão da plataforma separada por travessão */}
+              <div className="h-[1px] bg-brand-hover my-1" />
               <button
                 onClick={() => {
                   setTrackToDelete(contextMenu.track);
                   setContextMenu(null);
                 }}
-                className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-red-950/40 text-red-400 transition-all cursor-pointer flex items-center gap-2"
+                className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-red-950/20 text-white hover:text-red-400 transition-all cursor-pointer flex items-center gap-2"
               >
-                <Trash2 className="w-4 h-4 text-red-400" />
-                <span>Excluir do Sistema</span>
+                <Trash2 className="w-4 h-4 text-red-500 shrink-0" />
+                <span>Excluir Música</span>
               </button>
             </>
           )}

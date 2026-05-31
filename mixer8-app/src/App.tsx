@@ -12,7 +12,7 @@ import { Admin } from './pages/Admin';
 import { UploadDireto } from './pages/UploadDireto';
 import { PlaylistDetail } from './pages/PlaylistDetail';
 import { Playlists } from './pages/Playlists';
-import { Play, Sparkles, Disc, Flame, Music, Radio, Star, Loader2, Plus, Trash2, AlertTriangle, X, Settings, RefreshCw } from 'lucide-react';
+import { Play, Sparkles, Disc, Flame, Music, Radio, Loader2, Plus, Trash2, AlertTriangle, X, Settings, RefreshCw } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const SERVER_URL = API_URL.replace('/api', '');
@@ -322,8 +322,8 @@ const Explore: React.FC = () => {
             }}
             className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-brand-green"
           >
-            <Plus className="w-4 h-4 text-brand-green" />
-            <span>Adicionar à Playlist</span>
+            <Plus className="w-4 h-4 text-brand-green shrink-0" />
+            <span>Adicionar à playlist</span>
           </button>
 
           {CurrentUser?.UserRole === 'Admin' && (
@@ -336,50 +336,28 @@ const Explore: React.FC = () => {
                 }}
                 className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-brand-green"
               >
-                <Settings className="w-4 h-4 text-brand-green" />
+                <Settings className="w-4 h-4 text-brand-green shrink-0" />
                 <span>Editar Música</span>
               </button>
+              
+              {/* Mini sessão de exclusão da plataforma separada por travessão */}
+              <div className="h-[1px] bg-brand-hover my-1" />
               <button
                 onClick={() => {
                   setTrackToDelete(contextMenu.track);
                   setContextMenu(null);
                 }}
-                className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-red-950/40 text-red-400 transition-all cursor-pointer flex items-center gap-2"
+                className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-red-950/20 text-white hover:text-red-400 transition-all cursor-pointer flex items-center gap-2"
               >
-                <Trash2 className="w-4 h-4 text-red-400" />
-                <span>Excluir do Sistema</span>
+                <Trash2 className="w-4 h-4 text-red-500 shrink-0" />
+                <span>Excluir Música</span>
               </button>
             </>
           )}
         </div>
       )}
 
-      {/* Grid de Gêneros / Vibe */}
-      {!loading && tracks.length > 0 && (
-        <div className="flex flex-col gap-4">
-          <h2 className="text-xl font-bold text-white m-0 flex items-center gap-2">
-            <Star className="w-5 h-5 text-yellow-500 fill-current" /> Gêneros Populares
-          </h2>
-          
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <div className="bg-purple-950/20 border border-purple-500/20 hover:border-purple-500/50 p-6 rounded-md text-center hover:scale-[1.02] transition-all cursor-pointer">
-              <span className="font-bold text-sm text-purple-300">Rock / Classic</span>
-            </div>
-            <div className="bg-emerald-950/20 border border-emerald-500/20 hover:border-emerald-500/50 p-6 rounded-md text-center hover:scale-[1.02] transition-all cursor-pointer">
-              <span className="font-bold text-sm text-emerald-300">Pop / Modern</span>
-            </div>
-            <div className="bg-blue-950/20 border border-blue-500/20 hover:border-blue-500/50 p-6 rounded-md text-center hover:scale-[1.02] transition-all cursor-pointer">
-              <span className="font-bold text-sm text-blue-300">Jazz / Blues</span>
-            </div>
-            <div className="bg-orange-950/20 border border-orange-500/20 hover:border-orange-500/50 p-6 rounded-md text-center hover:scale-[1.02] transition-all cursor-pointer">
-              <span className="font-bold text-sm text-orange-300">Acoustic / Folk</span>
-            </div>
-            <div className="bg-red-950/20 border border-red-500/20 hover:border-red-500/50 p-6 rounded-md text-center hover:scale-[1.02] transition-all cursor-pointer">
-              <span className="font-bold text-sm text-red-300">Electronic / EDM</span>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO DE MÚSICA (ADMIN) */}
       {trackToDelete && (
