@@ -154,14 +154,12 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         if (request.CoverFile != null && request.CoverFile.Length > 0)
         {
             var coverExt = Path.GetExtension(request.CoverFile.FileName).ToLowerInvariant();
-            if (coverExt == ".jpg" || coverExt == ".jpeg" || coverExt == ".png")
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
+            if (allowedExtensions.Contains(coverExt))
             {
-                var coverPath = Path.Combine(trackDir, "cover.jpg");
-                using (var stream = new FileStream(coverPath, FileMode.Create))
-                {
-                    await request.CoverFile.CopyToAsync(stream);
-                }
-                coverUrl = $"/stems/{trackId}/cover.jpg";
+                var coverPath = Path.Combine(trackDir, "cover.webp");
+                await ImageHelper.ProcessAndSaveImageAsync(request.CoverFile, coverPath);
+                coverUrl = $"/stems/{trackId}/cover.webp";
             }
         }
 
@@ -547,18 +545,23 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             if (request.CoverFile != null && request.CoverFile.Length > 0)
             {
                 var coverExt = Path.GetExtension(request.CoverFile.FileName).ToLowerInvariant();
-                if (coverExt == ".jpg" || coverExt == ".jpeg" || coverExt == ".png")
+                var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
+                if (allowedExtensions.Contains(coverExt))
                 {
-                    var coverPath = Path.Combine(trackDir, "cover.jpg");
-                    if (System.IO.File.Exists(coverPath))
+                    // Remover capas antigas com extensões legadas para evitar arquivos órfãos
+                    var oldExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
+                    foreach (var oldExt in oldExtensions)
                     {
-                        System.IO.File.Delete(coverPath);
+                        var oldFilePath = Path.Combine(trackDir, $"cover{oldExt}");
+                        if (System.IO.File.Exists(oldFilePath))
+                        {
+                            System.IO.File.Delete(oldFilePath);
+                        }
                     }
-                    using (var stream = new FileStream(coverPath, FileMode.Create))
-                    {
-                        await request.CoverFile.CopyToAsync(stream);
-                    }
-                    track.CoverUrl = $"/stems/{id}/cover.jpg";
+
+                    var coverPath = Path.Combine(trackDir, "cover.webp");
+                    await ImageHelper.ProcessAndSaveImageAsync(request.CoverFile, coverPath);
+                    track.CoverUrl = $"/stems/{id}/cover.webp";
                 }
             }
 

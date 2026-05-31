@@ -56,13 +56,10 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             var allowedExtensions = new[] { ".png", ".jpg", ".jpeg", ".webp" };
             if (allowedExtensions.Contains(ext))
             {
-                var coverFileName = $"cover{ext}";
+                var coverFileName = "cover.webp";
                 var coverPath = Path.Combine(playlistDir, coverFileName);
 
-                using (var stream = new FileStream(coverPath, FileMode.Create))
-                {
-                    await request.CoverFile.CopyToAsync(stream);
-                }
+                await ImageHelper.ProcessAndSaveImageAsync(request.CoverFile, coverPath);
 
                 playlist.CoverUrl = $"/playlists/{playlist.PlaylistId}/{coverFileName}";
             }
@@ -332,13 +329,21 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             var allowedExtensions = new[] { ".png", ".jpg", ".jpeg", ".webp" };
             if (allowedExtensions.Contains(ext))
             {
-                var coverFileName = $"cover{ext}";
+                // Deleta arquivos físicos de capas antigas com outras extensões para evitar sobras
+                var oldExtensions = new[] { ".png", ".jpg", ".jpeg", ".webp" };
+                foreach (var oldExt in oldExtensions)
+                {
+                    var oldFilePath = Path.Combine(playlistDir, $"cover{oldExt}");
+                    if (System.IO.File.Exists(oldFilePath))
+                    {
+                        System.IO.File.Delete(oldFilePath);
+                    }
+                }
+
+                var coverFileName = "cover.webp";
                 var coverPath = Path.Combine(playlistDir, coverFileName);
 
-                using (var stream = new FileStream(coverPath, FileMode.Create))
-                {
-                    await request.CoverFile.CopyToAsync(stream);
-                }
+                await ImageHelper.ProcessAndSaveImageAsync(request.CoverFile, coverPath);
 
                 playlist.CoverUrl = $"/playlists/{id}/{coverFileName}";
             }

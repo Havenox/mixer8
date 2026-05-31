@@ -287,6 +287,65 @@ public class AuthController(Mixer8DbContext dbContext, IConfiguration configurat
         });
     }
 
+    [Authorize]
+    [HttpPost("Profile/Avatar")]
+    public async Task<IActionResult> UploadAvatar(IFormFile file)
+    {
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { ErrorMessage = "INVALID_TOKEN_CLAIMS" });
+        }
+
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest(new { ErrorMessage = "NO_FILE_UPLOADED" });
+        }
+
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        var allowedExtensions = new[] { ".png", ".jpg", ".jpeg", ".webp" };
+        if (!allowedExtensions.Contains(ext))
+        {
+            return BadRequest(new { ErrorMessage = "INVALID_FILE_TYPE" });
+        }
+
+        var profileDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "profiles", userId.ToString());
+        if (!Directory.Exists(profileDir))
+        {
+            Directory.CreateDirectory(profileDir);
+        }
+
+        // Limpar avatares antigos para evitar sobras físicas de outros formatos
+        foreach (var oldExt in allowedExtensions)
+        {
+            var oldFilePath = Path.Combine(profileDir, $"avatar{oldExt}");
+            if (System.IO.File.Exists(oldFilePath))
+            {
+                System.IO.File.Delete(oldFilePath);
+            }
+        }
+
+        var avatarFileName = "avatar.webp";
+        var avatarPath = Path.Combine(profileDir, avatarFileName);
+
+        await ImageHelper.ProcessAndSaveImageAsync(file, avatarPath);
+
+        var avatarUrl = $"/profiles/{userId}/{avatarFileName}";
+
+        var user = await dbContext.Users
+            .Include(u => u.UserProfile)
+            .FirstOrDefaultAsync(u => u.UserId == userId);
+
+        if (user != null)
+        {
+            user.UserProfile.AvatarUrl = avatarUrl;
+            user.UserProfile.UpdatedAt = DateTime.UtcNow;
+            await dbContext.SaveChangesAsync();
+        }
+
+        return Ok(new { AvatarUrl = avatarUrl });
+    }
+
     [HttpGet("Profile/{username}")]
     [AllowAnonymous]
     public async Task<IActionResult> GetPublicProfile(string username)
