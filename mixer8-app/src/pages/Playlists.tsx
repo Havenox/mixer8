@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { usePlaylists } from '../context/PlaylistContext';
 import type { IPlaylist } from '../context/PlaylistContext';
 import { useAuth } from '../context/AuthContext';
-import { ListMusic, PlusCircle, Lock, Globe, EyeOff, Play, Edit, Trash2, MoreVertical, Clock } from 'lucide-react';
+import { ListMusic, PlusCircle, Lock, Globe, EyeOff, Play, Edit, Trash2, MoreVertical, Clock, AlertTriangle } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const SERVER_URL = API_URL.replace('/api', '');
@@ -29,11 +29,12 @@ const getPlaylistTotalDuration = (playlistId: string, tracksCount: number) => {
 };
 
 export const Playlists: React.FC = () => {
-  const { playlists, openCreatePlaylist, openEditPlaylist, openDeletePlaylist } = usePlaylists();
-  const { CurrentUser } = useAuth();
+  const { playlists, openCreatePlaylist, openEditPlaylist, openDeletePlaylist, fetchPlaylists } = usePlaylists();
+  const { CurrentUser, Token } = useAuth();
   const navigate = useNavigate();
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; playlist: IPlaylist } | null>(null);
+  const [collabPlaylistToLeave, setCollabPlaylistToLeave] = useState<IPlaylist | null>(null);
 
   // Fecha menus ao clicar fora
   useEffect(() => {
@@ -41,6 +42,41 @@ export const Playlists: React.FC = () => {
     window.addEventListener('click', handleClose);
     return () => window.removeEventListener('click', handleClose);
   }, []);
+
+  const handleUnsavePlaylist = async (playlist: IPlaylist) => {
+    if (!Token) return;
+    try {
+      const res = await fetch(`${API_URL}/Playlists/${playlist.PlaylistId}/Save`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${Token}`
+        }
+      });
+      if (res.ok) {
+        await fetchPlaylists();
+      }
+    } catch (err) {
+      console.error("Erro ao remover playlist da biblioteca", err);
+    }
+  };
+
+  const handleLeaveCollaboration = async (playlist: IPlaylist) => {
+    if (!Token || !CurrentUser) return;
+    try {
+      const res = await fetch(`${API_URL}/Playlists/${playlist.PlaylistId}/Collaborators/${CurrentUser.UserId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${Token}`
+        }
+      });
+      if (res.ok) {
+        setCollabPlaylistToLeave(null);
+        await fetchPlaylists();
+      }
+    } catch (err) {
+      console.error("Erro ao deixar colaboração de playlist", err);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-6 select-none animate-in fade-in duration-300">
@@ -80,12 +116,13 @@ export const Playlists: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 select-none">
           {playlists.map((playlist) => {
             const canManage = playlist.IsOwner || CurrentUser?.UserRole === 'Admin';
+            const canContext = canManage || playlist.IsSaved || playlist.IsCollaborator;
             return (
               <div 
                 key={playlist.PlaylistId} 
                 onClick={() => navigate(`/playlists/${playlist.PlaylistId}`)}
                 onContextMenu={(e) => {
-                  if (canManage) {
+                  if (canContext) {
                     e.preventDefault();
                     setContextMenu({
                       x: e.clientX,
@@ -97,7 +134,7 @@ export const Playlists: React.FC = () => {
                 className="bg-brand-card border border-brand-hover p-4 rounded-md hover:bg-brand-hover group transition-all relative cursor-pointer"
               >
                 {/* Botão rápido de opções para mobile/acessibilidade */}
-                {canManage && (
+                {canContext && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -200,20 +237,80 @@ export const Playlists: React.FC = () => {
           className="fixed z-50 bg-brand-card border border-brand-hover rounded shadow-2xl py-1.5 w-48 text-xs font-semibold select-none cursor-pointer"
           style={{ top: contextMenu.y, left: contextMenu.x }}
         >
-          <div 
-            onClick={() => openEditPlaylist(contextMenu.playlist)}
-            className="px-4 py-2 hover:bg-brand-hover hover:text-brand-green flex items-center gap-2.5 transition-colors"
-          >
-            <Edit className="w-4 h-4 text-brand-gray" />
-            <span>Editar Ajustes</span>
-          </div>
-          <div className="h-[1px] bg-brand-hover my-1" />
-          <div 
-            onClick={() => openDeletePlaylist(contextMenu.playlist)}
-            className="px-4 py-2 hover:bg-brand-hover hover:text-red-400 text-red-500 flex items-center gap-2.5 transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-            <span>Excluir Playlist</span>
+          {/* Opções para Dono/Admin */}
+          {(contextMenu.playlist.IsOwner || CurrentUser?.UserRole === 'Admin') && (
+            <>
+              <div 
+                onClick={() => openEditPlaylist(contextMenu.playlist!)}
+                className="px-4 py-2 hover:bg-brand-hover hover:text-brand-green flex items-center gap-2.5 transition-colors"
+              >
+                <Edit className="w-4 h-4 text-brand-gray" />
+                <span>Editar Ajustes</span>
+              </div>
+              <div className="h-[1px] bg-brand-hover my-1" />
+              <div 
+                onClick={() => openDeletePlaylist(contextMenu.playlist!)}
+                className="px-4 py-2 hover:bg-brand-hover hover:text-red-400 text-red-500 flex items-center gap-2.5 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Excluir Playlist</span>
+              </div>
+            </>
+          )}
+
+          {/* Opções de Salva (Bookmarks) */}
+          {contextMenu.playlist.IsSaved && !contextMenu.playlist.IsOwner && (
+            <div 
+              onClick={() => handleUnsavePlaylist(contextMenu.playlist!)}
+              className="px-4 py-2 hover:bg-brand-hover hover:text-red-400 text-red-500 flex items-center gap-2.5 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Remover da Biblioteca</span>
+            </div>
+          )}
+
+          {/* Opções de Colaborativa */}
+          {contextMenu.playlist.IsCollaborator && !contextMenu.playlist.IsOwner && (
+            <div 
+              onClick={() => setCollabPlaylistToLeave(contextMenu.playlist!)}
+              className="px-4 py-2 hover:bg-brand-hover hover:text-red-400 text-red-500 flex items-center gap-2.5 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Parar de Colaborar</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* DIÁLOGO DE CONFIRMAÇÃO PARA PARAR DE COLABORAR (React styled shadcn custom modal) */}
+      {collabPlaylistToLeave && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
+          <div className="bg-brand-card border border-brand-hover p-6 rounded-md max-w-sm w-full flex flex-col gap-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 text-red-500">
+              <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <h3 className="font-bold text-white text-base">Parar de Colaborar?</h3>
+            </div>
+            
+            <p className="text-xs text-brand-gray leading-relaxed">
+              Você tem certeza que deseja parar de colaborar com a playlist <strong className="text-white">"{collabPlaylistToLeave.Name}"</strong>? Você perderá a permissão de adicionar músicas a ela.
+            </p>
+            
+            <div className="flex justify-end gap-2.5 mt-2">
+              <button
+                onClick={() => setCollabPlaylistToLeave(null)}
+                className="py-2 px-4 rounded bg-brand-hover hover:bg-brand-hover/80 text-xs font-bold text-white transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleLeaveCollaboration(collabPlaylistToLeave)}
+                className="py-2 px-4 rounded bg-red-500 hover:bg-red-600 text-xs font-bold text-white transition-all cursor-pointer"
+              >
+                Confirmar
+              </button>
+            </div>
           </div>
         </div>
       )}
