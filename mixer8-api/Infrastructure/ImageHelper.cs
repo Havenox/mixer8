@@ -36,7 +36,13 @@ public static class ImageHelper
 
         image.Mutate(ctx => ctx.Crop(new Rectangle(x, y, minDim, minDim)));
 
-        // 2. Configuração do Encoder WebP com 80% de qualidade
+        // 2. Redimensionamento para limitar a resolução máxima a 500x500 pixels se for maior
+        if (image.Width > 500)
+        {
+            image.Mutate(ctx => ctx.Resize(500, 500));
+        }
+
+        // 3. Configuração do Encoder WebP com 80% de qualidade
         var encoder = new WebpEncoder
         {
             Quality = 80
