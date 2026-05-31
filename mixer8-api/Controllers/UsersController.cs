@@ -16,11 +16,12 @@ public class UsersController(Mixer8DbContext dbContext) : ControllerBase
     public async Task<IActionResult> GetUsers()
     {
         var users = await dbContext.Users
+            .Include(u => u.UserRole)
             .Select(u => new
             {
                 u.UserId,
                 u.Email,
-                u.UserRole,
+                UserRole = u.UserRole.Role.ToString(),
                 u.CreatedAt
             })
             .ToListAsync();

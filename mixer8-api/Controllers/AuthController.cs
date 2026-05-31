@@ -33,22 +33,52 @@ public class AuthController(Mixer8DbContext dbContext, IConfiguration configurat
             UserId = Guid.NewGuid(),
             Email = normalizedEmail,
             PasswordHash = SecurityHelper.HashPassword(request.Password),
-            UserRole = request.UserRole ?? "User",
-            CreatedAt = DateTime.UtcNow
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        var roleStr = request.UserRole ?? "User";
+        var roleEnum = roleStr switch
+        {
+            "Admin" => UserRoleType.Admin,
+            "Moderator" => UserRoleType.Moderator,
+            "PaidUser" => UserRoleType.PaidUser,
+            _ => UserRoleType.User
+        };
+
+        var userRole = new UserRole
+        {
+            UserRoleId = Guid.NewGuid(),
+            UserId = user.UserId,
+            Role = roleEnum,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        var userProfile = new UserProfile
+        {
+            UserProfileId = Guid.NewGuid(),
+            UserId = user.UserId,
+            Name = roleStr, // Nome padrão inicial baseado no papel
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            Preferences = new UserProfilePreferences()
         };
 
         dbContext.Users.Add(user);
+        dbContext.UserRoles.Add(userRole);
+        dbContext.UserProfiles.Add(userProfile);
         await dbContext.SaveChangesAsync();
 
         var secret = configuration["JWT_SECRET"] ?? "sua_chave_secreta_jwt_aqui_minimo_32_caracteres";
         var expirationDays = Convert.ToInt32(configuration["JWT_EXPIRATION_DAYS"] ?? "7");
-        var token = SecurityHelper.GenerateJwtToken(user, secret, expirationDays);
+        var token = SecurityHelper.GenerateJwtToken(user, roleStr, secret, expirationDays);
 
         return Ok(new AuthResponse
         {
             Token = token,
             Email = user.Email,
-            UserRole = user.UserRole
+            UserRole = roleStr
         });
     }
 
@@ -61,22 +91,25 @@ public class AuthController(Mixer8DbContext dbContext, IConfiguration configurat
         }
 
         var normalizedEmail = request.Email.Trim().ToLower();
-        var user = await dbContext.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail);
+        var user = await dbContext.Users
+            .Include(u => u.UserRole)
+            .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
 
-        if (user == null || !SecurityHelper.VerifyPassword(request.Password, user.PasswordHash))
+        if (user == null || !user.IsActive || !SecurityHelper.VerifyPassword(request.Password, user.PasswordHash))
         {
             return Unauthorized(new { ErrorMessage = "INVALID_CREDENTIALS" });
         }
 
+        var roleStr = user.UserRole.Role.ToString();
         var secret = configuration["JWT_SECRET"] ?? "sua_chave_secreta_jwt_aqui_minimo_32_caracteres";
         var expirationDays = Convert.ToInt32(configuration["JWT_EXPIRATION_DAYS"] ?? "7");
-        var token = SecurityHelper.GenerateJwtToken(user, secret, expirationDays);
+        var token = SecurityHelper.GenerateJwtToken(user, roleStr, secret, expirationDays);
 
         return Ok(new AuthResponse
         {
             Token = token,
             Email = user.Email,
-            UserRole = user.UserRole
+            UserRole = roleStr
         });
     }
 
@@ -90,8 +123,11 @@ public class AuthController(Mixer8DbContext dbContext, IConfiguration configurat
             return Unauthorized(new { ErrorMessage = "INVALID_TOKEN_CLAIMS" });
         }
 
-        var user = await dbContext.Users.FindAsync(userId);
-        if (user == null)
+        var user = await dbContext.Users
+            .Include(u => u.UserRole)
+            .FirstOrDefaultAsync(u => u.UserId == userId);
+
+        if (user == null || !user.IsActive)
         {
             return NotFound(new { ErrorMessage = "USER_NOT_FOUND" });
         }
@@ -100,7 +136,7 @@ public class AuthController(Mixer8DbContext dbContext, IConfiguration configurat
         {
             UserId = user.UserId,
             Email = user.Email,
-            UserRole = user.UserRole,
+            UserRole = user.UserRole.Role.ToString(),
             CreatedAt = user.CreatedAt
         });
     }
