@@ -459,10 +459,12 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               </div>
 
               <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1 border border-brand-hover rounded p-2 bg-black/20">
-                {playlists.length === 0 ? (
-                  <span className="text-xs text-brand-gray/60 italic py-4 text-center">Nenhuma playlist criada.</span>
-                ) : (
-                  playlists.map(p => {
+                {(() => {
+                  const writeablePlaylists = playlists.filter(p => p.IsOwner || p.IsCollaborator);
+                  if (writeablePlaylists.length === 0) {
+                    return <span className="text-xs text-brand-gray/60 italic py-4 text-center">Nenhuma playlist disponível para edição.</span>;
+                  }
+                  return writeablePlaylists.map(p => {
                     const alreadyContains = (playlistTracksMap[p.PlaylistId] || []).includes(targetTrack.id);
                     return (
                       <button
@@ -486,8 +488,8 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                         )}
                       </button>
                     );
-                  })
-                )}
+                  });
+                })()}
               </div>
             </div>
           </div>
