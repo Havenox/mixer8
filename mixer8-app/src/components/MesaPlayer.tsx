@@ -169,7 +169,7 @@ export const MesaPlayer: React.FC = () => {
       <div className="flex items-center gap-2 md:gap-4 flex-1 md:flex-none md:w-1/4 justify-end min-w-0 md:min-w-[220px] relative select-none">
         
         {/* Botão de Mixer apenas se houver múltiplas stems */}
-        {hasMultipleStems ? (
+        {hasMultipleStems && (
           <button 
             onClick={() => setShowMixer(!showMixer)}
             className={`flex items-center justify-center gap-2 p-2 md:px-3 md:py-1.5 rounded-full border transition-all cursor-pointer shrink-0 ${
@@ -182,10 +182,6 @@ export const MesaPlayer: React.FC = () => {
             <Sliders className="w-4 h-4 shrink-0" />
             <span className="hidden md:inline text-xs font-semibold">Mixer Stems</span>
           </button>
-        ) : (
-          <div className="hidden md:block text-[10px] text-brand-gray font-bold uppercase border border-brand-hover px-3 py-1.5 rounded-full bg-black/20 shrink-0">
-            Faixa Única / Mono
-          </div>
         )}
 
         {/* Barra de volume geral real com Bolinha Premium */}
