@@ -29,6 +29,8 @@ interface IPlaylistTrack {
   AddedByEmail: string;
   AddedAt: string;
   Stems: IPlaylistStem[];
+  Order: number;
+  Duration: number;
 }
 
 interface IPlaylistCollaborator {
@@ -67,6 +69,8 @@ export const PlaylistDetail: React.FC = () => {
   const [playlist, setPlaylist] = useState<IPlaylistDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   // Estados e lógicas para Colunas Redimensionáveis (Spotify-like)
   const [colWidths, setColWidths] = useState({
@@ -299,28 +303,15 @@ export const PlaylistDetail: React.FC = () => {
     }
   };
 
-  const getMockDuration = (trackId: string) => {
-    let sum = 0;
-    for (let i = 0; i < trackId.length; i++) {
-      sum += trackId.charCodeAt(i);
-    }
-    const totalSeconds = 180 + (sum % 120); // Entre 3:00 e 5:00
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
+  const formatTrackDuration = (secs: number) => {
+    const minutes = Math.floor(secs / 60);
+    const seconds = secs % 60;
     return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-  };
-
-  const getMockDurationSeconds = (trackId: string) => {
-    let sum = 0;
-    for (let i = 0; i < trackId.length; i++) {
-      sum += trackId.charCodeAt(i);
-    }
-    return 180 + (sum % 120);
   };
 
   const getPlaylistTotalDurationString = (tracks: IPlaylistTrack[]) => {
     if (tracks.length === 0) return '0 min';
-    const totalSeconds = tracks.reduce((acc, t) => acc + getMockDurationSeconds(t.TrackId), 0);
+    const totalSeconds = tracks.reduce((acc, t) => acc + (t.Duration || 0), 0);
     const totalMinutes = Math.floor(totalSeconds / 60);
     if (totalMinutes >= 60) {
       const hours = Math.floor(totalMinutes / 60);
@@ -328,6 +319,75 @@ export const PlaylistDetail: React.FC = () => {
       return `${hours}h ${mins}m`;
     }
     return `${totalMinutes} min`;
+  };
+
+  // Handlers para Drag-and-Drop
+  const handleDragStart = (e: React.DragEvent<HTMLTableRowElement>, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', index.toString());
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLTableRowElement>, index: number) => {
+    if (draggedIndex === null) return;
+    e.preventDefault();
+    if (dragOverIndex !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLTableRowElement>, targetIndex: number) => {
+    e.preventDefault();
+    setDragOverIndex(null);
+    if (draggedIndex === null || draggedIndex === targetIndex || !playlist) return;
+
+    const updatedTracks = [...playlist.Tracks];
+    const [draggedTrack] = updatedTracks.splice(draggedIndex, 1);
+    updatedTracks.splice(targetIndex, 0, draggedTrack);
+
+    // Atualização otimista
+    setPlaylist(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        Tracks: updatedTracks
+      };
+    });
+
+    setDraggedIndex(null);
+
+    try {
+      const trackIds = updatedTracks.map(t => t.TrackId);
+      const res = await fetch(`${API_URL}/Playlists/${playlist.PlaylistId}/Reorder`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${Token}`
+        },
+        body: JSON.stringify({ TrackIds: trackIds })
+      });
+
+      if (!res.ok) {
+        console.error('Failed to save playlist track order.');
+        // Reverte se a requisição falhar
+        fetchPlaylistDetails();
+      } else {
+        window.dispatchEvent(new CustomEvent('playlist-updated', { detail: { PlaylistId: playlist.PlaylistId } }));
+      }
+    } catch (error) {
+      console.error('Network error saving playlist track order:', error);
+      // Reverte se a requisição falhar
+      fetchPlaylistDetails();
+    }
   };
 
   const getOwnerDisplayName = (
@@ -645,14 +705,23 @@ export const PlaylistDetail: React.FC = () => {
               <tbody>
                 {playlist.Tracks.map((t, index) => {
                   const isCurrentTrack = currentTrack && currentTrack.TrackId === t.TrackId;
+                  const isDragOver = dragOverIndex === index;
 
                   return (
                     <tr 
                       key={t.TrackId} 
                       onContextMenu={(e) => handleTrackContextMenu(e, t)}
+                      draggable={canModifyPlaylist}
+                      onDragStart={canModifyPlaylist ? (e) => handleDragStart(e, index) : undefined}
+                      onDragOver={canModifyPlaylist ? (e) => handleDragOver(e, index) : undefined}
+                      onDragLeave={canModifyPlaylist ? handleDragLeave : undefined}
+                      onDragEnd={canModifyPlaylist ? handleDragEnd : undefined}
+                      onDrop={canModifyPlaylist ? (e) => handleDrop(e, index) : undefined}
                       className={`border-b border-brand-hover/40 hover:bg-brand-hover/30 transition-colors group ${
                         isCurrentTrack ? 'bg-brand-hover/10' : ''
-                      }`}
+                      } ${draggedIndex === index ? 'opacity-40 bg-brand-hover/20' : ''} ${
+                        isDragOver && draggedIndex !== index ? 'border-t-2 border-brand-green' : ''
+                      } ${canModifyPlaylist ? 'cursor-grab active:cursor-grabbing' : ''}`}
                     >
                       {/* Play Action / Index */}
                       <td className="py-3 px-3 text-center text-brand-gray font-semibold relative select-none">
@@ -716,9 +785,9 @@ export const PlaylistDetail: React.FC = () => {
                         {formatDistanceToNow(t.AddedAt)}
                       </td>
 
-                      {/* Duração mockada determinística */}
+                      {/* Duração real */}
                       <td className="py-3 px-3 text-right text-brand-gray font-medium truncate">
-                        {getMockDuration(t.TrackId)}
+                        {formatTrackDuration(t.Duration)}
                       </td>
                     </tr>
                   );
