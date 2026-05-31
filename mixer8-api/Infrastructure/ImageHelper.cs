@@ -42,9 +42,10 @@ public static class ImageHelper
             image.Mutate(ctx => ctx.Resize(500, 500));
         }
 
-        // 3. Configuração do Encoder WebP com 80% de qualidade
+        // 3. Configuração do Encoder WebP com compressão Lossy (com perda) e 80% de qualidade
         var encoder = new WebpEncoder
         {
+            FileFormat = WebpFileFormatType.Lossy,
             Quality = 80
         };
 
