@@ -78,7 +78,6 @@ services:
       dockerfile: Dockerfile
       args:
         - VITE_API_URL=${VITE_API_URL}
-        - VITE_EXTRACTOR_URL=${VITE_EXTRACTOR_URL}
     container_name: mixer8_app
     restart: unless-stopped
     depends_on:

@@ -4,11 +4,9 @@ WORKDIR /app
 
 # Declara argumentos de build para expor as variáveis do host
 ARG VITE_API_URL
-ARG VITE_EXTRACTOR_URL
 
 # Define as variáveis de ambiente necessárias para a compilação do Vite
 ENV VITE_API_URL=$VITE_API_URL
-ENV VITE_EXTRACTOR_URL=$VITE_EXTRACTOR_URL
 
 # Copia arquivos do package manager e instala dependências
 COPY package*.json ./
