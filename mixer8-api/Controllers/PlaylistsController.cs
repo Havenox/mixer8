@@ -19,7 +19,8 @@ namespace Mixer8.Api.Controllers;
 public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
 {
     [HttpPost]
-    public async Task<IActionResult> CreatePlaylist([FromBody] CreatePlaylistDto request)
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> CreatePlaylist([FromForm] CreatePlaylistRequest request)
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
@@ -39,9 +40,33 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             Visibility = visibility,
             Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
             OwnerId = userId,
-            CoverUrl = string.IsNullOrWhiteSpace(request.CoverUrl) ? null : request.CoverUrl.Trim(),
             CreatedAt = DateTime.UtcNow
         };
+
+        // Salvar arquivo físico de capa se fornecido
+        if (request.CoverFile != null && request.CoverFile.Length > 0)
+        {
+            var playlistDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "playlists", playlist.PlaylistId.ToString());
+            if (!Directory.Exists(playlistDir))
+            {
+                Directory.CreateDirectory(playlistDir);
+            }
+
+            var ext = Path.GetExtension(request.CoverFile.FileName).ToLowerInvariant();
+            var allowedExtensions = new[] { ".png", ".jpg", ".jpeg", ".webp" };
+            if (allowedExtensions.Contains(ext))
+            {
+                var coverFileName = $"cover{ext}";
+                var coverPath = Path.Combine(playlistDir, coverFileName);
+
+                using (var stream = new FileStream(coverPath, FileMode.Create))
+                {
+                    await request.CoverFile.CopyToAsync(stream);
+                }
+
+                playlist.CoverUrl = $"/playlists/{playlist.PlaylistId}/{coverFileName}";
+            }
+        }
 
         dbContext.Playlists.Add(playlist);
         await dbContext.SaveChangesAsync();
@@ -494,12 +519,12 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
     }
 }
 
-public class CreatePlaylistDto
+public class CreatePlaylistRequest
 {
     public string Name { get; set; } = null!;
     public string? Visibility { get; set; }
     public string? Description { get; set; }
-    public string? CoverUrl { get; set; }
+    public IFormFile? CoverFile { get; set; }
 }
 
 public class UpdatePlaylistRequest
