@@ -92,7 +92,8 @@ public class AuthController(Mixer8DbContext dbContext, IConfiguration configurat
         {
             Token = token,
             Email = user.Email,
-            UserRole = roleStr
+            UserRole = roleStr,
+            UserName = userProfile.UserName
         });
     }
 
@@ -107,6 +108,7 @@ public class AuthController(Mixer8DbContext dbContext, IConfiguration configurat
         var normalizedEmail = request.Email.Trim().ToLower();
         var user = await dbContext.Users
             .Include(u => u.UserRole)
+            .Include(u => u.UserProfile)
             .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
 
         if (user == null || !user.IsActive || !SecurityHelper.VerifyPassword(request.Password, user.PasswordHash))
@@ -123,7 +125,8 @@ public class AuthController(Mixer8DbContext dbContext, IConfiguration configurat
         {
             Token = token,
             Email = user.Email,
-            UserRole = roleStr
+            UserRole = roleStr,
+            UserName = user.UserProfile?.UserName ?? user.Email.Split('@')[0]
         });
     }
 
@@ -243,6 +246,16 @@ public class AuthController(Mixer8DbContext dbContext, IConfiguration configurat
         // Atualizar senha se fornecida
         if (!string.IsNullOrWhiteSpace(request.Password))
         {
+            if (string.IsNullOrWhiteSpace(request.CurrentPassword))
+            {
+                return BadRequest(new { ErrorMessage = "CURRENT_PASSWORD_REQUIRED" });
+            }
+
+            if (!SecurityHelper.VerifyPassword(request.CurrentPassword, user.PasswordHash))
+            {
+                return Unauthorized(new { ErrorMessage = "CURRENT_PASSWORD_INVALID" });
+            }
+
             if (request.Password.Length < 6)
             {
                 return BadRequest(new { ErrorMessage = "PASSWORD_TOO_SHORT" });
@@ -293,6 +306,7 @@ public class AuthResponse
     public string Token { get; set; } = null!;
     public string Email { get; set; } = null!;
     public string UserRole { get; set; } = null!;
+    public string UserName { get; set; } = null!;
 }
 
 public class UserResponse
@@ -318,6 +332,7 @@ public class UpdateProfileRequest
 {
     public string Email { get; set; } = null!;
     public string? Password { get; set; }
+    public string? CurrentPassword { get; set; }
     public string UserName { get; set; } = null!;
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
