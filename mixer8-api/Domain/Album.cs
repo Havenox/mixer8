@@ -14,6 +14,7 @@ public class Album
     public DateTime ReleaseDate { get; set; }
     public string? CoverUrl { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public long PlayCount { get; set; } = 0;
 
     public ICollection<Track> Tracks { get; set; } = new List<Track>();
 }
