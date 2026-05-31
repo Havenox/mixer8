@@ -10,7 +10,7 @@ Até então, o upload de imagens de capas de músicas e playlists na plataforma 
 
 ## 🧠 Estratégia da Solução
 Para endereçar esses problemas de ponta a ponta de maneira resiliente e escalável:
-1. **Biblioteca Nativa de Processamento de Imagens**: Introduzimos o pacote performático `SixLabors.ImageSharp` ao ecossistema do backend C# (.NET 10).
+1. **Biblioteca Nativa de Processamento de Imagens Segura**: Introduzimos o pacote performático `SixLabors.ImageSharp` ao ecossistema do backend C# (.NET 10). Adotamos especificamente a versão **3.1.11** para mitigar de forma definitiva vulnerabilidades de segurança conhecidas presentes em versões anteriores (como a vulnerabilidade de GIF Out-of-bounds Write *GHSA-2cmq-823j-5qj8* e a de PNG/GIF loop *GHSA-rxmq-m78w-7wmc*).
 2. **Motor de Processamento Centrado em WebP**: Desenvolvemos uma classe utilitária unificada `ImageHelper` em `Infrastructure` que realiza o corte quadrado (`Crop` 1:1 centralizado) dinâmico em memória, limita a resolução final da imagem a **no máximo 500x500 pixels** (para otimizar armazenamento e velocidade) e comprime para o formato **WebP com 80% de qualidade** antes da gravação física.
 3. **Novo Fluxo de Upload de Perfil**: Implementamos um endpoint dedicado de upload de arquivos de imagem (`POST /api/Auth/Profile/Avatar`) para converter e salvar a foto do usuário fisicamente em `wwwroot/profiles/{userId}/avatar.webp`.
 4. **Resiliência e Flexibilidade da UI**: Redesenhamos a seção de perfil no React SPA para unificar o upload por arquivo de imagem de forma interativa com micro-animações, enquanto preservamos a opção de URLs externas. Ajustamos o carregamento de imagens locais relativizando com `SERVER_URL`.
@@ -19,7 +19,7 @@ Para endereçar esses problemas de ponta a ponta de maneira resiliente e escalá
 ## 🛠️ Implementação Técnica
 
 ### Backend (.NET 10 / C# 13)
-- **Mixer8.Api.csproj**: Registrada a dependência do pacote `SixLabors.ImageSharp` v3.1.5.
+- **Mixer8.Api.csproj**: Registrada a dependência do pacote `SixLabors.ImageSharp` v3.1.11 (versão segura e totalmente mitigada).
 - **ImageHelper.cs**: Utilitário estático encapsulando o fluxo de processamento de imagem em memória: extração de menor dimensão, corte 1:1, redimensionamento para no máximo 500x500 pixels, encoding WebP e criação automática de subpastas no salvamento de arquivos físicos.
 - **TracksController.cs**: Integrado o `ImageHelper` nos endpoints de criação e edição de músicas, convertendo as capas para `cover.webp` e limpando arquivos legados com outras extensões.
 - **PlaylistsController.cs**: Adaptado os endpoints de criação e atualização de playlists para processar as capas para `cover.webp` e remover capas órfãs redundantes do diretório.
@@ -35,6 +35,7 @@ Para endereçar esses problemas de ponta a ponta de maneira resiliente e escalá
 
 ## 🎯 Impacto e Resultado
 * **Desempenho Otimizado**: Imagens WebP com 80% de qualidade e proporção quadrada estrita diminuem drasticamente o consumo de banda de internet dos clientes e aumentam consideravelmente a velocidade de renderização da interface.
+* **Segurança e Conformidade**: Adoção de dependências totalmente seguras (ImageSharp 3.1.11), eliminando brechas de negação de serviço (DoS) e vazamento de memória associadas às vulnerabilidades de processamento de GIF/PNG.
 * **Experiência de Usuário Premium**: Upload físico reativo integrado de avatares com feedback instantâneo de envio e corte perfeito.
 * **Segurança e Organização do Git**: Zero risco de commit de arquivos estáticos pesados ou autorais com a nova blindagem do `.gitignore`.
 
