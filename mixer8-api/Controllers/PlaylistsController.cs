@@ -506,8 +506,9 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
 
         var isOwner = playlist.OwnerId == currentUserId;
         var isAdmin = User.IsInRole("Admin");
+        var isSelf = currentUserId == userId;
 
-        if (!isOwner && !isAdmin)
+        if (!isOwner && !isAdmin && !isSelf)
             return Forbid();
 
         var collaborator = await dbContext.PlaylistCollaborators
