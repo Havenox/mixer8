@@ -62,12 +62,16 @@ interface IPlaylistDetail {
 export const PlaylistDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { Token, CurrentUser, IsAuthenticated } = useAuth();
-  const { loadTrack, currentTrack, isPlaying, togglePlay, downloadTrackForOffline } = usePlayer();
+  const { loadTrack, currentTrack, isPlaying, togglePlay, downloadTrackForOffline, isTrackDownloaded, removeTrackOffline } = usePlayer();
   const { fetchPlaylists, openEditPlaylist, openDeletePlaylist, openAddToPlaylist } = usePlaylists();
   const navigate = useNavigate();
 
   const [playlist, setPlaylist] = useState<IPlaylistDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [playlistDownloadStatus, setPlaylistDownloadStatus] = useState<'none' | 'loading' | 'downloaded'>('none');
+  const [showRemoveDownloadModal, setShowRemoveDownloadModal] = useState(false);
+  const [trackToRemoveDownload, setTrackToRemoveDownload] = useState<IPlaylistTrack | null>(null);
+  const [downloadedTrackIds, setDownloadedTrackIds] = useState<Record<string, boolean>>({});
   const [error, setError] = useState('');
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -173,6 +177,101 @@ export const PlaylistDetail: React.FC = () => {
     window.addEventListener('click', closeMenu);
     return () => window.removeEventListener('click', closeMenu);
   }, []);
+
+  const isPremium = CurrentUser?.UserRole === 'PaidUser' || CurrentUser?.UserRole === 'Admin' || CurrentUser?.UserRole === 'Moderator';
+
+  // Efeito de Checagem Reativa do Cache
+  useEffect(() => {
+    const updateCachedTracks = async () => {
+      if (!playlist || !isPremium) return;
+      const dict: Record<string, boolean> = {};
+      let allDownloaded = playlist.Tracks.length > 0;
+
+      for (const t of playlist.Tracks) {
+        const trackToVerify = {
+          TrackId: t.TrackId,
+          Stems: t.Stems.map(s => ({
+            StemId: s.StemId,
+            TrackId: s.TrackId,
+            StemType: s.StemType,
+            AudioUrl: s.AudioUrl
+          }))
+        } as any;
+        const isDownloaded = await isTrackDownloaded(trackToVerify);
+        dict[t.TrackId] = isDownloaded;
+        if (!isDownloaded) {
+          allDownloaded = false;
+        }
+      }
+      setDownloadedTrackIds(dict);
+      setPlaylistDownloadStatus(allDownloaded ? 'downloaded' : 'none');
+    };
+
+    updateCachedTracks();
+
+    const handleCacheChanged = () => {
+      updateCachedTracks();
+    };
+    window.addEventListener('track-downloaded', handleCacheChanged);
+    return () => {
+      window.removeEventListener('track-downloaded', handleCacheChanged);
+    };
+  }, [playlist, isPremium, isTrackDownloaded]);
+
+  const handlePlaylistDownloadClick = async () => {
+    if (!playlist) return;
+    if (playlistDownloadStatus === 'none') {
+      setPlaylistDownloadStatus('loading');
+      try {
+        for (const t of playlist.Tracks) {
+          const trackToDownload = {
+            TrackId: t.TrackId,
+            TrackTitle: t.TrackTitle,
+            ArtistName: t.ArtistName,
+            CoverUrl: t.CoverUrl,
+            Stems: t.Stems.map(s => ({
+              StemId: s.StemId,
+              TrackId: s.TrackId,
+              StemType: s.StemType,
+              AudioUrl: s.AudioUrl
+            }))
+          } as any;
+          await downloadTrackForOffline(trackToDownload);
+        }
+        setPlaylistDownloadStatus('downloaded');
+      } catch (err) {
+        console.error('[CACHE] Erro ao baixar playlist:', err);
+        setPlaylistDownloadStatus('none');
+      }
+    } else if (playlistDownloadStatus === 'downloaded') {
+      setShowRemoveDownloadModal(true);
+    }
+  };
+
+  const handleRemovePlaylistDownloads = async () => {
+    if (!playlist) return;
+    try {
+      for (const t of playlist.Tracks) {
+        const trackToRemove = {
+          TrackId: t.TrackId,
+          TrackTitle: t.TrackTitle,
+          ArtistName: t.ArtistName,
+          CoverUrl: t.CoverUrl,
+          Stems: t.Stems.map(s => ({
+            StemId: s.StemId,
+            TrackId: s.TrackId,
+            StemType: s.StemType,
+            AudioUrl: s.AudioUrl
+          }))
+        } as any;
+        await removeTrackOffline(trackToRemove);
+      }
+      setPlaylistDownloadStatus('none');
+      setShowRemoveDownloadModal(false);
+    } catch (err) {
+      console.error('[CACHE] Erro ao remover downloads da playlist:', err);
+    }
+  };
 
   const fetchPlaylistDetails = async () => {
     if (!id) return;
@@ -624,27 +723,63 @@ export const PlaylistDetail: React.FC = () => {
           </div>
         </div>
 
-        {/* Ações (Configurações) */}
-        {isOwnerOrAdmin && (
-          <div className="flex gap-2 self-stretch md:self-end justify-end mt-4 md:mt-0 shrink-0">
+        {/* Ações (Configurações & Download) */}
+        <div className="flex gap-2 self-stretch md:self-end justify-end mt-4 md:mt-0 shrink-0">
+          {isPremium && (
             <button
-              onClick={triggerGlobalEdit}
-              className="flex items-center gap-2 py-2 px-3.5 bg-brand-hover hover:bg-brand-hover/80 rounded font-bold text-xs text-white transition-all cursor-pointer shadow border border-brand-hover"
-              title="Configurações da Playlist"
+              onClick={handlePlaylistDownloadClick}
+              disabled={playlistDownloadStatus === 'loading'}
+              className={`flex items-center gap-2 py-2 px-3.5 rounded font-bold text-xs transition-all cursor-pointer shadow border ${
+                playlistDownloadStatus === 'downloaded'
+                  ? 'bg-brand-hover border-brand-green/30 text-brand-green hover:bg-brand-hover/80'
+                  : playlistDownloadStatus === 'loading'
+                  ? 'bg-brand-hover border-brand-hover text-brand-gray/60 cursor-not-allowed'
+                  : 'bg-brand-hover border-brand-hover text-brand-gray hover:text-white hover:bg-brand-hover/80'
+              }`}
+              title={
+                playlistDownloadStatus === 'downloaded'
+                  ? 'Remover download offline'
+                  : playlistDownloadStatus === 'loading'
+                  ? 'Baixando faixas...'
+                  : 'Baixar Playlist Offline'
+              }
             >
-              <Settings className="w-4 h-4 text-brand-green" />
-              <span>Configurações</span>
+              {playlistDownloadStatus === 'loading' ? (
+                <Loader2 className="w-4 h-4 animate-spin text-brand-green" />
+              ) : (
+                <Download className={`w-4 h-4 ${playlistDownloadStatus === 'downloaded' ? 'text-brand-green fill-brand-green' : 'text-brand-gray'}`} />
+              )}
+              <span>
+                {playlistDownloadStatus === 'downloaded'
+                  ? 'Baixado'
+                  : playlistDownloadStatus === 'loading'
+                  ? 'Baixando...'
+                  : 'Baixar Offline'}
+              </span>
             </button>
-            <button
-              onClick={triggerGlobalDelete}
-              className="flex items-center gap-2 py-2 px-3.5 bg-brand-hover hover:bg-brand-hover/80 rounded font-bold text-xs text-red-400 hover:text-red-300 transition-all cursor-pointer shadow border border-brand-hover"
-              title="Excluir Playlist"
-            >
-              <Trash2 className="w-4 h-4 text-red-500" />
-              <span>Excluir</span>
-            </button>
-          </div>
-        )}
+          )}
+
+          {isOwnerOrAdmin && (
+            <>
+              <button
+                onClick={triggerGlobalEdit}
+                className="flex items-center gap-2 py-2 px-3.5 bg-brand-hover hover:bg-brand-hover/80 rounded font-bold text-xs text-white transition-all cursor-pointer shadow border border-brand-hover"
+                title="Configurações da Playlist"
+              >
+                <Settings className="w-4 h-4 text-brand-green" />
+                <span>Configurações</span>
+              </button>
+              <button
+                onClick={triggerGlobalDelete}
+                className="flex items-center gap-2 py-2 px-3.5 bg-brand-hover hover:bg-brand-hover/80 rounded font-bold text-xs text-red-400 hover:text-red-300 transition-all cursor-pointer shadow border border-brand-hover"
+                title="Excluir Playlist"
+              >
+                <Trash2 className="w-4 h-4 text-red-500" />
+                <span>Excluir</span>
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* 2. Playlist Track List */}
@@ -779,9 +914,16 @@ export const PlaylistDetail: React.FC = () => {
                             )}
                           </div>
                           <div className="flex flex-col truncate">
-                            <span className={`font-bold truncate text-sm ${isCurrentTrack ? 'text-brand-green' : 'text-white'}`}>
-                              {t.TrackTitle}
-                            </span>
+                            <div className="flex items-center gap-2 truncate">
+                              <span className={`font-bold truncate text-sm ${isCurrentTrack ? 'text-brand-green' : 'text-white'}`}>
+                                {t.TrackTitle}
+                              </span>
+                              {isPremium && downloadedTrackIds[t.TrackId] && (
+                                <span className="inline-flex items-center justify-center bg-brand-green text-black rounded-full p-[2px] shrink-0" title="Baixado offline">
+                                  <Download className="w-2.5 h-2.5 fill-current" />
+                                </span>
+                              )}
+                            </div>
                             <span className="text-[11px] text-brand-gray truncate">
                               {t.ArtistName}
                             </span>
@@ -834,32 +976,45 @@ export const PlaylistDetail: React.FC = () => {
             <span>Adicionar à playlist</span>
           </button>
 
-          {/* Opção para download offline - Apenas para Premium/PaidUser/Admin/Moderator */}
-          {(CurrentUser?.UserRole === 'PaidUser' || CurrentUser?.UserRole === 'Admin' || CurrentUser?.UserRole === 'Moderator') && (
-            <button
-              onClick={async () => {
-                const trackToDownload = {
-                  TrackId: contextMenu.track.TrackId,
-                  TrackTitle: contextMenu.track.TrackTitle,
-                  ArtistName: contextMenu.track.ArtistName,
-                  CoverUrl: contextMenu.track.CoverUrl,
-                  ExtractionStatus: 'Pronto',
-                  CreatedAt: contextMenu.track.AddedAt,
-                  Stems: contextMenu.track.Stems.map(s => ({
-                    StemId: s.StemId,
-                    TrackId: s.TrackId,
-                    StemType: s.StemType,
-                    AudioUrl: s.AudioUrl
-                  }))
-                };
-                setContextMenu(null);
-                await downloadTrackForOffline(trackToDownload);
-              }}
-              className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-brand-green"
-            >
-              <Download className="w-4 h-4 text-brand-green shrink-0" />
-              <span>Salvar para ouvir offline</span>
-            </button>
+          {/* Opção para download offline / remover download - Apenas para Premium/PaidUser/Admin/Moderator */}
+          {isPremium && (
+            downloadedTrackIds[contextMenu.track.TrackId] ? (
+              <button
+                onClick={() => {
+                  setTrackToRemoveDownload(contextMenu.track);
+                  setContextMenu(null);
+                }}
+                className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-red-400"
+              >
+                <X className="w-4 h-4 text-red-500 shrink-0" />
+                <span>Remover download offline</span>
+              </button>
+            ) : (
+              <button
+                onClick={async () => {
+                  const trackToDownload = {
+                    TrackId: contextMenu.track.TrackId,
+                    TrackTitle: contextMenu.track.TrackTitle,
+                    ArtistName: contextMenu.track.ArtistName,
+                    CoverUrl: contextMenu.track.CoverUrl,
+                    ExtractionStatus: 'Pronto',
+                    CreatedAt: contextMenu.track.AddedAt,
+                    Stems: contextMenu.track.Stems.map(s => ({
+                      StemId: s.StemId,
+                      TrackId: s.TrackId,
+                      StemType: s.StemType,
+                      AudioUrl: s.AudioUrl
+                    }))
+                  };
+                  setContextMenu(null);
+                  await downloadTrackForOffline(trackToDownload);
+                }}
+                className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-brand-green"
+              >
+                <Download className="w-4 h-4 text-brand-green shrink-0" />
+                <span>Salvar para ouvir offline</span>
+              </button>
+            )
           )}
 
           {/* Opção para remover da playlist (dono, colaboradores ou admin) */}
@@ -1031,6 +1186,130 @@ export const PlaylistDetail: React.FC = () => {
                   setTrackToRemove(null);
                 }}
                 className="py-2 px-4 bg-brand-green text-black font-bold rounded text-xs hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
+              >
+                Confirmar Remoção
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMAÇÃO DE REMOÇÃO DE DOWNLOADS DA PLAYLIST */}
+      {showRemoveDownloadModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
+          <div className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200">
+            <button 
+              onClick={() => setShowRemoveDownloadModal(false)}
+              className="absolute top-4 right-4 text-brand-gray hover:text-white cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 text-red-500">
+              <AlertTriangle className="w-6 h-6 shrink-0" />
+              <div className="flex flex-col">
+                <span className="text-[10px] text-red-400 font-bold uppercase tracking-wider">Armazenamento Local</span>
+                <h3 className="text-sm font-bold text-white">Remover Downloads da Playlist</h3>
+              </div>
+            </div>
+
+            <p className="text-xs text-brand-gray leading-relaxed m-0">
+              Tem certeza que deseja remover os downloads offline de todas as faixas desta playlist? Elas <strong className="text-white">continuarão salvas na plataforma</strong>, mas você precisará de internet para carregá-las e tocá-las novamente.
+            </p>
+
+            <div className="flex justify-end gap-3 mt-2 pt-3 border-t border-brand-hover">
+              <button
+                type="button"
+                onClick={() => setShowRemoveDownloadModal(false)}
+                className="py-2 px-3 border border-brand-hover rounded text-xs font-semibold text-brand-gray hover:text-white cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleRemovePlaylistDownloads}
+                className="py-2 px-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded text-xs hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
+              >
+                Confirmar Remoção
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMAÇÃO DE REMOÇÃO DE DOWNLOAD DE MÚSICA INDIVIDUAL */}
+      {trackToRemoveDownload && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
+          <div className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200">
+            <button 
+              onClick={() => setTrackToRemoveDownload(null)}
+              className="absolute top-4 right-4 text-brand-gray hover:text-white cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 text-red-500">
+              <AlertTriangle className="w-6 h-6 shrink-0" />
+              <div className="flex flex-col">
+                <span className="text-[10px] text-red-400 font-bold uppercase tracking-wider">Armazenamento Local</span>
+                <h3 className="text-sm font-bold text-white">Remover Download da Música</h3>
+              </div>
+            </div>
+
+            <div className="bg-black/40 border border-brand-hover p-3 rounded flex items-center gap-3">
+              <div className="w-12 h-12 bg-black rounded overflow-hidden flex items-center justify-center text-brand-green border border-brand-hover shrink-0">
+                {trackToRemoveDownload.CoverUrl ? (
+                  <img 
+                    src={trackToRemoveDownload.CoverUrl.startsWith('http') ? trackToRemoveDownload.CoverUrl : `${SERVER_URL}${trackToRemoveDownload.CoverUrl}`} 
+                    alt="Capa" 
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <Music className="w-5 h-5" />
+                )}
+              </div>
+              <div className="flex flex-col truncate">
+                <span className="font-bold text-white text-sm truncate">{trackToRemoveDownload.TrackTitle}</span>
+                <span className="text-xs text-brand-gray truncate">{trackToRemoveDownload.ArtistName}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-brand-gray leading-relaxed m-0">
+              Tem certeza que deseja remover o download offline desta música? Ela <strong className="text-white">continuará na playlist</strong>, mas você precisará de internet para carregá-la e tocá-la novamente.
+            </p>
+
+            <div className="flex justify-end gap-3 mt-2 pt-3 border-t border-brand-hover">
+              <button
+                type="button"
+                onClick={() => setTrackToRemoveDownload(null)}
+                className="py-2 px-3 border border-brand-hover rounded text-xs font-semibold text-brand-gray hover:text-white cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const trackToClean = {
+                      TrackId: trackToRemoveDownload.TrackId,
+                      TrackTitle: trackToRemoveDownload.TrackTitle,
+                      ArtistName: trackToRemoveDownload.ArtistName,
+                      CoverUrl: trackToRemoveDownload.CoverUrl,
+                      Stems: trackToRemoveDownload.Stems.map(s => ({
+                        StemId: s.StemId,
+                        TrackId: s.TrackId,
+                        StemType: s.StemType,
+                        AudioUrl: s.AudioUrl
+                      }))
+                    } as any;
+                    await removeTrackOffline(trackToClean);
+                  } catch (err) {
+                    console.error('[CACHE] Erro ao remover download de track:', err);
+                  } finally {
+                    setTrackToRemoveDownload(null);
+                  }
+                }}
+                className="py-2 px-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded text-xs hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
               >
                 Confirmar Remoção
               </button>

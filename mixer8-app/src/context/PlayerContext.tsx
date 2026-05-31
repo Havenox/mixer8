@@ -35,6 +35,7 @@ interface IPlayerContext {
   setMasterVolume: (volume: number) => void;
   downloadTrackForOffline: (track: ITrack) => Promise<void>;
   isTrackDownloaded: (track: ITrack) => Promise<boolean>;
+  removeTrackOffline: (track: ITrack) => Promise<void>;
 }
 
 const PlayerContext = createContext<IPlayerContext | undefined>(undefined);
@@ -766,6 +767,27 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const removeTrackOffline = async (track: ITrack) => {
+    try {
+      console.log(`[CACHE] Removendo download offline da faixa: ${track.TrackTitle}`);
+      if (typeof window !== 'undefined' && window.caches) {
+        const cache = await caches.open(CACHE_NAME);
+        for (const stem of track.Stems) {
+          const fullAudioUrl = stem.AudioUrl.startsWith('http')
+            ? stem.AudioUrl
+            : `${SERVER_URL}${stem.AudioUrl}`;
+          await cache.delete(fullAudioUrl);
+          const expiryKey = `mixer8_cache_expiry_${fullAudioUrl}`;
+          localStorage.removeItem(expiryKey);
+        }
+      }
+      console.log(`[CACHE] Downloads removidos para a faixa: ${track.TrackTitle}`);
+      window.dispatchEvent(new CustomEvent('track-downloaded', { detail: { trackId: track.TrackId } }));
+    } catch (err) {
+      console.error('[CACHE] Erro ao remover track do cache:', err);
+    }
+  };
+
   return (
     <PlayerContext.Provider
       value={{
@@ -785,7 +807,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         toggleStemSolo,
         setMasterVolume,
         downloadTrackForOffline,
-        isTrackDownloaded
+        isTrackDownloaded,
+        removeTrackOffline
       }}
     >
       {children}
