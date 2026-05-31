@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Mail, Lock, ArrowRight, AlertTriangle, ShieldCheck } from 'lucide-react';
-import type { UserRole } from '../types/Auth';
+import { Mail, Lock, ArrowRight, AlertTriangle } from 'lucide-react';
 
 export const Register: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<UserRole>('PaidUser'); // Default to PRO to let them test DAW features easily!
   const [error, setError] = useState('');
   const [isPending, setIsPending] = useState(false);
   
@@ -30,7 +28,7 @@ export const Register: React.FC = () => {
     setIsPending(true);
 
     try {
-      const success = await authRegister(email, password, role);
+      const success = await authRegister(email, password);
       if (success) {
         navigate('/');
       } else {
@@ -105,26 +103,7 @@ export const Register: React.FC = () => {
             </div>
           </div>
 
-          {/* Tipo de Assinatura */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-brand-gray" htmlFor="role">
-              Tipo de Assinatura (Simulado)
-            </label>
-            <div className="relative">
-              <select 
-                id="role"
-                value={role}
-                disabled={isPending}
-                onChange={(e) => setRole(e.target.value as UserRole)}
-                className="w-full bg-brand-black border border-brand-hover rounded py-2 px-3 pl-10 text-sm text-white focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green transition-all appearance-none cursor-pointer"
-              >
-                <option value="PaidUser">PaidUser (Acesso ao Mixer PRO e Upload)</option>
-                <option value="User">User (Acesso apenas à Escuta Standard)</option>
-                <option value="Admin">Admin (Controle total do Sistema)</option>
-              </select>
-              <ShieldCheck className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gray" />
-            </div>
-          </div>
+
 
           {/* Botão de Envio */}
           <button 

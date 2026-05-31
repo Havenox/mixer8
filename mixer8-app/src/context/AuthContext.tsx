@@ -3,7 +3,7 @@ import type { IAuthState, IUser, UserRole } from '../types/Auth';
 
 interface IAuthContext extends IAuthState {
   Login: (email: string, password: string) => Promise<boolean>;
-  Register: (email: string, password: string, role: UserRole) => Promise<boolean>;
+  Register: (email: string, password: string) => Promise<boolean>;
   Logout: () => void;
 }
 
@@ -106,14 +106,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const Register = async (email: string, password: string, role: UserRole): Promise<boolean> => {
+  const Register = async (email: string, password: string): Promise<boolean> => {
     try {
       const res = await fetch(`${API_URL}/Auth/Register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ Email: email, Password: password, UserRole: role })
+        body: JSON.stringify({ Email: email, Password: password })
       });
 
       if (!res.ok) return false;
