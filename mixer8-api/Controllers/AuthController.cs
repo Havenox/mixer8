@@ -366,6 +366,7 @@ public class AuthController(Mixer8DbContext dbContext, IConfiguration configurat
 
         var userPlaylists = await dbContext.Playlists
             .Include(p => p.PlaylistTracks)
+                .ThenInclude(pt => pt.Track)
             .Where(p => p.OwnerId == profile.UserId && p.Visibility == "Public")
             .OrderByDescending(p => p.CreatedAt)
             .ToListAsync();
@@ -374,7 +375,7 @@ public class AuthController(Mixer8DbContext dbContext, IConfiguration configurat
         {
             var firstTrackCover = p.PlaylistTracks
                 .OrderBy(pt => pt.AddedAt)
-                .Select(pt => pt.Track.CoverUrl)
+                .Select(pt => pt.Track != null ? pt.Track.CoverUrl : null)
                 .FirstOrDefault();
 
             return new PlaylistResponseDto
