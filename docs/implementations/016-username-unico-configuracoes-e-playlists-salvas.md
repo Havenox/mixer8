@@ -27,17 +27,22 @@ Até então, o Mixer8 não possuía nenhum mecanismo para gerenciamento de perfi
 * **Controladores e DTOs**:
   * `AuthController`: Criação do endpoint `GET /api/Auth/CheckUsername` para validação em tempo real e `PUT /api/Auth/Profile` para atualizar dados de perfil e segurança. Mapeamento de `UserResponse` com novos campos de perfil no endpoint `Me`.
   * `TracksController`: Ajuste no método `GetAll` aceitando query parameters para aplicar `Skip` e `Take`.
-  * `PlaylistsController`: Inclusão dos endpoints de salvamento (`POST/DELETE /api/Playlists/{id}/Save`) e de playlists públicas populares (`GET /api/Playlists/Popular`).
+  * `PlaylistsController`: Inclusão dos endpoints de salvamento (`POST/DELETE /api/Playlists/{id}/Save`) e de playlists públicas populares (`GET /api/Playlists/Popular`). Mapeamento detalhado de criadores (`OwnerUserName`, `OwnerFirstName`, `OwnerLastName`, `OwnerAvatarUrl`) acoplado no `PlaylistResponseDto` e remoção da distinção visual de Admin, unificando a listagem.
 
 ### Frontend (React SPA & TypeScript)
 * **Contratos do TypeScript**:
   * Sincronização em PascalCase na interface `IUser` (ex: `UserName`, `FirstName`, `LastName`, `AvatarUrl`) para compatibilidade nativa com o backend.
+  * Extensão da interface `IPlaylist` no `PlaylistContext.tsx` para comportar dados de perfil do criador mapeados no frontend.
 * **Telas e Componentes**:
   * `Register.tsx`: Acréscimo do campo de Nome de Usuário com máscara de link dinâmico, verificação com debounce de 500ms contra a API e bloqueio de cliques.
   * `Settings.tsx`: Desenvolvimento do painel de controle de conta com preview circular de avatar em tempo real e validações de senha.
-  * `PersistentLayout.tsx`: Substituição do botão simples de Sair por um menu de contexto absolute direcionando o usuário para `/settings`.
+  * `PersistentLayout.tsx`: Substituição do botão simples de Sair por um menu de contexto absolute direcionando o usuário para `/settings` e remoção total do indicador piscante do extrator.
   * `Dashboard.tsx`: Acréscimo do estado de paginação e listener do evento de rolagem do contêiner da página para aplicação de scroll infinito.
-  * `App.tsx` & `Playlists.tsx`: Exibição de playlists populares na aba Explorar com atalho rápido de bookmark e badge visual indicando playlists salvas na listagem.
+  * `App.tsx` & `Playlists.tsx`: Exibição de playlists populares no Explorar mostrando foto de perfil circular do criador (com fallback), nome completo/nickname (com fallback), duração simulada via helper com ícone de `Clock`, badge de playlists salvas e modal de confirmação premium de saída de colaborações.
+
+### Infraestrutura
+* **Persistência física no Docker Compose**:
+  * Atualização de `docker-compose.yml` mapeando o volume `./mixer8-api/wwwroot/playlists:/app/wwwroot/playlists` para garantir que as capas de playlists criadas em tempo de execução pelos usuários permaneçam salvas em disco no host local.
 
 ## 🎯 Impacto e Resultado
 * **Identidade Digital Única**: Cada usuário do Mixer8 agora tem um `UserName` único garantido no banco de dados, pavimentando a futura feature de perfis públicos no formato `mixer8.com.br/@UserName`.
