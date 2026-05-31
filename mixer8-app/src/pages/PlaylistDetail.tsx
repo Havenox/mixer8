@@ -6,7 +6,8 @@ import { usePlaylists } from '../context/PlaylistContext';
 import type { IPlaylist } from '../context/PlaylistContext';
 import { 
   Play, Pause, Disc, Music, Users,
-  Loader2, ArrowLeft, Settings, Trash2
+  Loader2, ArrowLeft, Settings, Trash2,
+  Clock, X, AlertTriangle, Plus, Minus
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -55,12 +56,114 @@ export const PlaylistDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { Token, CurrentUser } = useAuth();
   const { loadTrack, currentTrack, isPlaying, togglePlay } = usePlayer();
-  const { fetchPlaylists, openEditPlaylist, openDeletePlaylist } = usePlaylists();
+  const { fetchPlaylists, openEditPlaylist, openDeletePlaylist, openAddToPlaylist } = usePlaylists();
   const navigate = useNavigate();
 
   const [playlist, setPlaylist] = useState<IPlaylistDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // Estados e lógicas para Colunas Redimensionáveis (Spotify-like)
+  const [colWidths, setColWidths] = useState({
+    index: 48,
+    titleArtist: 380,
+    addedBy: 160,
+    addedAt: 160,
+    duration: 64
+  });
+
+  const [resizing, setResizing] = useState<{
+    col: 'index' | 'titleArtist' | 'addedBy' | 'addedAt' | 'duration';
+    startX: number;
+    startWidth: number;
+  } | null>(null);
+
+  const minWidths = {
+    index: 40,
+    titleArtist: 150,
+    addedBy: 100,
+    addedAt: 100,
+    duration: 50
+  };
+
+  const startResize = (
+    col: 'index' | 'titleArtist' | 'addedBy' | 'addedAt' | 'duration',
+    e: React.MouseEvent
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setResizing({
+      col,
+      startX: e.clientX,
+      startWidth: colWidths[col]
+    });
+  };
+
+  useEffect(() => {
+    if (!resizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaX = e.clientX - resizing.startX;
+      const newWidth = Math.max(minWidths[resizing.col], resizing.startWidth + deltaX);
+      setColWidths(prev => ({
+        ...prev,
+        [resizing.col]: newWidth
+      }));
+    };
+
+    const handleMouseUp = () => {
+      setResizing(null);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [resizing]);
+
+  // Efeito para manter o cursor de redimensionamento e desativar seleção global durante o arraste
+  useEffect(() => {
+    if (resizing) {
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    } else {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+    return () => {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [resizing]);
+
+  // Estados do Menu de Contexto e Exclusão Física de Música (Admin)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; track: IPlaylistTrack } | null>(null);
+  const [trackToDelete, setTrackToDelete] = useState<IPlaylistTrack | null>(null);
+  const [trackToRemove, setTrackToRemove] = useState<IPlaylistTrack | null>(null);
+  const [deleteCountdown, setDeleteCountdown] = useState(0);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  // Timer regressivo para exclusão da música da plataforma (Admin)
+  useEffect(() => {
+    let timer: any;
+    if (trackToDelete && deleteCountdown > 0) {
+      timer = setTimeout(() => {
+        setDeleteCountdown(prev => prev - 1);
+      }, 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [trackToDelete, deleteCountdown]);
+
+  // Listener para fechar o menu de contexto
+  useEffect(() => {
+    const closeMenu = () => setContextMenu(null);
+    window.addEventListener('click', closeMenu);
+    return () => window.removeEventListener('click', closeMenu);
+  }, []);
 
   const fetchPlaylistDetails = async () => {
     if (!Token || !id) return;
@@ -133,7 +236,6 @@ export const PlaylistDetail: React.FC = () => {
 
   const handleRemoveTrack = async (trackId: string) => {
     if (!Token || !playlist) return;
-    if (!window.confirm('Tem certeza que deseja remover esta música da playlist?')) return;
 
     try {
       const res = await fetch(`${API_URL}/Playlists/${playlist.PlaylistId}/Tracks/${trackId}`, {
@@ -158,6 +260,47 @@ export const PlaylistDetail: React.FC = () => {
     } catch {
       alert('Erro de conexão ao remover música.');
     }
+  };
+
+  // Exclusão física definitiva de música da plataforma (Admin)
+  const handleConfirmDeleteTrack = async () => {
+    if (!trackToDelete || deleteCountdown > 0 || isDeleting || !Token) return;
+
+    setIsDeleting(true);
+    setDeleteError('');
+    try {
+      const res = await fetch(`${API_URL}/Tracks/${trackToDelete.TrackId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${Token}`
+        }
+      });
+
+      if (res.ok) {
+        if (currentTrack && currentTrack.TrackId === trackToDelete.TrackId) {
+          loadTrack(null);
+        }
+        setTrackToDelete(null);
+        fetchPlaylistDetails(); // Recarrega reativamente a lista
+      } else {
+        setDeleteError('Não foi possível excluir a música da plataforma. Verifique as credenciais de admin.');
+      }
+    } catch {
+      setDeleteError('Erro de conexão ao tentar excluir música da plataforma.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const getMockDuration = (trackId: string) => {
+    let sum = 0;
+    for (let i = 0; i < trackId.length; i++) {
+      sum += trackId.charCodeAt(i);
+    }
+    const totalSeconds = 180 + (sum % 120); // Entre 3:00 e 5:00
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
   const formatDistanceToNow = (dateStr: string) => {
@@ -197,6 +340,8 @@ export const PlaylistDetail: React.FC = () => {
   }
 
   const isPlaylistOwner = playlist.OwnerId === CurrentUser?.UserId;
+  const isCollaborator = playlist.Collaborators.some(c => c.UserId === CurrentUser?.UserId);
+  const canModifyPlaylist = isPlaylistOwner || isCollaborator || CurrentUser?.UserRole === 'Admin';
   const isOwnerOrAdmin = isPlaylistOwner || CurrentUser?.UserRole === 'Admin';
 
   const triggerGlobalEdit = () => {
@@ -210,7 +355,7 @@ export const PlaylistDetail: React.FC = () => {
       CoverUrl: playlist.CoverUrl,
       CreatedAt: playlist.CreatedAt,
       IsOwner: isPlaylistOwner,
-      IsCollaborator: !isPlaylistOwner && playlist.Collaborators.some(c => c.UserId === CurrentUser?.UserId),
+      IsCollaborator: isCollaborator,
       TracksCount: playlist.Tracks.length
     };
     openEditPlaylist(iPlaylist);
@@ -227,10 +372,19 @@ export const PlaylistDetail: React.FC = () => {
       CoverUrl: playlist.CoverUrl,
       CreatedAt: playlist.CreatedAt,
       IsOwner: isPlaylistOwner,
-      IsCollaborator: !isPlaylistOwner && playlist.Collaborators.some(c => c.UserId === CurrentUser?.UserId),
+      IsCollaborator: isCollaborator,
       TracksCount: playlist.Tracks.length
     };
     openDeletePlaylist(iPlaylist);
+  };
+
+  const handleTrackContextMenu = (e: React.MouseEvent, track: IPlaylistTrack) => {
+    e.preventDefault();
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      track
+    });
   };
 
   return (
@@ -314,109 +468,359 @@ export const PlaylistDetail: React.FC = () => {
       </div>
 
       {/* 2. Playlist Track List */}
-      <div className="flex flex-col gap-3">
+      <div className="bg-black/15 p-6 rounded-lg flex flex-col gap-6 mt-4">
         {playlist.Tracks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 px-4 text-brand-gray border border-brand-hover border-dashed rounded-lg gap-3">
-            <Music className="w-12 h-12 text-brand-gray/30" />
-            <div className="text-center flex flex-col gap-1">
-              <span className="text-white font-bold text-sm">Esta playlist está vazia</span>
-              <span className="text-xs max-w-sm leading-relaxed">
-                Navegue pelo painel Explorar ou Minha Biblioteca, clique com o botão direito nas músicas e selecione "Adicionar à Playlist" para rechear sua lista!
-              </span>
-            </div>
+          <div className="text-center py-10 flex flex-col gap-3 items-center">
+            <Disc className="w-12 h-12 text-brand-gray/30 animate-pulse" />
+            <span className="text-sm font-semibold text-brand-gray">Nenhuma música adicionada ainda.</span>
+            <p className="text-xs text-brand-gray/60 max-w-sm leading-relaxed">
+              Navegue pelo painel Explorar ou Minha Biblioteca, clique com o botão direito nas músicas e selecione "Adicionar à Playlist" para rechear sua lista!
+            </p>
           </div>
         ) : (
-          <div className="flex flex-col gap-1.5">
-            {/* Header das colunas */}
-            <div className="grid grid-cols-12 px-4 py-2 text-[10px] text-brand-gray font-bold uppercase tracking-wider border-b border-brand-hover">
-              <span className="col-span-1 text-center">#</span>
-              <span className="col-span-4">Título</span>
-              <span className="col-span-3">Artista</span>
-              <span className="col-span-3">Adicionado Por</span>
-              <span className="col-span-1 text-right">Ação</span>
-            </div>
-
-            {/* Listagem real */}
-            <div className="flex flex-col gap-1">
-              {playlist.Tracks.map((t) => {
-                const isActive = currentTrack?.TrackId === t.TrackId;
-                
-                return (
-                  <div 
-                    key={t.TrackId}
-                    className={`grid grid-cols-12 px-4 py-2.5 items-center rounded border transition-all text-xs font-semibold select-none ${
-                      isActive 
-                        ? 'bg-brand-green/10 border-brand-green/30 text-brand-green'
-                        : 'bg-brand-card/40 border-brand-hover hover:bg-brand-hover text-white'
-                    }`}
+          <div className="overflow-x-auto w-full select-none">
+            <table className="w-full text-left text-xs border-collapse table-fixed" style={{ minWidth: '600px' }}>
+              <thead>
+                <tr className="border-b border-brand-hover text-brand-gray font-bold uppercase tracking-wider text-[10px] pb-3 group">
+                  <th 
+                    style={{ width: colWidths.index }} 
+                    className="py-2.5 px-3 text-center relative select-none"
                   >
-                    {/* Index / Play / Pause */}
-                    <div className="col-span-1 flex items-center justify-center">
-                      <button
-                        onClick={() => {
-                          if (isActive) {
-                            togglePlay();
-                          } else {
-                            handlePlayTrack(t);
-                          }
-                        }}
-                        className="w-7 h-7 rounded-full bg-brand-hover hover:bg-brand-green hover:text-black flex items-center justify-center transition-all cursor-pointer text-brand-green"
-                      >
-                        {isActive && isPlaying ? (
-                          <Pause className="w-3.5 h-3.5 fill-current" />
-                        ) : (
-                          <Play className="w-3.5 h-3.5 fill-current translate-x-[0.5px]" />
-                        )}
-                      </button>
+                    <span className="truncate block">#</span>
+                    <div 
+                      onMouseDown={(e) => startResize('index', e)}
+                      className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-full cursor-col-resize flex items-center justify-center z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <div className="w-[1px] h-3 bg-brand-gray/40" />
                     </div>
-
-                    {/* Capa + Título */}
-                    <div className="col-span-4 flex items-center gap-3 truncate">
-                      <div className="w-10 h-10 bg-black rounded overflow-hidden flex items-center justify-center text-brand-green border border-brand-hover shrink-0">
-                        {t.CoverUrl ? (
-                          <img 
-                            src={t.CoverUrl.startsWith('http') ? t.CoverUrl : `${SERVER_URL}${t.CoverUrl}`} 
-                            alt="Capa" 
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <Disc className="w-5 h-5 text-brand-green/20" />
-                        )}
-                      </div>
-                      <span className="truncate font-bold">{t.TrackTitle}</span>
+                  </th>
+                  <th 
+                    style={{ width: colWidths.titleArtist }} 
+                    className="py-2.5 px-3 relative select-none"
+                  >
+                    <span className="truncate block">Título / Artista</span>
+                    <div 
+                      onMouseDown={(e) => startResize('titleArtist', e)}
+                      className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-full cursor-col-resize flex items-center justify-center z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <div className="w-[1px] h-3 bg-brand-gray/40" />
                     </div>
-
-                    {/* Artista */}
-                    <span className="col-span-3 truncate text-brand-gray">{t.ArtistName}</span>
-
-                    {/* Adicionado Por */}
-                    <div className="col-span-3 flex flex-col truncate">
-                      <span className="truncate text-white font-bold">{t.AddedByEmail}</span>
-                      <span className="text-[10px] text-brand-gray truncate">{formatDistanceToNow(t.AddedAt)}</span>
+                  </th>
+                  <th 
+                    style={{ width: colWidths.addedBy }} 
+                    className="py-2.5 px-3 relative select-none"
+                  >
+                    <span className="truncate block">Adicionado por</span>
+                    <div 
+                      onMouseDown={(e) => startResize('addedBy', e)}
+                      className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-full cursor-col-resize flex items-center justify-center z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <div className="w-[1px] h-3 bg-brand-gray/40" />
                     </div>
+                  </th>
+                  <th 
+                    style={{ width: colWidths.addedAt }} 
+                    className="py-2.5 px-3 relative select-none"
+                  >
+                    <span className="truncate block">Adicionado em</span>
+                    <div 
+                      onMouseDown={(e) => startResize('addedAt', e)}
+                      className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-full cursor-col-resize flex items-center justify-center z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <div className="w-[1px] h-3 bg-brand-gray/40" />
+                    </div>
+                  </th>
+                  <th 
+                    style={{ width: colWidths.duration }} 
+                    className="py-2.5 px-3 text-right relative select-none"
+                  >
+                    <div className="flex items-center justify-end gap-1">
+                      <Clock className="w-4 h-4 text-brand-gray shrink-0" />
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {playlist.Tracks.map((t, index) => {
+                  const isCurrentTrack = currentTrack && currentTrack.TrackId === t.TrackId;
 
-                    {/* Ação de remover (se for dono ou adicionou) */}
-                    <div className="col-span-1 flex justify-end">
-                      {(isPlaylistOwner || t.AddedById === CurrentUser?.UserId || CurrentUser?.UserRole === 'Admin') ? (
+                  return (
+                    <tr 
+                      key={t.TrackId} 
+                      onContextMenu={(e) => handleTrackContextMenu(e, t)}
+                      className={`border-b border-brand-hover/40 hover:bg-brand-hover/30 transition-colors group ${
+                        isCurrentTrack ? 'bg-brand-hover/10' : ''
+                      }`}
+                    >
+                      {/* Play Action / Index */}
+                      <td className="py-3 px-3 text-center text-brand-gray font-semibold relative select-none">
+                        <span className="group-hover:opacity-0 transition-opacity">
+                          {index + 1}
+                        </span>
                         <button
-                          onClick={() => handleRemoveTrack(t.TrackId)}
-                          className="p-1.5 rounded text-brand-gray hover:text-red-400 hover:bg-red-950/20 cursor-pointer transition-colors"
-                          title="Remover música da Playlist"
+                          onClick={() => {
+                            if (isCurrentTrack) {
+                              togglePlay();
+                            } else {
+                              handlePlayTrack(t);
+                            }
+                          }}
+                          className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 text-brand-green hover:scale-110 transition-all cursor-pointer bg-brand-card/90 rounded-l"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          {isCurrentTrack && isPlaying ? (
+                            <Pause className="w-4 h-4 fill-current" />
+                          ) : (
+                            <Play className="w-4 h-4 fill-current translate-x-[0.5px]" />
+                          )}
                         </button>
-                      ) : (
-                        <span className="text-[9px] text-brand-gray/40 select-none">Bloqueado</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                      </td>
+
+                      {/* Título & Capa */}
+                      <td className="py-3 px-3 min-w-0">
+                        <div className="flex items-center gap-3 truncate">
+                          <div className="w-9 h-9 bg-black rounded overflow-hidden flex items-center justify-center text-brand-green shrink-0 border border-brand-hover">
+                            {t.CoverUrl ? (
+                              <img 
+                                src={t.CoverUrl.startsWith('http') ? t.CoverUrl : `${SERVER_URL}${t.CoverUrl}`} 
+                                alt="Capa" 
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <Music className="w-4 h-4" />
+                            )}
+                          </div>
+                          <div className="flex flex-col truncate">
+                            <span className={`font-bold truncate text-sm ${isCurrentTrack ? 'text-brand-green' : 'text-white'}`}>
+                              {t.TrackTitle}
+                            </span>
+                            <span className="text-[11px] text-brand-gray truncate">
+                              {t.ArtistName}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Quem adicionou */}
+                      <td className="py-3 px-3 text-brand-gray truncate">
+                        {playlist.Collaborators.length > 0 || !isPlaylistOwner ? (
+                          <span className="capitalize">{t.AddedByEmail.split('@')[0]}</span>
+                        ) : (
+                          <span className="italic">Dono</span>
+                        )}
+                      </td>
+
+                      {/* Data de adição */}
+                      <td className="py-3 px-3 text-brand-gray truncate">
+                        {formatDistanceToNow(t.AddedAt)}
+                      </td>
+
+                      {/* Duração mockada determinística */}
+                      <td className="py-3 px-3 text-right text-brand-gray font-medium truncate">
+                        {getMockDuration(t.TrackId)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
 
+      {/* MENU DE CONTEXTO PARA INTERAÇÃO COM A MÚSICA */}
+      {contextMenu && (
+        <div 
+          className="fixed bg-brand-card border border-brand-hover p-1 rounded shadow-2xl z-[90] flex flex-col min-w-[170px] animate-in fade-in duration-100"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={e => e.stopPropagation()}
+        >
+          <button
+            onClick={() => {
+              openAddToPlaylist(contextMenu.track.TrackId, contextMenu.track.TrackTitle, contextMenu.track.ArtistName);
+              setContextMenu(null);
+            }}
+            className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-brand-green"
+          >
+            <Plus className="w-4 h-4 text-brand-green shrink-0" />
+            <span>Adicionar à playlist</span>
+          </button>
+
+          {/* Opção para remover da playlist (dono, colaboradores ou admin) */}
+          {canModifyPlaylist && (
+            <button
+              onClick={() => {
+                setTrackToRemove(contextMenu.track);
+                setContextMenu(null);
+              }}
+              className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2"
+            >
+              <Minus className="w-4 h-4 text-brand-gray shrink-0" />
+              <span>Remover desta playlist</span>
+            </button>
+          )}
+
+          {/* Seção do Administrador para exclusão total da plataforma */}
+          {CurrentUser?.UserRole === 'Admin' && (
+            <>
+              <div className="h-[1px] bg-brand-hover my-1" />
+              <button
+                onClick={() => {
+                  setTrackToDelete(contextMenu.track);
+                  setDeleteCountdown(3);
+                  setDeleteError('');
+                  setContextMenu(null);
+                }}
+                className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-red-950/20 text-white hover:text-red-400 transition-all cursor-pointer flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4 text-red-500 shrink-0" />
+                <span>Excluir Música</span>
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* MODAL DE EXCLUSÃO DE MÚSICA DA PLATAFORMA (Timer de 3s - Admin) */}
+      {trackToDelete && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
+          <div className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200">
+            <button 
+              onClick={() => setTrackToDelete(null)}
+              className="absolute top-4 right-4 text-brand-gray hover:text-white cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 text-red-500">
+              <AlertTriangle className="w-6 h-6 shrink-0" />
+              <div className="flex flex-col">
+                <span className="text-[10px] text-red-400 font-bold uppercase tracking-wider">Ação Destrutiva - Admin</span>
+                <h3 className="text-sm font-bold text-white">Excluir Música Permanentemente</h3>
+              </div>
+            </div>
+
+            <div className="bg-black/40 border border-brand-hover p-3 rounded flex items-center gap-3">
+              <div className="w-12 h-12 bg-black rounded overflow-hidden flex items-center justify-center text-brand-green border border-brand-hover shrink-0">
+                {trackToDelete.CoverUrl ? (
+                  <img 
+                    src={trackToDelete.CoverUrl.startsWith('http') ? trackToDelete.CoverUrl : `${SERVER_URL}${trackToDelete.CoverUrl}`} 
+                    alt="Capa" 
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <Music className="w-5 h-5" />
+                )}
+              </div>
+              <div className="flex flex-col truncate">
+                <span className="font-bold text-white text-sm truncate">{trackToDelete.TrackTitle}</span>
+                <span className="text-xs text-brand-gray truncate">{trackToDelete.ArtistName}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-brand-gray leading-relaxed m-0">
+              Esta ação é <strong className="text-red-400">irreversível</strong>. A música será removida permanentemente de todo o sistema Mixer8, seus arquivos físicos de áudio/stems e imagem de capa serão deletados do servidor, e ela será desassociada de todas as playlists.
+            </p>
+
+            {deleteError && (
+              <div className="bg-red-500/10 border border-red-500/30 p-2.5 rounded text-xs text-red-400">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 mt-2 pt-3 border-t border-brand-hover">
+              <button
+                type="button"
+                onClick={() => setTrackToDelete(null)}
+                disabled={isDeleting}
+                className="py-2 px-3 border border-brand-hover rounded text-xs font-semibold text-brand-gray hover:text-white cursor-pointer disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteTrack}
+                disabled={deleteCountdown > 0 || isDeleting}
+                className="py-2 px-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded text-xs hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:hover:scale-100 disabled:active:scale-100"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Excluindo...</span>
+                  </>
+                ) : deleteCountdown > 0 ? (
+                  <span>Excluir ({deleteCountdown}s)</span>
+                ) : (
+                  <span>Confirmar Exclusão</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMAÇÃO DE REMOÇÃO DE MÚSICA DA PLAYLIST (CUSTOM REACT MODAL) */}
+      {trackToRemove && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
+          <div className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200">
+            <button 
+              onClick={() => setTrackToRemove(null)}
+              className="absolute top-4 right-4 text-brand-gray hover:text-white cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 text-brand-green">
+              <Music className="w-6 h-6 shrink-0" />
+              <div className="flex flex-col">
+                <span className="text-[10px] text-brand-green font-bold uppercase tracking-wider">Ajuste de Playlist</span>
+                <h3 className="text-sm font-bold text-white">Remover Música da Playlist</h3>
+              </div>
+            </div>
+
+            <div className="bg-black/40 border border-brand-hover p-3 rounded flex items-center gap-3">
+              <div className="w-12 h-12 bg-black rounded overflow-hidden flex items-center justify-center text-brand-green border border-brand-hover shrink-0">
+                {trackToRemove.CoverUrl ? (
+                  <img 
+                    src={trackToRemove.CoverUrl.startsWith('http') ? trackToRemove.CoverUrl : `${SERVER_URL}${trackToRemove.CoverUrl}`} 
+                    alt="Capa" 
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <Music className="w-5 h-5" />
+                )}
+              </div>
+              <div className="flex flex-col truncate">
+                <span className="font-bold text-white text-sm truncate">{trackToRemove.TrackTitle}</span>
+                <span className="text-xs text-brand-gray truncate">{trackToRemove.ArtistName}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-brand-gray leading-relaxed m-0">
+              Tem certeza que deseja remover esta música da playlist? Ela <strong className="text-white">continuará disponível</strong> em sua biblioteca e na plataforma, mas não fará mais parte desta lista.
+            </p>
+
+            <div className="flex justify-end gap-3 mt-2 pt-3 border-t border-brand-hover">
+              <button
+                type="button"
+                onClick={() => setTrackToRemove(null)}
+                className="py-2 px-3 border border-brand-hover rounded text-xs font-semibold text-brand-gray hover:text-white cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleRemoveTrack(trackToRemove.TrackId);
+                  setTrackToRemove(null);
+                }}
+                className="py-2 px-4 bg-brand-green text-black font-bold rounded text-xs hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
+              >
+                Confirmar Remoção
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
