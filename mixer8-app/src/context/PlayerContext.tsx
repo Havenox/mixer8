@@ -96,9 +96,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     type: string;
   }[]>([]);
 
-  // Referências locais para a barreira de sincronização
+  // Referências locais para a barreira de sincronização e streaming progressivo silencioso
   const syncBarrierPromiseRef = useRef<Promise<void> | null>(null);
   const syncBarrierResolveRef = useRef<(() => void) | null>(null);
+  const isSyncingRef = useRef(false);
 
   // Atualiza os ganhos de todas as stems ativas com base em volume, mute e solo
   const updateAudioGains = (
@@ -107,20 +108,24 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     solos: Record<string, boolean>
   ) => {
     const hasAnySolo = Object.values(solos).some(v => v);
+    const isSyncing = isSyncingRef.current;
 
     activeStemsRef.current.forEach(item => {
       const type = item.type;
-      const vol = volumes[type] ?? (type === 'Metrônomo' ? 0.0 : 1.0);
-      const isMuted = mutes[type] ?? false;
-      const isSoloed = solos[type] ?? false;
-
+      
       let targetGain = 0;
-      if (hasAnySolo) {
-        // Se houver qualquer SOLO ativo, apenas as marcadas com SOLO tocam (mesmo se estiverem em Mute)
-        targetGain = isSoloed ? vol : 0;
-      } else {
-        // Sem SOLO ativo, tocamos baseado no volume individual do fader e Mute
-        targetGain = isMuted ? 0 : vol;
+      if (!isSyncing) {
+        const vol = volumes[type] ?? (type === 'Metrônomo' ? 0.0 : 1.0);
+        const isMuted = mutes[type] ?? false;
+        const isSoloed = solos[type] ?? false;
+
+        if (hasAnySolo) {
+          // Se houver qualquer SOLO ativo, apenas as marcadas com SOLO tocam (mesmo se estiverem em Mute)
+          targetGain = isSoloed ? vol : 0;
+        } else {
+          // Sem SOLO ativo, tocamos baseado no volume individual do fader e Mute
+          targetGain = isMuted ? 0 : vol;
+        }
       }
 
       item.gainNode.gain.setValueAtTime(targetGain, audioContextRef.current?.currentTime || 0);
@@ -206,6 +211,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const ctx = initAudioContext();
     
+    // Ativa a fase de sincronização inicial silenciosa
+    isSyncingRef.current = true;
+
     // Inicializa os volumes padrões para cada tipo de stem disponível na música
     const initialVolumes: Record<string, number> = {};
     const loadedStems: typeof activeStemsRef.current = [];
@@ -231,7 +239,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // Timeout de segurança para não congelar o player em falhas de rede (3.5 segundos)
     const safetyTimeout = setTimeout(() => {
-      console.warn('[SYNC] Safety timeout de 3.5s atingido. Liberando reprodução com as stems prontas.');
+      console.warn('[SYNC] Safety timeout de 3.5s atingido. Liberando áudio.');
       resolveBarrier();
     }, 3500);
 
@@ -253,10 +261,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         ? stem.AudioUrl
         : `${SERVER_URL}${stem.AudioUrl}`;
 
-      // Cria elemento HTML5 Audio com pré-carregamento agressivo ('auto')
+      // Cria elemento HTML5 Audio com pré-carregamento apenas dos metadados (streaming progressivo)
       const audio = new Audio(fullAudioUrl);
       audio.crossOrigin = 'anonymous';
-      audio.preload = 'auto';
+      audio.preload = 'metadata';
 
       const onCanPlay = () => {
         audio.removeEventListener('canplay', onCanPlay);
@@ -291,8 +299,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         gainNode.connect(ctx.destination);
       }
 
-      // Define volume inicial com base nas regras de default
-      gainNode.gain.value = stemType === 'Metrônomo' ? 0.0 : 1.0;
+      // Inicialmente ganho = 0 por conta da fase de sincronização silenciosa
+      gainNode.gain.value = 0;
 
       loadedStems.push({
         audio,
@@ -310,6 +318,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setStemsSolo({});
     setStemsVolume(initialVolumes);
     activeStemsRef.current = loadedStems;
+    
+    // Atualiza os ganhos para zero de forma explícita
     updateAudioGains(initialVolumes, {}, {});
 
     // Sincroniza progresso e duração a partir do master audio
@@ -330,13 +340,25 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
     }
 
-    // Auto-play instantâneo
+    // Liga a reprodução nos elementos de áudio para disparar o buffering progressivo do navegador
     setIsPlayingSynced(true);
     if (ctx.state === 'suspended') {
       await ctx.resume();
     }
 
-    // Aguarda barreira de sincronização
+    // Executa play silencioso imediato em todos os canais para iniciar o streaming progressivo
+    await Promise.all(
+      activeStemsRef.current.map(async item => {
+        item.audio.currentTime = 0;
+        try {
+          await item.audio.play();
+        } catch (err) {
+          console.warn(`[PLAY] Auto-play block ou erro ao pré-iniciar stem ${item.type}:`, err);
+        }
+      })
+    );
+
+    // Aguarda barreira de sincronização (stems com dados suficientes para tocar)
     try {
       if (syncBarrierPromiseRef.current) {
         await syncBarrierPromiseRef.current;
@@ -350,22 +372,24 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return;
     }
 
-    // Se o usuário pausou enquanto carregava, não inicia o play
+    // Fim da fase de sincronização inicial
+    isSyncingRef.current = false;
+
+    // Se o usuário pausou enquanto carregava, pausamos todas as stems e saímos
     if (!isPlayingRef.current) {
+      activeStemsRef.current.forEach(item => {
+        item.audio.pause();
+      });
       return;
     }
 
-    // Executa play simultâneo em todos os canais de áudio na mesma microtask
-    await Promise.all(
-      activeStemsRef.current.map(async item => {
-        item.audio.currentTime = 0;
-        try {
-          await item.audio.play();
-        } catch (err) {
-          console.warn(`[PLAY] Bloqueio de auto-play ou erro na stem ${item.type}:`, err);
-        }
-      })
-    );
+    // Alinha os tempos com precisão e restaura volumes originais
+    const targetTime = activeStemsRef.current[0]?.audio.currentTime || 0;
+    activeStemsRef.current.forEach(item => {
+      item.audio.currentTime = targetTime;
+    });
+
+    updateAudioGains(initialVolumes, {}, {});
   };
 
   const togglePlay = async () => {
@@ -396,6 +420,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           }
         })
       );
+
+      // Se a sincronização inicial acabou, garante que os volumes estão ativos
+      if (!isSyncingRef.current) {
+        updateAudioGains(stemsVolume, stemsMute, stemsSolo);
+      }
     }
   };
 
