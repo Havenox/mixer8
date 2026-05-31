@@ -72,6 +72,7 @@ export const PlaylistDetail: React.FC = () => {
   const [showRemoveDownloadModal, setShowRemoveDownloadModal] = useState(false);
   const [trackToRemoveDownload, setTrackToRemoveDownload] = useState<IPlaylistTrack | null>(null);
   const [downloadedTrackIds, setDownloadedTrackIds] = useState<Record<string, boolean>>({});
+  const [downloadingTrackIds, setDownloadingTrackIds] = useState<Record<string, boolean>>({});
   const [error, setError] = useState('');
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -270,6 +271,36 @@ export const PlaylistDetail: React.FC = () => {
       setShowRemoveDownloadModal(false);
     } catch (err) {
       console.error('[CACHE] Erro ao remover downloads da playlist:', err);
+    }
+  };
+
+  const handleTrackDownloadClick = async (t: IPlaylistTrack) => {
+    if (!isPremium) return;
+    const isDownloaded = downloadedTrackIds[t.TrackId];
+    const trackObj = {
+      TrackId: t.TrackId,
+      TrackTitle: t.TrackTitle,
+      ArtistName: t.ArtistName,
+      CoverUrl: t.CoverUrl,
+      Stems: t.Stems.map(s => ({
+        StemId: s.StemId,
+        TrackId: s.TrackId,
+        StemType: s.StemType,
+        AudioUrl: s.AudioUrl
+      }))
+    } as any;
+
+    if (isDownloaded) {
+      setTrackToRemoveDownload(t);
+    } else {
+      setDownloadingTrackIds(prev => ({ ...prev, [t.TrackId]: true }));
+      try {
+        await downloadTrackForOffline(trackObj);
+      } catch (err) {
+        console.error('[CACHE] Erro ao baixar faixa offline:', err);
+      } finally {
+        setDownloadingTrackIds(prev => ({ ...prev, [t.TrackId]: false }));
+      }
     }
   };
 
@@ -810,6 +841,11 @@ export const PlaylistDetail: React.FC = () => {
                       <div className="w-[1px] h-3 bg-brand-gray/40" />
                     </div>
                   </th>
+                  {isPremium && (
+                    <th style={{ width: 44 }} className="py-2.5 px-3 relative select-none">
+                      {/* Coluna vazia para download */}
+                    </th>
+                  )}
                   <th 
                     style={{ width: colWidths.duration }} 
                     className="py-2.5 px-3 text-right relative select-none"
@@ -879,16 +915,9 @@ export const PlaylistDetail: React.FC = () => {
                             )}
                           </div>
                           <div className="flex flex-col truncate">
-                            <div className="flex items-center gap-2 truncate">
-                              <span className={`font-bold truncate text-sm ${isCurrentTrack ? 'text-brand-green' : 'text-white'}`}>
-                                {t.TrackTitle}
-                              </span>
-                              {isPremium && downloadedTrackIds[t.TrackId] && (
-                                <span className="inline-flex items-center justify-center bg-brand-green text-black rounded-full p-[2px] shrink-0" title="Baixado offline">
-                                  <Download className="w-2.5 h-2.5 fill-current" />
-                                </span>
-                              )}
-                            </div>
+                            <span className={`font-bold truncate text-sm ${isCurrentTrack ? 'text-brand-green' : 'text-white'}`}>
+                              {t.TrackTitle}
+                            </span>
                             <span className="text-[11px] text-brand-gray truncate">
                               {t.ArtistName}
                             </span>
@@ -909,6 +938,42 @@ export const PlaylistDetail: React.FC = () => {
                       <td className="py-3 px-3 text-brand-gray truncate">
                         {formatDistanceToNow(t.AddedAt)}
                       </td>
+
+                      {isPremium && (
+                        <td className="py-3 px-3 text-center">
+                          <div className="flex items-center justify-center">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleTrackDownloadClick(t);
+                              }}
+                              disabled={downloadingTrackIds[t.TrackId]}
+                              className={`w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer hover:scale-105 active:scale-95 ${
+                                downloadedTrackIds[t.TrackId]
+                                  ? 'bg-brand-green text-black border-none'
+                                  : downloadingTrackIds[t.TrackId]
+                                  ? 'bg-transparent text-brand-green border-none'
+                                  : 'bg-transparent text-brand-gray/40 hover:text-white border border-brand-gray/25 opacity-0 group-hover:opacity-100'
+                              }`}
+                              title={
+                                downloadedTrackIds[t.TrackId]
+                                  ? 'Remover download offline'
+                                  : downloadingTrackIds[t.TrackId]
+                                  ? 'Baixando...'
+                                  : 'Salvar para ouvir offline'
+                              }
+                            >
+                              {downloadingTrackIds[t.TrackId] ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : downloadedTrackIds[t.TrackId] ? (
+                                <Download className="w-3.5 h-3.5 fill-current text-black" />
+                              ) : (
+                                <Download className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </div>
+                        </td>
+                      )}
 
                       {/* Duração real */}
                       <td className="py-3 px-3 text-right text-brand-gray font-medium truncate">
@@ -941,46 +1006,7 @@ export const PlaylistDetail: React.FC = () => {
             <span>Adicionar à playlist</span>
           </button>
 
-          {/* Opção para download offline / remover download - Apenas para Premium/PaidUser/Admin/Moderator */}
-          {isPremium && (
-            downloadedTrackIds[contextMenu.track.TrackId] ? (
-              <button
-                onClick={() => {
-                  setTrackToRemoveDownload(contextMenu.track);
-                  setContextMenu(null);
-                }}
-                className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-red-400"
-              >
-                <X className="w-4 h-4 text-red-500 shrink-0" />
-                <span>Remover download offline</span>
-              </button>
-            ) : (
-              <button
-                onClick={async () => {
-                  const trackToDownload = {
-                    TrackId: contextMenu.track.TrackId,
-                    TrackTitle: contextMenu.track.TrackTitle,
-                    ArtistName: contextMenu.track.ArtistName,
-                    CoverUrl: contextMenu.track.CoverUrl,
-                    ExtractionStatus: 'Pronto',
-                    CreatedAt: contextMenu.track.AddedAt,
-                    Stems: contextMenu.track.Stems.map(s => ({
-                      StemId: s.StemId,
-                      TrackId: s.TrackId,
-                      StemType: s.StemType,
-                      AudioUrl: s.AudioUrl
-                    }))
-                  };
-                  setContextMenu(null);
-                  await downloadTrackForOffline(trackToDownload);
-                }}
-                className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-brand-green"
-              >
-                <Download className="w-4 h-4 text-brand-green shrink-0" />
-                <span>Salvar para ouvir offline</span>
-              </button>
-            )
-          )}
+
 
           {/* Opção para remover da playlist (dono, colaboradores ou admin) */}
           {canModifyPlaylist && (
