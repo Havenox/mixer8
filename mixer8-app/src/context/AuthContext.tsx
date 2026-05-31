@@ -73,7 +73,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         UserId: crypto.randomUUID(), // Temporário até fazer o Me
         Email: data.Email,
         UserRole: data.UserRole as UserRole,
-        CreatedAt: new Date().toISOString()
+        CreatedAt: new Date().toISOString(),
+        UserName: data.UserName || data.Email.split('@')[0]
       };
 
       setState({

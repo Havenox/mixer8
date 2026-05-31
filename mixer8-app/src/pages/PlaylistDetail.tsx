@@ -49,6 +49,7 @@ interface IPlaylistDetail {
   CreatedAt: string;
   IsOwner: boolean;
   IsCollaborator: boolean;
+  IsSaved: boolean;
   Tracks: IPlaylistTrack[];
   Collaborators: IPlaylistCollaborator[];
 }
@@ -383,6 +384,7 @@ export const PlaylistDetail: React.FC = () => {
       CreatedAt: playlist.CreatedAt,
       IsOwner: isPlaylistOwner,
       IsCollaborator: isCollaborator,
+      IsSaved: playlist.IsSaved || false,
       TracksCount: playlist.Tracks.length
     };
     openEditPlaylist(iPlaylist);
@@ -400,6 +402,7 @@ export const PlaylistDetail: React.FC = () => {
       CreatedAt: playlist.CreatedAt,
       IsOwner: isPlaylistOwner,
       IsCollaborator: isCollaborator,
+      IsSaved: playlist.IsSaved || false,
       TracksCount: playlist.Tracks.length
     };
     openDeletePlaylist(iPlaylist);
