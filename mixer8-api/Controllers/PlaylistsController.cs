@@ -113,15 +113,12 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             .Select(sp => sp.PlaylistId)
             .ToListAsync();
 
-        // Se for admin, lista todas. Caso contrário, lista as que ele é dono, colaborador, ou salvou.
-        if (!isAdmin)
-        {
-            playlistsQuery = playlistsQuery.Where(p =>
-                p.OwnerId == userId ||
-                p.PlaylistCollaborators.Any(pc => pc.UserId == userId) ||
-                savedPlaylistIds.Contains(p.PlaylistId)
-            );
-        }
+        // Lista as que ele é dono, colaborador, ou salvou (a mesma regra para todos, incluindo admins)
+        playlistsQuery = playlistsQuery.Where(p =>
+            p.OwnerId == userId ||
+            p.PlaylistCollaborators.Any(pc => pc.UserId == userId) ||
+            savedPlaylistIds.Contains(p.PlaylistId)
+        );
 
         var playlists = await playlistsQuery.ToListAsync();
 
@@ -129,6 +126,10 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
         var userEmails = await dbContext.Users
             .Where(u => userIds.Contains(u.UserId))
             .ToDictionaryAsync(u => u.UserId, u => u.Email);
+
+        var userProfiles = await dbContext.UserProfiles
+            .Where(up => userIds.Contains(up.UserId))
+            .ToDictionaryAsync(up => up.UserId, up => up);
 
         var result = playlists.Select(p =>
         {
@@ -138,6 +139,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
                 .FirstOrDefault();
 
             userEmails.TryGetValue(p.OwnerId, out var email);
+            userProfiles.TryGetValue(p.OwnerId, out var profile);
 
             return new PlaylistResponseDto
             {
@@ -152,7 +154,11 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
                 IsOwner = p.OwnerId == userId,
                 IsCollaborator = p.PlaylistCollaborators.Any(pc => pc.UserId == userId),
                 IsSaved = savedPlaylistIds.Contains(p.PlaylistId),
-                TracksCount = p.PlaylistTracks.Count
+                TracksCount = p.PlaylistTracks.Count,
+                OwnerUserName = profile?.UserName,
+                OwnerFirstName = profile?.FirstName,
+                OwnerLastName = profile?.LastName,
+                OwnerAvatarUrl = profile?.AvatarUrl
             };
         })
         .OrderByDescending(p => p.CreatedAt)
@@ -601,6 +607,10 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             .Where(u => userIds.Contains(u.UserId))
             .ToDictionaryAsync(u => u.UserId, u => u.Email);
 
+        var userProfiles = await dbContext.UserProfiles
+            .Where(up => userIds.Contains(up.UserId))
+            .ToDictionaryAsync(up => up.UserId, up => up);
+
         var savedPlaylistIds = await dbContext.SavedPlaylists
             .Where(sp => sp.UserId == userId)
             .Select(sp => sp.PlaylistId)
@@ -614,6 +624,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
                 .FirstOrDefault();
 
             userEmails.TryGetValue(p.OwnerId, out var email);
+            userProfiles.TryGetValue(p.OwnerId, out var profile);
 
             return new PlaylistResponseDto
             {
@@ -628,7 +639,11 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
                 IsOwner = false,
                 IsCollaborator = false,
                 IsSaved = savedPlaylistIds.Contains(p.PlaylistId),
-                TracksCount = p.PlaylistTracks.Count
+                TracksCount = p.PlaylistTracks.Count,
+                OwnerUserName = profile?.UserName,
+                OwnerFirstName = profile?.FirstName,
+                OwnerLastName = profile?.LastName,
+                OwnerAvatarUrl = profile?.AvatarUrl
             };
         }).ToList();
 
@@ -677,6 +692,10 @@ public class PlaylistResponseDto
     public bool IsCollaborator { get; set; }
     public bool IsSaved { get; set; }
     public int TracksCount { get; set; }
+    public string? OwnerUserName { get; set; }
+    public string? OwnerFirstName { get; set; }
+    public string? OwnerLastName { get; set; }
+    public string? OwnerAvatarUrl { get; set; }
 }
 
 public class PlaylistDetailResponseDto
