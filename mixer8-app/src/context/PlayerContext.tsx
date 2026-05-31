@@ -57,6 +57,43 @@ export const STANDARD_STEMS = [
 import { SERVER_URL, API_URL } from '../config';
 import { useAuth } from './AuthContext';
 
+const CACHE_NAME = 'mixer8-stems-cache';
+
+const getCachedOrFetchAudioUrl = async (url: string): Promise<string> => {
+  if (typeof window === 'undefined' || !window.caches) {
+    return url;
+  }
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    const cachedResponse = await cache.match(url);
+    if (cachedResponse) {
+      console.log('[CACHE] Hit! Carregando do cache local:', url);
+      const blob = await cachedResponse.blob();
+      return URL.createObjectURL(blob);
+    }
+  } catch (err) {
+    console.warn('[CACHE] Erro ao obter do cache:', err);
+  }
+  return url;
+};
+
+const cacheAudioInBackground = async (url: string) => {
+  if (typeof window === 'undefined' || !window.caches) return;
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    const cachedResponse = await cache.match(url);
+    if (!cachedResponse) {
+      const res = await fetch(url);
+      if (res.ok) {
+        await cache.put(url, res.clone());
+        console.log('[CACHE] Audio cacheado com sucesso em background:', url);
+      }
+    }
+  } catch (err) {
+    console.warn('[CACHE] Erro ao salvar audio em cache de background:', err);
+  }
+};
+
 export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { Token } = useAuth();
   const [currentTrack, setCurrentTrack] = useState<ITrack | null>(null);
@@ -169,8 +206,12 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const cleanupActiveStems = () => {
     activeStemsRef.current.forEach(item => {
       item.audio.pause();
+      const src = item.audio.src;
       item.audio.src = '';
       item.audio.load();
+      if (src.startsWith('blob:')) {
+        URL.revokeObjectURL(src);
+      }
       item.gainNode.disconnect();
       item.sourceNode.disconnect();
     });
@@ -251,18 +292,27 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     };
 
-    track.Stems.forEach(stem => {
+    // Mapeia e resolve as URLs das stems (utilizando cache local se disponível)
+    const resolvedStems = await Promise.all(
+      track.Stems.map(async stem => {
+        const fullAudioUrl = stem.AudioUrl.startsWith('http')
+          ? stem.AudioUrl
+          : `${SERVER_URL}${stem.AudioUrl}`;
+        const url = await getCachedOrFetchAudioUrl(fullAudioUrl);
+        return {
+          ...stem,
+          ResolvedUrl: url
+        };
+      })
+    );
+
+    resolvedStems.forEach(stem => {
       const stemType = stem.StemType; // ex: Voz, Bateria, Baixo
       // O volume padrão das stems é 100% (1.0), exceto para o "Metrônomo" que inicia zerado (0.0)
       initialVolumes[stemType] = stemType === 'Metrônomo' ? 0.0 : 1.0;
 
-      // Se for uma URL relativa, resolve com a URL do servidor backend para evitar 404 local
-      const fullAudioUrl = stem.AudioUrl.startsWith('http')
-        ? stem.AudioUrl
-        : `${SERVER_URL}${stem.AudioUrl}`;
-
-      // Cria elemento HTML5 Audio com pré-carregamento apenas dos metadados (streaming progressivo)
-      const audio = new Audio(fullAudioUrl);
+      // Cria elemento HTML5 Audio. Se a ResolvedUrl for um Blob URL, ele carrega localmente de forma instantânea
+      const audio = new Audio(stem.ResolvedUrl);
       audio.crossOrigin = 'anonymous';
       audio.preload = 'metadata';
 
@@ -390,6 +440,18 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     updateAudioGains(initialVolumes, {}, {});
+
+    // Dispara o download em cache de background após 3 segundos para priorizar reprodução inicial
+    setTimeout(() => {
+      if (activeStemsRef.current === loadedStems) {
+        track.Stems.forEach(stem => {
+          const fullAudioUrl = stem.AudioUrl.startsWith('http')
+            ? stem.AudioUrl
+            : `${SERVER_URL}${stem.AudioUrl}`;
+          cacheAudioInBackground(fullAudioUrl);
+        });
+      }
+    }, 3000);
   };
 
   const togglePlay = async () => {
@@ -428,13 +490,90 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  const seek = (seconds: number) => {
+  const seek = async (seconds: number) => {
     if (activeStemsRef.current.length === 0) return;
-    
-    activeStemsRef.current.forEach(item => {
-      item.audio.currentTime = seconds;
+
+    // Se estivermos tocando por Blob URLs locais, a resposta é imediata e não gera tráfego de rede.
+    // Mas se estivermos rodando via streaming de rede progressivo, precisamos de uma barreira rápida para evitar stutters
+    const isBlob = activeStemsRef.current[0]?.audio.src.startsWith('blob:');
+
+    if (isBlob) {
+      activeStemsRef.current.forEach(item => {
+        item.audio.currentTime = seconds;
+      });
+      setCurrentTime(seconds);
+      return;
+    }
+
+    // Caso de streaming de rede: Barreira de sincronização no Seek
+    isSyncingRef.current = true;
+    updateAudioGains(stemsVolume, stemsMute, stemsSolo);
+
+    let stemsLoadedCount = 0;
+    const totalStemsCount = activeStemsRef.current.length;
+    let isSeekBarrierResolved = false;
+
+    const seekBarrierPromise = new Promise<void>((resolve) => {
+      const resolveSeek = () => {
+        if (isSeekBarrierResolved) return;
+        isSeekBarrierResolved = true;
+        resolve();
+      };
+
+      // Safety timeout para seek (2 segundos)
+      const safetyTimeout = setTimeout(() => {
+        console.warn('[SEEK-SYNC] Safety timeout atingido durante seek.');
+        resolveSeek();
+      }, 2000);
+
+      const checkSeekBarrier = () => {
+        stemsLoadedCount++;
+        if (stemsLoadedCount === totalStemsCount) {
+          clearTimeout(safetyTimeout);
+          resolveSeek();
+        }
+      };
+
+      activeStemsRef.current.forEach(item => {
+        const audio = item.audio;
+
+        const onSeeked = () => {
+          audio.removeEventListener('seeked', onSeeked);
+          audio.removeEventListener('error', onSeekedError);
+          checkSeekBarrier();
+        };
+
+        const onSeekedError = () => {
+          audio.removeEventListener('seeked', onSeeked);
+          audio.removeEventListener('error', onSeekedError);
+          checkSeekBarrier();
+        };
+
+        if (audio.readyState >= 3) {
+          checkSeekBarrier();
+        } else {
+          audio.addEventListener('seeked', onSeeked);
+          audio.addEventListener('error', onSeekedError);
+        }
+
+        audio.currentTime = seconds;
+      });
     });
+
     setCurrentTime(seconds);
+
+    try {
+      await seekBarrierPromise;
+    } catch (err) {
+      console.error('[SEEK-SYNC] Erro na barreira de seek:', err);
+    }
+
+    isSyncingRef.current = false;
+    
+    // Se o usuário ainda quer tocar
+    if (isPlayingRef.current) {
+      updateAudioGains(stemsVolume, stemsMute, stemsSolo);
+    }
   };
 
   const setStemVolume = (type: string, volume: number) => {
