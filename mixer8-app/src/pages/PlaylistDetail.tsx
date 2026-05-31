@@ -331,13 +331,24 @@ export const PlaylistDetail: React.FC = () => {
   const handleDragOver = (e: React.DragEvent<HTMLTableRowElement>, index: number) => {
     if (draggedIndex === null) return;
     e.preventDefault();
-    if (dragOverIndex !== index) {
-      setDragOverIndex(index);
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const relativeY = e.clientY - rect.top;
+    const isLowerHalf = relativeY > rect.height / 2;
+
+    const targetIndex = isLowerHalf ? index + 1 : index;
+    if (dragOverIndex !== targetIndex) {
+      setDragOverIndex(targetIndex);
     }
   };
 
-  const handleDragLeave = () => {
-    setDragOverIndex(null);
+  const handleTableDragLeave = (e: React.DragEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+    if (x < rect.left || x >= rect.right || y < rect.top || y >= rect.bottom) {
+      setDragOverIndex(null);
+    }
   };
 
   const handleDragEnd = () => {
@@ -345,14 +356,23 @@ export const PlaylistDetail: React.FC = () => {
     setDragOverIndex(null);
   };
 
-  const handleDrop = async (e: React.DragEvent<HTMLTableRowElement>, targetIndex: number) => {
+  const handleDrop = async (e: React.DragEvent<HTMLTableRowElement>) => {
     e.preventDefault();
+    
+    const targetPos = dragOverIndex;
     setDragOverIndex(null);
-    if (draggedIndex === null || draggedIndex === targetIndex || !playlist) return;
+    setDraggedIndex(null);
+
+    if (draggedIndex === null || targetPos === null || !playlist) return;
+
+    if (targetPos === draggedIndex || targetPos === draggedIndex + 1) {
+      return;
+    }
 
     const updatedTracks = [...playlist.Tracks];
     const [draggedTrack] = updatedTracks.splice(draggedIndex, 1);
-    updatedTracks.splice(targetIndex, 0, draggedTrack);
+    const insertIndex = targetPos > draggedIndex ? targetPos - 1 : targetPos;
+    updatedTracks.splice(insertIndex, 0, draggedTrack);
 
     // Atualização otimista
     setPlaylist(prev => {
@@ -362,8 +382,6 @@ export const PlaylistDetail: React.FC = () => {
         Tracks: updatedTracks
       };
     });
-
-    setDraggedIndex(null);
 
     try {
       const trackIds = updatedTracks.map(t => t.TrackId);
@@ -702,10 +720,9 @@ export const PlaylistDetail: React.FC = () => {
                   </th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody onDragLeave={canModifyPlaylist ? handleTableDragLeave : undefined}>
                 {playlist.Tracks.map((t, index) => {
                   const isCurrentTrack = currentTrack && currentTrack.TrackId === t.TrackId;
-                  const isDragOver = dragOverIndex === index;
 
                   return (
                     <tr 
@@ -714,14 +731,15 @@ export const PlaylistDetail: React.FC = () => {
                       draggable={canModifyPlaylist}
                       onDragStart={canModifyPlaylist ? (e) => handleDragStart(e, index) : undefined}
                       onDragOver={canModifyPlaylist ? (e) => handleDragOver(e, index) : undefined}
-                      onDragLeave={canModifyPlaylist ? handleDragLeave : undefined}
                       onDragEnd={canModifyPlaylist ? handleDragEnd : undefined}
-                      onDrop={canModifyPlaylist ? (e) => handleDrop(e, index) : undefined}
+                      onDrop={canModifyPlaylist ? (e) => handleDrop(e) : undefined}
                       className={`border-b border-brand-hover/40 hover:bg-brand-hover/30 transition-colors group ${
                         isCurrentTrack ? 'bg-brand-hover/10' : ''
-                      } ${draggedIndex === index ? 'opacity-40 bg-brand-hover/20' : ''} ${
-                        isDragOver && draggedIndex !== index ? 'border-t-2 border-brand-green' : ''
-                      } ${canModifyPlaylist ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                      } ${draggedIndex === index ? '!opacity-35 !bg-brand-hover/65' : ''} ${
+                        dragOverIndex === index && draggedIndex !== index && draggedIndex !== index - 1 ? '!border-t-2 !border-t-brand-green' : ''
+                      } ${
+                        dragOverIndex === index + 1 && index === playlist.Tracks.length - 1 && draggedIndex !== index ? '!border-b-2 !border-b-brand-green' : ''
+                      } ${canModifyPlaylist ? 'cursor-default' : ''}`}
                     >
                       {/* Play Action / Index */}
                       <td className="py-3 px-3 text-center text-brand-gray font-semibold relative select-none">
