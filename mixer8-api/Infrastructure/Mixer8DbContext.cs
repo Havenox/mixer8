@@ -17,6 +17,7 @@ public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbCont
     public DbSet<PlaylistTrack> PlaylistTracks { get; set; } = null!;
     public DbSet<PlaylistCollaborator> PlaylistCollaborators { get; set; } = null!;
     public DbSet<SavedPlaylist> SavedPlaylists { get; set; } = null!;
+    public DbSet<Album> Albums { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -32,6 +33,7 @@ public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbCont
         modelBuilder.Entity<PlaylistTrack>().ToTable("PlaylistTracks");
         modelBuilder.Entity<PlaylistCollaborator>().ToTable("PlaylistCollaborators");
         modelBuilder.Entity<SavedPlaylist>().ToTable("SavedPlaylists");
+        modelBuilder.Entity<Album>().ToTable("Albums");
 
         // Chaves primárias
         modelBuilder.Entity<User>().HasKey(u => u.UserId);
@@ -43,6 +45,7 @@ public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbCont
         modelBuilder.Entity<PlaylistTrack>().HasKey(pt => new { pt.PlaylistId, pt.TrackId });
         modelBuilder.Entity<PlaylistCollaborator>().HasKey(pc => new { pc.PlaylistId, pc.UserId });
         modelBuilder.Entity<SavedPlaylist>().HasKey(sp => sp.SavedPlaylistId);
+        modelBuilder.Entity<Album>().HasKey(a => a.AlbumId);
 
         // Configura relacionamentos 1-para-1
         modelBuilder.Entity<User>()
@@ -87,6 +90,13 @@ public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbCont
             .WithOne()
             .HasForeignKey(s => s.TrackId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Configura relacionamento Track-Album
+        modelBuilder.Entity<Track>()
+            .HasOne(t => t.Album)
+            .WithMany(a => a.Tracks)
+            .HasForeignKey(t => t.AlbumId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         modelBuilder.Entity<Playlist>()
             .HasOne<User>()

@@ -19,5 +19,11 @@ public class Track
     public int Duration { get; set; } // Duração em segundos
     public long PlayCount { get; set; } = 0; // Contador de reproduções
 
+    public Guid? AlbumId { get; set; }
+    public int? TrackNumber { get; set; }
+    public int DiscNumber { get; set; } = 1;
+
+    public Album? Album { get; set; }
+
     public ICollection<Stem> Stems { get; set; } = new List<Stem>();
 }
