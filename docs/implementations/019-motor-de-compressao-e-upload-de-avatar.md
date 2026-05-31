@@ -11,7 +11,7 @@ Até então, o upload de imagens de capas de músicas e playlists na plataforma 
 ## 🧠 Estratégia da Solução
 Para endereçar esses problemas de ponta a ponta de maneira resiliente e escalável:
 1. **Biblioteca Nativa de Processamento de Imagens**: Introduzimos o pacote performático `SixLabors.ImageSharp` ao ecossistema do backend C# (.NET 10).
-2. **Motor de Processamento Centrado em WebP**: Desenvolvemos uma classe utilitária unificada `ImageHelper` em `Infrastructure` que realiza o corte quadrado (`Crop` 1:1 centralizado) dinâmico em memória e comprime a imagem para o moderno formato **WebP com 80% de qualidade** antes da gravação física.
+2. **Motor de Processamento Centrado em WebP**: Desenvolvemos uma classe utilitária unificada `ImageHelper` em `Infrastructure` que realiza o corte quadrado (`Crop` 1:1 centralizado) dinâmico em memória, limita a resolução final da imagem a **no máximo 500x500 pixels** (para otimizar armazenamento e velocidade) e comprime para o formato **WebP com 80% de qualidade** antes da gravação física.
 3. **Novo Fluxo de Upload de Perfil**: Implementamos um endpoint dedicado de upload de arquivos de imagem (`POST /api/Auth/Profile/Avatar`) para converter e salvar a foto do usuário fisicamente em `wwwroot/profiles/{userId}/avatar.webp`.
 4. **Resiliência e Flexibilidade da UI**: Redesenhamos a seção de perfil no React SPA para unificar o upload por arquivo de imagem de forma interativa com micro-animações, enquanto preservamos a opção de URLs externas. Ajustamos o carregamento de imagens locais relativizando com `SERVER_URL`.
 5. **Aprimoramento de Infra e Git**: Simplificamos o volume do Docker Compose concentrando a persistência de toda a pasta `/wwwroot` (agora blindando também as fotos de perfil) e isolamos o diretório no `.gitignore` para bloquear vazamentos de binários no controle de versão.
@@ -20,7 +20,7 @@ Para endereçar esses problemas de ponta a ponta de maneira resiliente e escalá
 
 ### Backend (.NET 10 / C# 13)
 - **Mixer8.Api.csproj**: Registrada a dependência do pacote `SixLabors.ImageSharp` v3.1.5.
-- **ImageHelper.cs**: Utilitário estático encapsulando o fluxo de processamento de imagem em memória: extração de menor dimensão, corte 1:1, encoding WebP e criação automática de subpastas no salvamento de arquivos físicos.
+- **ImageHelper.cs**: Utilitário estático encapsulando o fluxo de processamento de imagem em memória: extração de menor dimensão, corte 1:1, redimensionamento para no máximo 500x500 pixels, encoding WebP e criação automática de subpastas no salvamento de arquivos físicos.
 - **TracksController.cs**: Integrado o `ImageHelper` nos endpoints de criação e edição de músicas, convertendo as capas para `cover.webp` e limpando arquivos legados com outras extensões.
 - **PlaylistsController.cs**: Adaptado os endpoints de criação e atualização de playlists para processar as capas para `cover.webp` e remover capas órfãs redundantes do diretório.
 - **AuthController.cs**: Adicionado o novo endpoint `[HttpPost("Profile/Avatar")]` de envio multipart (`IFormFile`) de foto, executando a validação e conversão para WebP do avatar, gravando em `wwwroot/profiles/{userId}/avatar.webp` e persistindo a rota relativa no banco de dados.
