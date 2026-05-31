@@ -70,3 +70,20 @@ O extrator realiza a leitura física deste ZIP, decodifica a tag `<stem>`, renom
 
 * **Player Headless Persistente (Estilo Spotify)**: A interface do frontend é construída como um Single Page Application (SPA). O player de áudio sincronizado reside no rodapé do layout global. Quando o usuário navega entre as páginas (Explorar, Minha Biblioteca, Configurações), o áudio **nunca é interrompido** e o estado da mixagem permanece intacto.
 * **Presets Compartilhados**: Um usuário pode criar e salvar uma "Mixagem" de uma música (ex: mix "Voz + Piano" onde a bateria e o baixo estão zerados). Este preset é salvo na API e pode ser compartilhado com outros usuários através de links únicos, permitindo que diferentes ouvintes escutem versões customizadas da mesma obra.
+
+---
+
+## 4. Reordenação de Playlists (Drag-and-Drop) e Validação de Plays (Audiência)
+
+### A. Sequenciamento Customizado via Arraste (Drag-and-Drop)
+- **Segurança e Privilégios**: As ações de arrastar e reordenar a listagem de faixas nas playlists são ativadas exclusivamente para usuários autorizados (Dono da Playlist, Colaboradores Convidados ou Administradores). Para ouvintes comuns, o layout é renderizado como uma listagem estática e limpa (sem gatilhos e sem cadeados obstrutivos de interface).
+- **Mecânica Visual Premium**: O arraste utiliza as propriedades HTML5 Drag-and-Drop nativas, oferecendo cursor de agarrar (`cursor-grab`) e linha indicadora visual de inserção na cor verde (`border-t-2 border-brand-green`) sobre o alvo.
+- **Persistência Transacional (Optimistic UI)**: Quando o arraste termina (drop), a listagem local sofre um rearranjo otimista instantâneo, e em segundo plano é enviada uma requisição `PUT /api/Playlists/{id}/Reorder` contendo a payload do novo sequenciamento de IDs `{ TrackIds }`.
+
+### B. Algoritmo de Validação e Rate-Limit de Audiência (Plays)
+Para assegurar a integridade dos contadores de execuções (`PlayCount`) e prevenir spams baseados em cliques sequenciais, estruturamos uma proteção em duas barreiras:
+1. **Frontend (Limiar de Escuta)**: O Player possui um acumulador em tempo de execução (`listeningAccumulatorRef`). O disparo para registrar a reprodução (`POST /api/Tracks/{id}/RecordPlay`) é inibido na inicialização da faixa e só é executado quando o usuário escuta de forma acumulativa 30 segundos (ou 50% de músicas curtas).
+2. **Backend (Janela de Cooldown)**: Ao receber a requisição, o servidor identifica o cliente pelo `UserId` (se logado) ou `RemoteIpAddress` (se anônimo) e valida o play contra o `IMemoryCache`:
+   - **Tracks**: O cooldown dura `Math.Max(track.Duration - 5, 30)` segundos.
+   - **Playlists/Álbuns**: O cooldown dura 5 minutos.
+   Se a chamada ocorrer dentro da janela de cooldown do respectivo usuário/IP para aquela entidade, ela é ignorada silenciosamente (sem incrementar o contador do banco).

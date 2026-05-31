@@ -17,6 +17,7 @@ erDiagram
     Tracks ||--o{ MixingPresets : "Mapeia"
     Playlists ||--o{ PlaylistTracks : "Agrupa"
     Tracks ||--o{ PlaylistTracks : "Pertence"
+    Albums ||--o{ Tracks : "Agrupa"
 
     Users {
         Guid UserId PK
@@ -33,6 +34,11 @@ erDiagram
         Guid UploadedBy FK
         String ExtractionStatus "Aguardando, Processando, Pronto, Falhou"
         DateTime CreatedAt
+        Int Duration
+        Long PlayCount
+        Guid AlbumId FK
+        Int TrackNumber
+        Int DiscNumber
     }
 
     Stems {
@@ -41,6 +47,35 @@ erDiagram
         String StemType "Voz, Bateria, Baixo, Guitarra, Piano, Teclado, Sopro, Cordas, Metronomo, Outros"
         String AudioUrl
         DateTime CreatedAt
+    }
+
+    Playlists {
+        Guid PlaylistId PK
+        String Name
+        String Visibility "Public, Private, Unlisted"
+        String Description
+        Guid OwnerId FK
+        String CoverUrl
+        DateTime CreatedAt
+        Long PlayCount
+    }
+
+    PlaylistTracks {
+        Guid PlaylistId PK-FK
+        Guid TrackId PK-FK
+        Guid AddedById FK
+        DateTime AddedAt
+        Int Order
+    }
+
+    Albums {
+        Guid AlbumId PK
+        String Title
+        String ArtistName
+        DateTime ReleaseDate
+        String CoverUrl
+        DateTime CreatedAt
+        Long PlayCount
     }
 
     MixingPresets {

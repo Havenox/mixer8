@@ -89,9 +89,11 @@ O controle de acessos da API do Mixer8 garante a proteção dos recursos intelec
   ```
 * **Assincronismo de Ponta a Ponta**: Todas as chamadas de banco de dados, acesso a disco e requisições HTTP devem ser assíncronas (`async`/`await`), retornando `Task` ou `Task<T>`.
 * **Tratamento de Exceções**: Lançamento de exceções de domínio tipadas com códigos literais em caixa alta (ex: `BUSINESS_RULE_VIOLATION`, `UNAUTHORIZED_ACCESS`), as quais são traduzidas por um middleware global de tratamento de erros para respostas HTTP limpas e estruturadas.
+* **Rate-Limit por Cache em Memória**: Controle de anti-spam e cooldowns deslizantes para mutações de dados leves (como incremento de plays) devem utilizar `IMemoryCache` de forma a blindar o banco de dados contra requisições de clicks repetidos no frontend.
 
 ### ⚛️ Práticas do Frontend (React + TypeScript)
 * **Zero Mocks (Estado de Tela Baseado em Dados Reais)**: Proibido o uso de dados de demonstração hardcodados localmente (mockados) para listas de catálogo, estatísticas ou usuários. Caso o banco de dados esteja vazio, a aplicação deve renderizar estados de tela limpos de feedback (ex: "Nenhuma música disponível", "Fila de processamento vazia") em vez de simular registros fictícios.
 * **Type-Only Imports (Prevenção de Erros ESM em Vite)**: Todas as importações de interfaces e tipos puros do TypeScript que não possuam representação em JavaScript em tempo de execução (runtime) devem utilizar a cláusula `import type`. Isso evita falhas de módulo vazio no navegador durante a transpilação do bundler.
 * **Derived State (Estado Derivado)**: Proibido o uso de `useEffect` para sincronizar estados redundantes. Toda a lógica de filtragem, paginação ou formatação deve ser calculada na renderização de forma síncrona.
 * **Prevenção de Duplo Envio**: Todos os formulários e ações de mutação assíncrona devem desabilitar fisicamente a interação do usuário (`disabled={isPending}`) durante o processamento.
+* **Acumuladores de Tempo Reais para Audiência**: Para medição de audiência e controle de reproduções, o tempo escutado deve ser acumulado de forma líquida em referências estáveis (`useRef`) no context player do React, disparando a chamada da API somente após satisfazer o limite temporal do negócio (Regra dos 30s).
