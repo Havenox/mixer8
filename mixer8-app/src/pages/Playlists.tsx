@@ -179,6 +179,14 @@ export const Playlists: React.FC = () => {
                       Colaborativa
                     </div>
                   )}
+
+                  {/* Badge de Salva se aplicável */}
+                  {playlist.IsSaved && (
+                    <div className="mt-1.5 self-start px-2 py-0.5 bg-blue-500/10 text-[9px] text-blue-400 font-bold rounded border border-blue-500/20 uppercase tracking-wider flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
+                      Salva
+                    </div>
+                  )}
                 </div>
               </div>
             );

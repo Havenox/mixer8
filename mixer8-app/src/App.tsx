@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { PlayerProvider, usePlayer } from './context/PlayerContext';
 import { PlaylistProvider, usePlaylists } from './context/PlaylistContext';
@@ -12,6 +12,7 @@ import { Admin } from './pages/Admin';
 import { UploadDireto } from './pages/UploadDireto';
 import { PlaylistDetail } from './pages/PlaylistDetail';
 import { Playlists } from './pages/Playlists';
+import { Settings as SettingsPage } from './pages/Settings';
 import { Play, Sparkles, Disc, Flame, Music, Radio, Loader2, Plus, Trash2, AlertTriangle, X, Settings, RefreshCw } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -31,6 +32,54 @@ const Explore: React.FC = () => {
   const [tracks, setTracks] = useState<ITrack[]>([]);
   const [loading, setLoading] = useState(true);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; track: ITrack } | null>(null);
+
+  const navigate = useNavigate();
+  const [popularPlaylists, setPopularPlaylists] = useState<any[]>([]);
+  const [loadingPopular, setLoadingPopular] = useState(true);
+
+  const fetchPopularPlaylists = async () => {
+    if (!Token) return;
+    try {
+      const res = await fetch(`${API_URL}/Playlists/Popular`, {
+        headers: {
+          'Authorization': `Bearer ${Token}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPopularPlaylists(data);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar playlists populares:', err);
+    } finally {
+      setLoadingPopular(false);
+    }
+  };
+
+  const handleToggleSavePlaylist = async (playlist: any) => {
+    if (!Token) return;
+    const isSaved = playlist.IsSaved;
+    const url = `${API_URL}/Playlists/${playlist.PlaylistId}/Save`;
+    
+    try {
+      const res = await fetch(url, {
+        method: isSaved ? 'DELETE' : 'POST',
+        headers: {
+          'Authorization': `Bearer ${Token}`
+        }
+      });
+      if (res.ok) {
+        setPopularPlaylists(prev => prev.map(p => {
+          if (p.PlaylistId === playlist.PlaylistId) {
+            return { ...p, IsSaved: !isSaved };
+          }
+          return p;
+        }));
+      }
+    } catch (err) {
+      console.error('Erro ao alternar salvamento de playlist:', err);
+    }
+  };
 
   const [trackToDelete, setTrackToDelete] = useState<ITrack | null>(null);
   const [deleteCountdown, setDeleteCountdown] = useState(3);
@@ -153,7 +202,10 @@ const Explore: React.FC = () => {
 
   useEffect(() => {
     fetchTracks();
-  }, []);
+    if (Token) {
+      fetchPopularPlaylists();
+    }
+  }, [Token]);
 
   // Gerenciador do timer de contagem regressiva para exclusão física
   useEffect(() => {
@@ -301,6 +353,65 @@ const Explore: React.FC = () => {
                   >
                     <Play className="w-4 h-4 fill-current translate-x-[0.5px]" />
                   </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Playlists Populares */}
+      <div className="flex flex-col gap-4 animate-in fade-in duration-200">
+        <h2 className="text-xl font-bold text-white m-0 flex items-center gap-2">
+          <ListMusic className="w-5 h-5 text-brand-green" /> Playlists Populares
+        </h2>
+        
+        {loadingPopular ? (
+          <div className="flex items-center gap-2 text-xs text-brand-gray font-semibold py-4">
+            <Loader2 className="w-4 h-4 animate-spin text-brand-green" />
+            Carregando playlists populares...
+          </div>
+        ) : popularPlaylists.length === 0 ? (
+          <div className="text-sm text-brand-gray bg-brand-card border border-brand-hover p-6 rounded-md text-center font-semibold shadow-lg">
+            Nenhuma playlist popular disponível no momento.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            {popularPlaylists.map((playlist) => (
+              <div 
+                key={playlist.PlaylistId} 
+                className="bg-brand-card border border-brand-hover p-4 rounded-md hover:bg-brand-hover transition-all flex flex-col gap-3 group shadow-lg relative cursor-pointer"
+                onClick={() => navigate(`/playlists/${playlist.PlaylistId}`)}
+              >
+                <div className="aspect-square bg-black border border-brand-hover rounded flex items-center justify-center text-brand-green shadow-md overflow-hidden relative shrink-0">
+                  {playlist.CoverUrl ? (
+                    <img 
+                      src={playlist.CoverUrl.startsWith('http') ? playlist.CoverUrl : `${SERVER_URL}${playlist.CoverUrl}`} 
+                      alt={playlist.Name} 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <ListMusic className="w-12 h-12" />
+                  )}
+                  
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleSavePlaylist(playlist);
+                    }}
+                    className="absolute bottom-3 right-3 w-8 h-8 rounded-full bg-black/80 border border-brand-hover hover:border-brand-green text-brand-green hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-105 transition-all shadow-md cursor-pointer duration-200"
+                    title={playlist.IsSaved ? "Remover da Biblioteca" : "Salvar na Biblioteca"}
+                  >
+                    {playlist.IsSaved ? <Trash2 className="w-4 h-4 text-red-500" /> : <Plus className="w-4 h-4 text-brand-green" />}
+                  </button>
+                </div>
+                
+                <div className="flex flex-col truncate">
+                  <span className="font-bold text-sm text-white truncate">{playlist.Name}</span>
+                  <span className="text-[10px] text-brand-gray truncate">Por {playlist.OwnerEmail}</span>
+                  <span className="text-[10px] text-brand-green font-semibold mt-1">
+                    {playlist.TracksCount} {playlist.TracksCount === 1 ? 'música' : 'músicas'}
+                  </span>
                 </div>
               </div>
             ))}
@@ -743,6 +854,7 @@ export const App: React.FC = () => {
                 <Route path="/upload-direto" element={<ProtectedRoute><UploadDireto /></ProtectedRoute>} />
                 <Route path="/playlists/:id" element={<ProtectedRoute><PlaylistDetail /></ProtectedRoute>} />
                 <Route path="/playlists" element={<ProtectedRoute><Playlists /></ProtectedRoute>} />
+                <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
                 <Route path="/playlist/:id" element={<ProtectedRoute><PlaylistRedirect /></ProtectedRoute>} />
                 
                 {/* Fallback */}

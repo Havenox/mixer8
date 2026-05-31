@@ -3,8 +3,9 @@ import type { IAuthState, IUser, UserRole } from '../types/Auth';
 
 interface IAuthContext extends IAuthState {
   Login: (email: string, password: string) => Promise<boolean>;
-  Register: (email: string, password: string) => Promise<boolean>;
+  Register: (email: string, password: string, username: string) => Promise<{ success: boolean; error?: string }>;
   Logout: () => void;
+  UpdateCurrentUser: (user: IUser) => void;
 }
 
 const AuthContext = createContext<IAuthContext | undefined>(undefined);
@@ -106,17 +107,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const Register = async (email: string, password: string): Promise<boolean> => {
+  const Register = async (email: string, password: string, username: string): Promise<{ success: boolean; error?: string }> => {
     try {
       const res = await fetch(`${API_URL}/Auth/Register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ Email: email, Password: password })
+        body: JSON.stringify({ Email: email, Password: password, UserName: username })
       });
 
-      if (!res.ok) return false;
+      if (!res.ok) {
+        try {
+          const errData = await res.json();
+          return { success: false, error: errData.ErrorMessage };
+        } catch {
+          return { success: false, error: 'UNKNOWN_ERROR' };
+        }
+      }
 
       const data = await res.json();
       localStorage.setItem('mixer8_token', data.Token);
@@ -125,7 +133,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         UserId: crypto.randomUUID(),
         Email: data.Email,
         UserRole: data.UserRole as UserRole,
-        CreatedAt: new Date().toISOString()
+        CreatedAt: new Date().toISOString(),
+        UserName: username
       };
 
       setState({
@@ -134,10 +143,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         Token: data.Token
       });
 
-      return true;
+      // Tenta buscar os dados reais completos do usuário
+      try {
+        const meRes = await fetch(`${API_URL}/Auth/Me`, {
+          headers: {
+            'Authorization': `Bearer ${data.Token}`
+          }
+        });
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          setState({
+            IsAuthenticated: true,
+            CurrentUser: meData,
+            Token: data.Token
+          });
+        }
+      } catch {
+        // Ignora falha silenciosa
+      }
+
+      return { success: true };
     } catch {
-      return false;
+      return { success: false, error: 'NETWORK_ERROR' };
     }
+  };
+
+  const UpdateCurrentUser = (user: IUser) => {
+    setState(prev => ({
+      ...prev,
+      CurrentUser: user
+    }));
   };
 
   const Logout = () => {
@@ -150,7 +185,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ ...state, Login, Register, Logout }}>
+    <AuthContext.Provider value={{ ...state, Login, Register, Logout, UpdateCurrentUser }}>
       {!isLoading && children}
     </AuthContext.Provider>
   );

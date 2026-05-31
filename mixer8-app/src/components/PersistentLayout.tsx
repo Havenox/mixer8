@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { usePlayer } from '../context/PlayerContext';
 import { MesaPlayer } from './MesaPlayer';
 import { 
   Home, Library, PlusCircle, Shield, 
-  LogOut, User, Layers, ListMusic
+  LogOut, User, Layers, ListMusic,
+  Settings, HelpCircle, CreditCard
 } from 'lucide-react';
 
 export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -14,14 +15,33 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
   const location = useLocation();
   const navigate = useNavigate();
 
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Fecha o menu de contexto ao clicar fora dele
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   if (!IsAuthenticated || !CurrentUser) {
     return <>{children}</>; // Renderiza cru para telas de login/cadastro
   }
 
   const handleLogout = () => {
     Logout();
+    setIsMenuOpen(false);
     navigate('/login');
   };
+
+  const displayName = CurrentUser.FirstName?.trim() 
+    ? CurrentUser.FirstName 
+    : (CurrentUser.UserName?.trim() ? `@${CurrentUser.UserName}` : CurrentUser.Email);
 
   return (
     <div className={`flex h-screen bg-brand-black text-white overflow-hidden transition-all duration-300 ${currentTrack ? 'pb-24' : ''}`}>
@@ -52,7 +72,7 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
               }`}
             >
               <Library className="w-5 h-5" />
-              <span>Minha Biblioteca</span>
+              <span>Biblioteca</span>
             </Link>
             <Link 
               to="/playlists" 
@@ -137,26 +157,76 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
         </div>
 
         {/* Rodapé da Sidebar: Info do Usuário */}
-        <div className="flex flex-col gap-4 border-t border-brand-hover pt-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-brand-hover border border-brand-green/20 flex items-center justify-center text-brand-green">
-              <User className="w-5 h-5" />
+        <div className="relative border-t border-brand-hover pt-4" ref={menuRef}>
+          {/* Menu de Contexto do Perfil */}
+          {isMenuOpen && (
+            <div className="absolute bottom-16 left-0 w-52 bg-brand-card border border-brand-hover rounded-md shadow-2xl p-2 z-50 flex flex-col gap-1 animate-in slide-in-from-bottom-2 fade-in duration-200">
+              <div className="px-3 py-1.5 text-[10px] text-brand-gray font-bold uppercase tracking-wider select-none">
+                Conta e Perfil
+              </div>
+              <button 
+                onClick={() => { navigate('/settings'); setIsMenuOpen(false); }}
+                className="flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded text-white hover:bg-brand-hover hover:text-brand-green transition-colors text-left w-full cursor-pointer"
+              >
+                <Settings className="w-4 h-4 text-brand-green" />
+                <span>Configurações</span>
+              </button>
+              <div className="flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded text-white/40 cursor-not-allowed select-none text-left w-full">
+                <User className="w-4 h-4 text-white/20" />
+                <span>Meu Perfil</span>
+              </div>
+              <div className="flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded text-white/40 cursor-not-allowed select-none text-left w-full">
+                <CreditCard className="w-4 h-4 text-white/20" />
+                <span>Minha Assinatura</span>
+              </div>
+              <div className="flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded text-white/40 cursor-not-allowed select-none text-left w-full">
+                <HelpCircle className="w-4 h-4 text-white/20" />
+                <span>Ajuda</span>
+              </div>
+              
+              <div className="h-[1px] bg-brand-hover my-1" />
+              
+              <button 
+                onClick={handleLogout}
+                className="flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded text-red-400 hover:bg-red-500/10 transition-colors text-left w-full cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Sair</span>
+              </button>
             </div>
-            <div className="flex flex-col truncate">
-              <span className="text-xs font-semibold text-white truncate">{CurrentUser.Email}</span>
-              <span className="text-[10px] text-brand-green font-bold uppercase tracking-wider">
-                {CurrentUser.UserRole}
-              </span>
+          )}
+
+          {/* Bloco de Informações do Usuário (Clique abre o menu) */}
+          <div 
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            className={`flex items-center justify-between p-2 rounded-md hover:bg-brand-hover/50 cursor-pointer select-none transition-all ${
+              isMenuOpen ? 'bg-brand-hover/40' : ''
+            }`}
+          >
+            <div className="flex items-center gap-3 truncate w-full">
+              {CurrentUser.AvatarUrl ? (
+                <img 
+                  src={CurrentUser.AvatarUrl} 
+                  className="w-9 h-9 rounded-full object-cover border border-brand-green/20" 
+                  alt="Avatar" 
+                  onError={(e) => {
+                    // Fallback em caso de URL quebrada
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              ) : (
+                <div className="w-9 h-9 rounded-full bg-brand-hover border border-brand-green/20 flex items-center justify-center text-brand-green">
+                  <User className="w-4 h-4" />
+                </div>
+              )}
+              <div className="flex flex-col truncate">
+                <span className="text-xs font-semibold text-white truncate">{displayName}</span>
+                <span className="text-[9px] text-brand-green font-bold uppercase tracking-wider">
+                  {CurrentUser.UserRole}
+                </span>
+              </div>
             </div>
           </div>
-
-          <button 
-            onClick={handleLogout}
-            className="flex items-center gap-4 py-2 px-3 rounded-md font-semibold text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors w-full cursor-pointer"
-          >
-            <LogOut className="w-5 h-5" />
-            <span>Sair da Conta</span>
-          </button>
         </div>
       </div>
 

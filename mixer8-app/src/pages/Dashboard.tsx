@@ -110,7 +110,7 @@ export const Dashboard: React.FC = () => {
         }
 
         setTrackToEdit(null);
-        fetchTracks(); // Recarrega o grid da tela
+        fetchTracks(true); // Recarrega o grid da tela
       } else {
         const errorData = await res.json().catch(() => ({}));
         setSaveError(errorData.ErrorMessage || 'Falha ao salvar as alterações da música.');
@@ -170,7 +170,7 @@ export const Dashboard: React.FC = () => {
           loadTrack(null);
         }
         setTrackToDelete(null);
-        fetchTracks(); // recarrega a lista da tela
+        fetchTracks(true); // recarrega a lista da tela
       } else {
         const errorData = await res.json().catch(() => ({}));
         setDeleteError(errorData.ErrorMessage || 'Falha ao excluir a música do sistema.');
@@ -193,24 +193,76 @@ export const Dashboard: React.FC = () => {
   // Verifica se a URL contém ?action=upload para abrir o modal
   const showUploadSection = new URLSearchParams(location.search).get('action') === 'upload';
 
-  // 1. Carrega as músicas reais do banco de dados PostgreSQL
-  const fetchTracks = async () => {
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+
+  // 1. Carrega as músicas reais do banco de dados PostgreSQL com paginação 10-por-10
+  const fetchTracks = async (resetPage = false) => {
+    const targetPage = resetPage ? 1 : page;
+    if (resetPage) {
+      setIsLoadingTracks(true);
+      setPage(1);
+      setHasMore(true);
+    } else {
+      setIsFetchingMore(true);
+    }
+
     try {
-      const res = await fetch(`${API_URL}/Tracks`);
+      const res = await fetch(`${API_URL}/Tracks?page=${targetPage}&limit=10`);
       if (res.ok) {
         const data = await res.json();
-        setTracks(data);
+        if (resetPage) {
+          setTracks(data);
+        } else {
+          setTracks(prev => {
+            const existingIds = new Set(prev.map(t => t.TrackId));
+            const newTracks = data.filter((t: any) => !existingIds.has(t.TrackId));
+            return [...prev, ...newTracks];
+          });
+        }
+
+        if (data.length < 10) {
+          setHasMore(false);
+        } else {
+          setPage(prev => (resetPage ? 2 : prev + 1));
+        }
       }
     } catch {
       setError('Falha ao conectar com o banco de dados principal.');
     } finally {
       setIsLoadingTracks(false);
+      setIsFetchingMore(false);
     }
   };
 
   useEffect(() => {
-    fetchTracks();
+    fetchTracks(true);
   }, []);
+
+  // Monitora o scroll do container de PersistentLayout (.overflow-y-auto) para scroll infinito
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollContainer = document.querySelector('.overflow-y-auto');
+      if (!scrollContainer) return;
+
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+      if (scrollHeight - scrollTop - clientHeight < 100 && hasMore && !isFetchingMore && !isLoadingTracks) {
+        fetchTracks(false);
+      }
+    };
+
+    const scrollContainer = document.querySelector('.overflow-y-auto');
+    if (scrollContainer) {
+      scrollContainer.addEventListener('scroll', handleScroll);
+    }
+
+    return () => {
+      if (scrollContainer) {
+        scrollContainer.removeEventListener('scroll', handleScroll);
+      }
+    };
+  }, [hasMore, isFetchingMore, isLoadingTracks, page]);
 
   // 2. Pooling do progresso real da conversão do Worker na VPS
   useEffect(() => {
@@ -328,7 +380,7 @@ export const Dashboard: React.FC = () => {
       <div className="flex items-center justify-between border-b border-brand-hover pb-5">
         <div className="flex flex-col gap-1">
           <h1 className="text-3xl font-black tracking-tight m-0 text-white flex items-center gap-2">
-            Minha Biblioteca
+            Biblioteca
           </h1>
           <p className="text-sm text-brand-gray">Escolha um áudio completo para ouvir ou gerencie as stems mixáveis.</p>
         </div>
@@ -361,81 +413,89 @@ export const Dashboard: React.FC = () => {
           Nenhuma música disponível. Faça um upload para extrair as stems!
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 select-none">
-          {tracks.map((track) => (
-            <div 
-              key={track.TrackId} 
-              className="bg-brand-card border border-brand-hover p-4 rounded-md hover:bg-brand-hover group transition-all relative cursor-pointer"
-              onContextMenu={(e) => {
-                if (track.ExtractionStatus === 'Pronto') {
-                  e.preventDefault();
-                  setContextMenu({
-                    x: e.clientX,
-                    y: e.clientY,
-                    track
-                  });
-                }
-              }}
-            >
-              {/* Botão rápido de adicionar à playlist no hover */}
-              {track.ExtractionStatus === 'Pronto' && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openAddToPlaylist(track.TrackId, track.TrackTitle, track.ArtistName);
-                  }}
-                  className="absolute top-6 right-6 z-20 w-8 h-8 rounded-full bg-black/75 border border-brand-hover hover:border-brand-green text-brand-green hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-105 transition-all shadow-md cursor-pointer duration-200"
-                  title="Adicionar à Playlist"
-                >
-                  <Plus className="w-4.5 h-4.5" />
-                </button>
-              )}
-
-              <div className="w-full aspect-square bg-black border border-brand-hover rounded mb-4 flex items-center justify-center relative overflow-hidden group shadow-md">
-                {track.CoverUrl ? (
-                  <img 
-                    src={track.CoverUrl.startsWith('http') ? track.CoverUrl : `${SERVER_URL}${track.CoverUrl}`} 
-                    alt="Capa" 
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <Disc className="w-16 h-16 text-brand-green/20 group-hover:text-brand-green/40 transition-colors" />
+        <div className="flex flex-col gap-6 select-none w-full animate-in fade-in duration-300">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {tracks.map((track) => (
+              <div 
+                key={track.TrackId} 
+                className="bg-brand-card border border-brand-hover p-4 rounded-md hover:bg-brand-hover group transition-all relative cursor-pointer"
+                onContextMenu={(e) => {
+                  if (track.ExtractionStatus === 'Pronto') {
+                    e.preventDefault();
+                    setContextMenu({
+                      x: e.clientX,
+                      y: e.clientY,
+                      track
+                    });
+                  }
+                }}
+              >
+                {/* Botão rápido de adicionar à playlist no hover */}
+                {track.ExtractionStatus === 'Pronto' && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openAddToPlaylist(track.TrackId, track.TrackTitle, track.ArtistName);
+                    }}
+                    className="absolute top-6 right-6 z-20 w-8 h-8 rounded-full bg-black/75 border border-brand-hover hover:border-brand-green text-brand-green hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-105 transition-all shadow-md cursor-pointer duration-200"
+                    title="Adicionar à Playlist"
+                  >
+                    <Plus className="w-4.5 h-4.5" />
+                  </button>
                 )}
-                <button 
-                  disabled={track.ExtractionStatus !== 'Pronto'}
-                  onClick={() => loadTrack(track)}
-                  className="absolute w-12 h-12 rounded-full bg-brand-green text-black flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 hover:scale-105 transition-all shadow-lg duration-250 cursor-pointer disabled:opacity-30 disabled:scale-100"
-                >
-                  <Play className="w-6 h-6 fill-current translate-x-[1px]" />
-                </button>
-              </div>
 
-              <div className="flex flex-col gap-1 mb-2">
-                <span className="font-bold text-sm text-white truncate">{track.TrackTitle}</span>
-                <span className="text-xs text-brand-gray truncate">{track.ArtistName}</span>
-              </div>
+                <div className="w-full aspect-square bg-black border border-brand-hover rounded mb-4 flex items-center justify-center relative overflow-hidden group shadow-md">
+                  {track.CoverUrl ? (
+                    <img 
+                      src={track.CoverUrl.startsWith('http') ? track.CoverUrl : `${SERVER_URL}${track.CoverUrl}`} 
+                      alt="Capa" 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Disc className="w-16 h-16 text-brand-green/20 group-hover:text-brand-green/40 transition-colors" />
+                  )}
+                  <button 
+                    disabled={track.ExtractionStatus !== 'Pronto'}
+                    onClick={() => loadTrack(track)}
+                    className="absolute w-12 h-12 rounded-full bg-brand-green text-black flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 hover:scale-105 transition-all shadow-lg duration-250 cursor-pointer disabled:opacity-30 disabled:scale-100"
+                  >
+                    <Play className="w-6 h-6 fill-current translate-x-[1px]" />
+                  </button>
+                </div>
 
-              <div className="flex items-center justify-between mt-3 pt-2 border-t border-brand-hover text-[10px] font-bold">
-                <span className="text-brand-gray uppercase">Stems: {track.Stems?.length || 0} faixas</span>
-                
-                {track.ExtractionStatus === 'Pronto' ? (
-                  <span className="text-brand-green flex items-center gap-1">
-                    <CheckCircle className="w-3.5 h-3.5" /> MIX PRONTO
-                  </span>
-                ) : track.ExtractionStatus.startsWith('Processando') ? (
-                  <span className="text-yellow-500 flex items-center gap-1 animate-pulse">
-                    <Clock className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '3s' }} /> EXTRAINDO
-                  </span>
-                ) : track.ExtractionStatus === 'Falhou' ? (
-                  <span className="text-red-400">FALHOU</span>
-                ) : (
-                  <span className="text-brand-gray flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" /> AGUARDANDO
-                  </span>
-                )}
+                <div className="flex flex-col gap-1 mb-2">
+                  <span className="font-bold text-sm text-white truncate">{track.TrackTitle}</span>
+                  <span className="text-xs text-brand-gray truncate">{track.ArtistName}</span>
+                </div>
+
+                <div className="flex items-center justify-between mt-3 pt-2 border-t border-brand-hover text-[10px] font-bold">
+                  <span className="text-brand-gray uppercase">Stems: {track.Stems?.length || 0} faixas</span>
+                  
+                  {track.ExtractionStatus === 'Pronto' ? (
+                    <span className="text-brand-green flex items-center gap-1">
+                      <CheckCircle className="w-3.5 h-3.5" /> MIX PRONTO
+                    </span>
+                  ) : track.ExtractionStatus.startsWith('Processando') ? (
+                    <span className="text-yellow-500 flex items-center gap-1 animate-pulse">
+                      <Clock className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '3s' }} /> EXTRAINDO
+                    </span>
+                  ) : track.ExtractionStatus === 'Falhou' ? (
+                    <span className="text-red-400">FALHOU</span>
+                  ) : (
+                    <span className="text-brand-gray flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5" /> AGUARDANDO
+                    </span>
+                  )}
+                </div>
               </div>
+            ))}
+          </div>
+          {isFetchingMore && (
+            <div className="flex items-center justify-center gap-2 text-xs text-brand-gray py-4">
+              <Loader2 className="w-5 h-5 animate-spin text-brand-green animate-infinite" />
+              <span>Carregando mais faixas...</span>
             </div>
-          ))}
+          )}
         </div>
       )}
 

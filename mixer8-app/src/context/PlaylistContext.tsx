@@ -16,6 +16,7 @@ export interface IPlaylist {
   CreatedAt: string;
   IsOwner: boolean;
   IsCollaborator: boolean;
+  IsSaved: boolean;
   TracksCount: number;
 }
 

@@ -5,6 +5,12 @@ export interface IUser {
   Email: string;
   UserRole: UserRole;
   CreatedAt: string;
+  UserName: string;
+  FirstName?: string;
+  LastName?: string;
+  Phone?: string;
+  Bio?: string;
+  AvatarUrl?: string;
 }
 
 export interface IAuthState {
