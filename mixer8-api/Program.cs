@@ -159,7 +159,8 @@ using (var scope = app.Services.CreateScope())
                 {
                     UserProfileId = Guid.NewGuid(),
                     UserId = newUser.UserId,
-                    Name = seed.Role,
+                    UserName = seed.Email.Split('@')[0],
+                    FirstName = seed.Role,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow,
                     Preferences = new Mixer8.Api.Domain.UserProfilePreferences()
@@ -229,7 +230,8 @@ using (var scope = app.Services.CreateScope())
                 {
                     UserProfileId = Guid.NewGuid(),
                     UserId = u.UserId,
-                    Name = roleStr,
+                    UserName = u.Email.Split('@')[0],
+                    FirstName = roleStr,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow,
                     Preferences = new Mixer8.Api.Domain.UserProfilePreferences()

@@ -16,6 +16,7 @@ public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbCont
     public DbSet<Playlist> Playlists { get; set; } = null!;
     public DbSet<PlaylistTrack> PlaylistTracks { get; set; } = null!;
     public DbSet<PlaylistCollaborator> PlaylistCollaborators { get; set; } = null!;
+    public DbSet<SavedPlaylist> SavedPlaylists { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -30,6 +31,7 @@ public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbCont
         modelBuilder.Entity<Playlist>().ToTable("Playlists");
         modelBuilder.Entity<PlaylistTrack>().ToTable("PlaylistTracks");
         modelBuilder.Entity<PlaylistCollaborator>().ToTable("PlaylistCollaborators");
+        modelBuilder.Entity<SavedPlaylist>().ToTable("SavedPlaylists");
 
         // Chaves primárias
         modelBuilder.Entity<User>().HasKey(u => u.UserId);
@@ -40,6 +42,7 @@ public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbCont
         modelBuilder.Entity<Playlist>().HasKey(p => p.PlaylistId);
         modelBuilder.Entity<PlaylistTrack>().HasKey(pt => new { pt.PlaylistId, pt.TrackId });
         modelBuilder.Entity<PlaylistCollaborator>().HasKey(pc => new { pc.PlaylistId, pc.UserId });
+        modelBuilder.Entity<SavedPlaylist>().HasKey(sp => sp.SavedPlaylistId);
 
         // Configura relacionamentos 1-para-1
         modelBuilder.Entity<User>()
@@ -52,6 +55,22 @@ public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbCont
             .HasOne(u => u.UserProfile)
             .WithOne()
             .HasForeignKey<UserProfile>(up => up.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<UserProfile>()
+            .HasIndex(up => up.UserName)
+            .IsUnique();
+
+        modelBuilder.Entity<SavedPlaylist>()
+            .HasOne<User>()
+            .WithMany()
+            .HasForeignKey(sp => sp.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<SavedPlaylist>()
+            .HasOne<Playlist>()
+            .WithMany()
+            .HasForeignKey(sp => sp.PlaylistId)
             .OnDelete(DeleteBehavior.Cascade);
 
         // Mapear preferências do perfil de usuário em formato JSON
