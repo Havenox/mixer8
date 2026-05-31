@@ -16,5 +16,8 @@ public class Track
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public string? CoverUrl { get; set; }
 
+    public int Duration { get; set; } // Duração em segundos
+    public long PlayCount { get; set; } = 0; // Contador de reproduções
+
     public ICollection<Stem> Stems { get; set; } = new List<Stem>();
 }

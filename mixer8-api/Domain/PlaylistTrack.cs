@@ -12,6 +12,8 @@ public class PlaylistTrack
     public Guid AddedById { get; set; }
     public DateTime AddedAt { get; set; } = DateTime.UtcNow;
 
+    public int Order { get; set; }
+
     public Playlist Playlist { get; set; } = null!;
     public Track Track { get; set; } = null!;
     public User AddedByUser { get; set; } = null!;
