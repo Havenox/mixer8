@@ -236,7 +236,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             OwnerLastName = ownerProfile?.LastName,
             OwnerAvatarUrl = ownerProfile?.AvatarUrl,
             Tracks = playlist.PlaylistTracks
-                .OrderBy(pt => pt.AddedAt)
+                .OrderBy(pt => pt.Order)
                 .Select(pt => new PlaylistTrackResponseDto
                 {
                     TrackId = pt.TrackId,
@@ -246,6 +246,8 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
                     AddedById = pt.AddedById,
                     AddedByEmail = pt.AddedByUser != null ? pt.AddedByUser.Email : "",
                     AddedAt = pt.AddedAt,
+                    Order = pt.Order,
+                    Duration = pt.Track.Duration,
                     Stems = pt.Track.Stems.Select(s => new PlaylistStemResponseDto
                     {
                         StemId = s.StemId,
@@ -389,7 +391,6 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
         await dbContext.SaveChangesAsync();
         return Ok(new { Success = true });
     }
-
     [HttpPost("{id}/Tracks")]
     public async Task<IActionResult> AddTrackToPlaylist(Guid id, [FromBody] AddTrackDto request)
     {
@@ -421,12 +422,18 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
         if (alreadyInPlaylist)
             return BadRequest(new { ErrorMessage = "TRACK_ALREADY_IN_PLAYLIST" });
 
+        var maxOrder = await dbContext.PlaylistTracks
+            .Where(pt => pt.PlaylistId == id)
+            .Select(pt => (int?)pt.Order)
+            .MaxAsync() ?? 0;
+
         var playlistTrack = new PlaylistTrack
         {
             PlaylistId = id,
             TrackId = request.TrackId,
             AddedById = userId,
-            AddedAt = DateTime.UtcNow
+            AddedAt = DateTime.UtcNow,
+            Order = maxOrder + 1
         };
 
         dbContext.PlaylistTracks.Add(playlistTrack);
@@ -669,6 +676,59 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
 
         return Ok(result);
     }
+
+    [HttpPut("{id}/Reorder")]
+    public async Task<IActionResult> ReorderTracks(Guid id, [FromBody] ReorderPlaylistTracksRequest request)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+            return Unauthorized(new { ErrorMessage = "INVALID_TOKEN_CLAIMS" });
+
+        var playlist = await dbContext.Playlists
+            .Include(p => p.PlaylistCollaborators)
+            .FirstOrDefaultAsync(p => p.PlaylistId == id);
+
+        if (playlist == null)
+            return NotFound(new { ErrorMessage = "PLAYLIST_NOT_FOUND" });
+
+        var isOwner = playlist.OwnerId == userId;
+        var isCollaborator = playlist.PlaylistCollaborators.Any(pc => pc.UserId == userId);
+        var isAdmin = User.IsInRole("Admin");
+
+        if (!isOwner && !isCollaborator && !isAdmin)
+            return Forbid();
+
+        if (request.TrackIds == null || request.TrackIds.Count == 0)
+            return BadRequest(new { ErrorMessage = "TRACK_IDS_REQUIRED" });
+
+        var playlistTracks = await dbContext.PlaylistTracks
+            .Where(pt => pt.PlaylistId == id)
+            .ToListAsync();
+
+        using var transaction = await dbContext.Database.BeginTransactionAsync();
+        try
+        {
+            for (int i = 0; i < request.TrackIds.Count; i++)
+            {
+                var trackId = request.TrackIds[i];
+                var pt = playlistTracks.FirstOrDefault(x => x.TrackId == trackId);
+                if (pt != null)
+                {
+                    pt.Order = i + 1;
+                }
+            }
+
+            await dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+            return Ok(new { Success = true });
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            Console.WriteLine($"[REORDER PLAYLIST ERROR] Falha ao reordenar playlist: {ex.Message}");
+            return StatusCode(500, new { ErrorMessage = "REORDER_FAILED", Details = ex.Message });
+        }
+    }
 }
 
 public class CreatePlaylistRequest
@@ -691,6 +751,11 @@ public class UpdatePlaylistRequest
 public class AddTrackDto
 {
     public Guid TrackId { get; set; }
+}
+
+public class ReorderPlaylistTracksRequest
+{
+    public List<Guid> TrackIds { get; set; } = new();
 }
 
 public class AddCollaboratorDto
@@ -748,6 +813,8 @@ public class PlaylistTrackResponseDto
     public Guid AddedById { get; set; }
     public string AddedByEmail { get; set; } = null!;
     public DateTime AddedAt { get; set; }
+    public int Order { get; set; }
+    public int Duration { get; set; }
     public List<PlaylistStemResponseDto> Stems { get; set; } = new();
 }
 
