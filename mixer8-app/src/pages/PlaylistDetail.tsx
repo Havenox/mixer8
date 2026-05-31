@@ -242,7 +242,7 @@ export const PlaylistDetail: React.FC = () => {
         AudioUrl: s.AudioUrl
       }))
     };
-    loadTrack(trackToPlay);
+    loadTrack(trackToPlay, playlist?.PlaylistId);
   };
 
   const handleRemoveTrack = async (trackId: string) => {

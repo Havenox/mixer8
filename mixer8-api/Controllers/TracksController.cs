@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Mixer8.Api.Domain;
 using Mixer8.Api.Infrastructure;
 using System;
@@ -16,7 +17,7 @@ namespace Mixer8.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class TracksController(Mixer8DbContext dbContext, IConfiguration configuration) : ControllerBase
+public class TracksController(Mixer8DbContext dbContext, IConfiguration configuration, IMemoryCache memoryCache) : ControllerBase
 {
     private static readonly string[] AllowedMediaExtensions = { 
         ".mp3", ".wav", ".ogg", ".aac", ".flac", ".opus", ".m4a", ".wma",
@@ -883,6 +884,115 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             return StatusCode(500, new { ErrorMessage = "UPDATE_FAILED", Details = ex.Message });
         }
     }
+
+    [HttpPost("{id}/RecordPlay")]
+    public async Task<IActionResult> RecordPlay(Guid id, [FromBody] RecordPlayRequest request)
+    {
+        // 1. Identificar o Usuário / IP
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        string userKey;
+        if (userIdClaim != null && Guid.TryParse(userIdClaim, out var userId))
+        {
+            userKey = $"user_{userId}";
+        }
+        else
+        {
+            var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown_ip";
+            userKey = $"ip_{ip}";
+        }
+
+        // 2. Buscar a música no banco
+        var track = await dbContext.Tracks.FirstOrDefaultAsync(t => t.TrackId == id);
+        if (track == null)
+        {
+            return NotFound(new { ErrorMessage = "TRACK_NOT_FOUND" });
+        }
+
+        bool trackIncremented = false;
+        bool playlistIncremented = false;
+        bool albumIncremented = false;
+
+        // 3. Validar rate limit / cooldown para a Música
+        var trackCacheKey = $"play_cooldown:track:{id}:{userKey}";
+        if (!memoryCache.TryGetValue(trackCacheKey, out _))
+        {
+            // Cooldown de Math.Max(track.Duration - 5, 30) segundos
+            var cooldownSeconds = Math.Max(track.Duration - 5, 30);
+            
+            track.PlayCount++;
+            trackIncremented = true;
+
+            var cacheOptions = new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(cooldownSeconds)
+            };
+            memoryCache.Set(trackCacheKey, true, cacheOptions);
+        }
+
+        // 4. Validar rate limit / cooldown para a Playlist (se informada)
+        if (request.PlaylistId.HasValue)
+        {
+            var playlistId = request.PlaylistId.Value;
+            var playlistCacheKey = $"play_cooldown:playlist:{playlistId}:{userKey}";
+            if (!memoryCache.TryGetValue(playlistCacheKey, out _))
+            {
+                var playlist = await dbContext.Playlists.FirstOrDefaultAsync(p => p.PlaylistId == playlistId);
+                if (playlist != null)
+                {
+                    playlist.PlayCount++;
+                    playlistIncremented = true;
+
+                    var cacheOptions = new MemoryCacheEntryOptions
+                    {
+                        AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
+                    };
+                    memoryCache.Set(playlistCacheKey, true, cacheOptions);
+                }
+            }
+        }
+
+        // 5. Validar rate limit / cooldown para o Álbum (se informado)
+        if (request.AlbumId.HasValue)
+        {
+            var albumId = request.AlbumId.Value;
+            var albumCacheKey = $"play_cooldown:album:{albumId}:{userKey}";
+            if (!memoryCache.TryGetValue(albumCacheKey, out _))
+            {
+                var album = await dbContext.Albums.FirstOrDefaultAsync(a => a.AlbumId == albumId);
+                if (album != null)
+                {
+                    album.PlayCount++;
+                    albumIncremented = true;
+
+                    var cacheOptions = new MemoryCacheEntryOptions
+                    {
+                        AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
+                    };
+                    memoryCache.Set(albumCacheKey, true, cacheOptions);
+                }
+            }
+        }
+
+        // 6. Salvar as alterações se algum contador foi incrementado
+        if (trackIncremented || playlistIncremented || albumIncremented)
+        {
+            await dbContext.SaveChangesAsync();
+        }
+
+        return Ok(new
+        {
+            Success = true,
+            TrackIncremented = trackIncremented,
+            PlaylistIncremented = playlistIncremented,
+            AlbumIncremented = albumIncremented
+        });
+    }
+}
+
+public class RecordPlayRequest
+{
+    public Guid? PlaylistId { get; set; }
+    public Guid? AlbumId { get; set; }
 }
 
 public class UploadTrackRequest

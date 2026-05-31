@@ -26,7 +26,7 @@ interface IPlayerContext {
   stemsMute: Record<string, boolean>;
   stemsSolo: Record<string, boolean>;
   masterVolume: number;
-  loadTrack: (track: ITrack | null) => void;
+  loadTrack: (track: ITrack | null, playlistId?: string, albumId?: string) => void;
   togglePlay: () => void;
   seek: (seconds: number) => void;
   setStemVolume: (type: string, volume: number) => void;
@@ -54,10 +54,17 @@ export const STANDARD_STEMS = [
   'Metrônomo'
 ];
 
-import { SERVER_URL } from '../config';
+import { SERVER_URL, API_URL } from '../config';
+import { useAuth } from './AuthContext';
 
 export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { Token } = useAuth();
   const [currentTrack, setCurrentTrack] = useState<ITrack | null>(null);
+  const [currentPlaylistId, setCurrentPlaylistId] = useState<string | null>(null);
+  const [currentAlbumId, setCurrentAlbumId] = useState<string | null>(null);
+
+  const listeningAccumulatorRef = useRef(0);
+  const hasRecordedPlayRef = useRef(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -146,12 +153,17 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return audioContextRef.current;
   };
 
-  const loadTrack = async (track: ITrack | null) => {
+  const loadTrack = async (track: ITrack | null, playlistId?: string, albumId?: string) => {
     setIsPlaying(false);
     cleanupActiveStems();
     setCurrentTime(0);
     setDuration(0);
     setCurrentTrack(track);
+    setCurrentPlaylistId(playlistId || null);
+    setCurrentAlbumId(albumId || null);
+
+    listeningAccumulatorRef.current = 0;
+    hasRecordedPlayRef.current = false;
 
     if (!track || !track.Stems || track.Stems.length === 0) {
       return;
@@ -310,6 +322,52 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       masterGainNodeRef.current.gain.setValueAtTime(volume, audioContextRef.current.currentTime);
     }
   };
+
+  // Efeito para acumular tempo escutado e registrar reprodução (PlayCount) com rate-limit
+  useEffect(() => {
+    if (!isPlaying || !currentTrack || hasRecordedPlayRef.current) return;
+
+    const interval = setInterval(async () => {
+      listeningAccumulatorRef.current += 1;
+
+      // Limiar: 30 segundos (ou 50% da música caso ela seja mais curta que 30s)
+      const targetSeconds = Math.min(30, Math.floor(duration > 0 ? duration / 2 : 30));
+
+      if (listeningAccumulatorRef.current >= targetSeconds) {
+        hasRecordedPlayRef.current = true;
+        clearInterval(interval);
+
+        try {
+          const body: Record<string, string> = {};
+          if (currentPlaylistId) body['PlaylistId'] = currentPlaylistId;
+          if (currentAlbumId) body['AlbumId'] = currentAlbumId;
+
+          const headers: Record<string, string> = {
+            'Content-Type': 'application/json'
+          };
+          if (Token) {
+            headers['Authorization'] = `Bearer ${Token}`;
+          }
+
+          const res = await fetch(`${API_URL}/Tracks/${currentTrack.TrackId}/RecordPlay`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body)
+          });
+
+          if (res.ok) {
+            console.log('[PLAY RECORDED]', await res.json());
+          } else {
+            console.warn('[PLAY RECORD FAILED]', res.status);
+          }
+        } catch (err) {
+          console.error('[PLAY RECORD ERROR]', err);
+        }
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isPlaying, currentTrack, duration, currentPlaylistId, currentAlbumId, Token]);
 
   return (
     <PlayerContext.Provider

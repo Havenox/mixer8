@@ -50,6 +50,8 @@ if (string.IsNullOrEmpty(connectionString) || connectionString.Contains("${"))
 builder.Services.AddDbContext<Mixer8DbContext>(options =>
     options.UseNpgsql(connectionString));
 
+builder.Services.AddMemoryCache();
+
 // 3. Configura a Autenticação Bearer JWT
 var jwtSecret = builder.Configuration["JWT_SECRET"] ?? "sua_chave_secreta_jwt_aqui_minimo_32_caracteres";
 var key = Encoding.ASCII.GetBytes(jwtSecret);
