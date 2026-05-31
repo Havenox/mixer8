@@ -20,6 +20,7 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     return localStorage.getItem('mixer8_sidebar_collapsed') === 'true';
   });
+  const [isHovered, setIsHovered] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Fecha o menu de contexto ao clicar fora dele
@@ -37,6 +38,18 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     localStorage.setItem('mixer8_sidebar_collapsed', String(isSidebarCollapsed));
   }, [isSidebarCollapsed]);
+
+  // Auto-retratividade em telas menores ou ao redimensionar (Mono Celular / Telas Apertadas)
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 1024) {
+        setIsSidebarCollapsed(true);
+      }
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
   if ((!IsAuthenticated || !CurrentUser) && isAuthPage) {
@@ -57,9 +70,13 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
     <div className={`flex h-screen bg-brand-black text-white overflow-hidden transition-all duration-300 ${currentTrack ? 'pb-24' : ''}`}>
       
       {/* 1. SIDEBAR (Estilo Mesa de Som Retrátil) */}
-      <div className={`bg-black flex flex-col justify-between border-r border-brand-hover select-none shrink-0 transition-all duration-300 ${
-        isSidebarCollapsed ? 'w-20 p-4 py-6 items-center' : 'w-64 p-6'
-      }`}>
+      <div 
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`bg-black flex flex-col justify-between border-r border-brand-hover select-none shrink-0 transition-all duration-300 ${
+          isSidebarCollapsed ? 'w-20 p-4 py-6 items-center' : 'w-64 p-6'
+        }`}
+      >
         <div className="flex flex-col gap-6 w-full">
           {/* Cabeçalho: Logo + Botão de Retração */}
           <div className={`flex items-center justify-between w-full ${isSidebarCollapsed ? 'flex-col gap-4' : 'px-2'}`}>
@@ -68,7 +85,11 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
             )}
             <button
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              className="p-1.5 rounded bg-brand-hover hover:text-brand-green text-brand-gray border border-transparent hover:border-brand-green/20 transition-all cursor-pointer shadow-md"
+              className={`p-1.5 rounded text-brand-gray hover:text-white hover:bg-brand-hover/40 cursor-pointer shadow-sm transition-all duration-300 ${
+                isSidebarCollapsed 
+                  ? 'opacity-100 pointer-events-auto' 
+                  : `opacity-100 pointer-events-auto md:${isHovered ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`
+              }`}
               title={isSidebarCollapsed ? "Expandir Navegação" : "Recolher Navegação"}
             >
               {isSidebarCollapsed ? <ChevronRight className="w-4.5 h-4.5" /> : <ChevronLeft className="w-4.5 h-4.5" />}
