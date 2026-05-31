@@ -447,7 +447,7 @@ export const PlaylistDetail: React.FC = () => {
       </button>
 
       {/* 1. Header */}
-      <div className="flex flex-col md:flex-row gap-6 items-end bg-gradient-to-b from-brand-hover/40 to-transparent p-6 rounded-lg border border-brand-hover/30 shadow-inner">
+      <div className="flex flex-col md:flex-row gap-6 items-start md:items-end bg-gradient-to-b from-brand-hover/40 to-transparent p-6 rounded-lg border border-brand-hover/30 shadow-inner">
         {/* Capa */}
         <div className="w-48 h-48 bg-black rounded shadow-2xl flex items-center justify-center shrink-0 overflow-hidden relative group border border-brand-hover">
           {playlist.CoverUrl ? (
