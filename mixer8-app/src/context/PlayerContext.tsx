@@ -65,7 +65,14 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const listeningAccumulatorRef = useRef(0);
   const hasRecordedPlayRef = useRef(false);
+  
   const [isPlaying, setIsPlaying] = useState(false);
+  const isPlayingRef = useRef(false);
+  const setIsPlayingSynced = (val: boolean) => {
+    setIsPlaying(val);
+    isPlayingRef.current = val;
+  };
+
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   
@@ -88,6 +95,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     sourceNode: MediaElementAudioSourceNode;
     type: string;
   }[]>([]);
+
+  // Referências locais para a barreira de sincronização
+  const syncBarrierPromiseRef = useRef<Promise<void> | null>(null);
+  const syncBarrierResolveRef = useRef<(() => void) | null>(null);
 
   // Atualiza os ganhos de todas as stems ativas com base em volume, mute e solo
   const updateAudioGains = (
@@ -126,6 +137,30 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   }, []);
 
+  // Loop de alinhamento contínuo contra drift (desvio) rodando a cada 250ms
+  useEffect(() => {
+    if (!isPlaying || activeStemsRef.current.length <= 1) return;
+
+    const interval = setInterval(() => {
+      const masterItem = activeStemsRef.current[0];
+      if (!masterItem) return;
+
+      const masterTime = masterItem.audio.currentTime;
+
+      for (let i = 1; i < activeStemsRef.current.length; i++) {
+        const item = activeStemsRef.current[i];
+        const diff = Math.abs(item.audio.currentTime - masterTime);
+        // Se o desvio for maior do que 50 milissegundos (0.05s)
+        if (diff > 0.05) {
+          console.log(`[SYNC] Ajustando drift em stem '${item.type}': desvio de ${(diff * 1000).toFixed(1)}ms. Novo tempo alinhado: ${masterTime.toFixed(3)}s`);
+          item.audio.currentTime = masterTime;
+        }
+      }
+    }, 250);
+
+    return () => clearInterval(interval);
+  }, [isPlaying, currentTrack]);
+
   const cleanupActiveStems = () => {
     activeStemsRef.current.forEach(item => {
       item.audio.pause();
@@ -154,7 +189,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const loadTrack = async (track: ITrack | null, playlistId?: string, albumId?: string) => {
-    setIsPlaying(false);
+    setIsPlayingSynced(false);
     cleanupActiveStems();
     setCurrentTime(0);
     setDuration(0);
@@ -178,6 +213,36 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Master track/audio elemento de referência para progresso
     let masterAudioElement: HTMLAudioElement | null = null;
 
+    let stemsLoadedCount = 0;
+    const totalStemsCount = track.Stems.length;
+    let isBarrierResolved = false;
+
+    // Sincronização: Criação da Promise de barreira
+    syncBarrierPromiseRef.current = new Promise<void>((resolve) => {
+      syncBarrierResolveRef.current = resolve;
+    });
+
+    const resolveBarrier = () => {
+      if (isBarrierResolved) return;
+      isBarrierResolved = true;
+      syncBarrierResolveRef.current?.();
+      syncBarrierPromiseRef.current = null;
+    };
+
+    // Timeout de segurança para não congelar o player em falhas de rede (3.5 segundos)
+    const safetyTimeout = setTimeout(() => {
+      console.warn('[SYNC] Safety timeout de 3.5s atingido. Liberando reprodução com as stems prontas.');
+      resolveBarrier();
+    }, 3500);
+
+    const checkSyncBarrier = () => {
+      stemsLoadedCount++;
+      if (stemsLoadedCount === totalStemsCount) {
+        clearTimeout(safetyTimeout);
+        resolveBarrier();
+      }
+    };
+
     track.Stems.forEach(stem => {
       const stemType = stem.StemType; // ex: Voz, Bateria, Baixo
       // O volume padrão das stems é 100% (1.0), exceto para o "Metrônomo" que inicia zerado (0.0)
@@ -188,10 +253,31 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         ? stem.AudioUrl
         : `${SERVER_URL}${stem.AudioUrl}`;
 
-      // Cria elemento HTML5 Audio com pré-carregamento apenas dos metadados (streaming progressivo)
+      // Cria elemento HTML5 Audio com pré-carregamento agressivo ('auto')
       const audio = new Audio(fullAudioUrl);
       audio.crossOrigin = 'anonymous';
-      audio.preload = 'metadata';
+      audio.preload = 'auto';
+
+      const onCanPlay = () => {
+        audio.removeEventListener('canplay', onCanPlay);
+        audio.removeEventListener('error', onError);
+        checkSyncBarrier();
+      };
+
+      const onError = (e: any) => {
+        console.warn(`[SYNC] Erro ao carregar stem ${stemType}:`, e);
+        audio.removeEventListener('canplay', onCanPlay);
+        audio.removeEventListener('error', onError);
+        checkSyncBarrier(); // Conta como carregado para não travar
+      };
+
+      // Se por algum motivo já estiver pronto
+      if (audio.readyState >= 3) {
+        checkSyncBarrier();
+      } else {
+        audio.addEventListener('canplay', onCanPlay);
+        audio.addEventListener('error', onError);
+      }
 
       // Cria nós de Web Audio correspondentes
       const sourceNode = ctx.createMediaElementSource(audio);
@@ -239,24 +325,47 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
 
       master.addEventListener('ended', () => {
-        setIsPlaying(false);
+        setIsPlayingSynced(false);
         seek(0);
       });
     }
 
     // Auto-play instantâneo
-    setIsPlaying(true);
+    setIsPlayingSynced(true);
     if (ctx.state === 'suspended') {
       await ctx.resume();
     }
 
-    // Executa play simultâneo em todos os canais de áudio
-    activeStemsRef.current.forEach(item => {
-      item.audio.currentTime = 0;
-      item.audio.play().catch(() => {
-        // Bloqueio de auto-play nativo do browser, ignorado silenciosamente
-      });
-    });
+    // Aguarda barreira de sincronização
+    try {
+      if (syncBarrierPromiseRef.current) {
+        await syncBarrierPromiseRef.current;
+      }
+    } catch (err) {
+      console.error('[SYNC] Falha ao aguardar barreira de sincronização:', err);
+    }
+
+    // Verifica se a track atual ainda é esta após o await
+    if (activeStemsRef.current !== loadedStems) {
+      return;
+    }
+
+    // Se o usuário pausou enquanto carregava, não inicia o play
+    if (!isPlayingRef.current) {
+      return;
+    }
+
+    // Executa play simultâneo em todos os canais de áudio na mesma microtask
+    await Promise.all(
+      activeStemsRef.current.map(async item => {
+        item.audio.currentTime = 0;
+        try {
+          await item.audio.play();
+        } catch (err) {
+          console.warn(`[PLAY] Bloqueio de auto-play ou erro na stem ${item.type}:`, err);
+        }
+      })
+    );
   };
 
   const togglePlay = async () => {
@@ -271,15 +380,22 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       activeStemsRef.current.forEach(item => {
         item.audio.pause();
       });
-      setIsPlaying(false);
+      setIsPlayingSynced(false);
     } else {
       // Sincroniza tempos milimetricamente antes de tocar
       const targetTime = activeStemsRef.current[0]?.audio.currentTime || 0;
-      activeStemsRef.current.forEach(item => {
-        item.audio.currentTime = targetTime;
-        item.audio.play().catch(() => {});
-      });
-      setIsPlaying(true);
+      setIsPlayingSynced(true);
+      
+      await Promise.all(
+        activeStemsRef.current.map(async item => {
+          item.audio.currentTime = targetTime;
+          try {
+            await item.audio.play();
+          } catch (err) {
+            console.warn(`[PLAY] Erro ao tocar stem ${item.type}:`, err);
+          }
+        })
+      );
     }
   };
 
