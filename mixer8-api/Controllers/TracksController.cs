@@ -11,6 +11,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Security.Claims;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace Mixer8.Api.Controllers;
@@ -136,6 +137,8 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         {
             return Unauthorized(new { ErrorMessage = "INVALID_TOKEN_CLAIMS" });
         }
+
+        Console.WriteLine($"[API] Recebendo UploadDirect: TrackTitle='{request.TrackTitle}', ArtistName='{request.ArtistName}', FilesCount={request.Files?.Count ?? 0}");
 
         if (string.IsNullOrWhiteSpace(request.TrackTitle) || string.IsNullOrWhiteSpace(request.ArtistName))
         {
@@ -492,6 +495,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
 
     private static async Task<bool> ConvertToOpusAsync(Stream inputStream, string outputFilePath, bool forceMono)
     {
+        Console.WriteLine($"[FFMPEG] ConvertToOpusAsync iniciado. Mono={forceMono}, Output={outputFilePath}");
         string arguments = forceMono
             ? $"-y -i pipe:0 -ac 1 -c:a libopus -b:a 64k -vbr on -ar 48000 \"{outputFilePath}\""
             : $"-y -i pipe:0 -ac 2 -c:a libopus -b:a 96k -vbr on -ar 48000 \"{outputFilePath}\"";
@@ -508,27 +512,38 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         };
 
         using var process = new System.Diagnostics.Process { StartInfo = startInfo };
+        var stderrBuilder = new StringBuilder();
+
+        // Registra o handler para capturar a saída de erro do FFmpeg de forma totalmente assíncrona
+        process.ErrorDataReceived += (sender, e) =>
+        {
+            if (e.Data != null)
+            {
+                stderrBuilder.AppendLine(e.Data);
+            }
+        };
+
         try
         {
+            Console.WriteLine("[FFMPEG] Iniciando processo ffmpeg...");
             process.Start();
-
-            // Inicia a leitura da saída de erro (stderr) de forma assíncrona concorrente para evitar deadlocks
-            // gerados pelo preenchimento do buffer pequeno do pipe do SO ao processar arquivos grandes.
-            var errorReaderTask = process.StandardError.ReadToEndAsync();
+            
+            // Inicia o consumo assíncrono em segundo plano gerenciado pelo SO
+            process.BeginErrorReadLine();
+            Console.WriteLine("[FFMPEG] Processo iniciado. Começando gravação de áudio no stdin...");
 
             // Escreve a entrada in-memory de forma assíncrona na stdin do processo
             var copyTask = inputStream.CopyToAsync(process.StandardInput.BaseStream);
             await copyTask;
             process.StandardInput.Close();
+            Console.WriteLine("[FFMPEG] Gravação em stdin concluída. Aguardando saída do ffmpeg...");
 
             await process.WaitForExitAsync();
-
-            // Aguarda o término da tarefa de leitura do StandardError
-            string errorOutput = await errorReaderTask;
+            Console.WriteLine($"[FFMPEG] Processo finalizado. ExitCode={process.ExitCode}");
 
             if (process.ExitCode != 0)
             {
-                Console.WriteLine($"[FFMPEG ERROR] Conversão para Opus falhou com ExitCode {process.ExitCode}. Erro: {errorOutput}");
+                Console.WriteLine($"[FFMPEG ERROR] Conversão para Opus falhou com ExitCode {process.ExitCode}. Erro: {stderrBuilder}");
                 return false;
             }
 
@@ -543,6 +558,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
 
     private static async Task<double> GetAudioDurationAsync(string filePath)
     {
+        Console.WriteLine($"[FFPROBE] Lendo duração do arquivo: {filePath}");
         var startInfo = new System.Diagnostics.ProcessStartInfo
         {
             FileName = "ffprobe",
@@ -554,18 +570,35 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         };
 
         using var process = new System.Diagnostics.Process { StartInfo = startInfo };
+        var stdoutBuilder = new StringBuilder();
+        var stderrBuilder = new StringBuilder();
+
+        process.OutputDataReceived += (sender, e) =>
+        {
+            if (e.Data != null)
+            {
+                stdoutBuilder.AppendLine(e.Data);
+            }
+        };
+        process.ErrorDataReceived += (sender, e) =>
+        {
+            if (e.Data != null)
+            {
+                stderrBuilder.AppendLine(e.Data);
+            }
+        };
+
         try
         {
             process.Start();
-
-            // Lê as saídas de stdout e stderr de forma assíncrona concorrente para proteção completa contra deadlocks
-            var outputTask = process.StandardOutput.ReadToEndAsync();
-            var errorTask = process.StandardError.ReadToEndAsync();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
 
             await process.WaitForExitAsync();
 
-            var output = await outputTask;
-            var error = await errorTask;
+            var output = stdoutBuilder.ToString();
+            var error = stderrBuilder.ToString();
+            Console.WriteLine($"[FFPROBE] Finalizado. ExitCode={process.ExitCode}, Output={output.Trim()}");
 
             if (process.ExitCode == 0 && double.TryParse(output.Trim(), System.Globalization.CultureInfo.InvariantCulture, out var duration))
             {
