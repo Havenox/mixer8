@@ -22,7 +22,9 @@ export const MesaPlayer: React.FC = () => {
     setStemVolume,
     toggleStemMute,
     toggleStemSolo,
-    setMasterVolume
+    setMasterVolume,
+    playNextTrack,
+    playPreviousTrack
   } = usePlayer();
 
   const [showMixer, setShowMixer] = useState(false);
@@ -107,8 +109,9 @@ export const MesaPlayer: React.FC = () => {
         {/* Botões do Player */}
         <div className="flex items-center gap-4 md:gap-6">
           <button 
-            onClick={() => seek(Math.max(0, currentTime - 10))}
+            onClick={playPreviousTrack}
             className="text-brand-gray hover:text-white transition-colors cursor-pointer"
+            title="Música anterior"
           >
             <SkipBack className="w-4 h-4 md:w-5 md:h-5 fill-current" />
           </button>
@@ -123,10 +126,11 @@ export const MesaPlayer: React.FC = () => {
               <Play className="w-4 h-4 md:w-5 md:h-5 fill-current translate-x-[0.5px] md:translate-x-[1px]" />
             )}
           </button>
-
+          
           <button 
-            onClick={() => seek(Math.min(duration, currentTime + 10))}
+            onClick={playNextTrack}
             className="text-brand-gray hover:text-white transition-colors cursor-pointer"
+            title="Próxima música"
           >
             <SkipForward className="w-4 h-4 md:w-5 md:h-5 fill-current" />
           </button>

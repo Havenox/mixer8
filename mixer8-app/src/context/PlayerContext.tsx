@@ -26,7 +26,8 @@ interface IPlayerContext {
   stemsMute: Record<string, boolean>;
   stemsSolo: Record<string, boolean>;
   masterVolume: number;
-  loadTrack: (track: ITrack | null, playlistId?: string, albumId?: string) => void;
+  currentQueue: ITrack[];
+  loadTrack: (track: ITrack | null, playlistId?: string, albumId?: string, tracksQueue?: ITrack[]) => void;
   togglePlay: () => void;
   seek: (seconds: number) => void;
   setStemVolume: (type: string, volume: number) => void;
@@ -36,6 +37,8 @@ interface IPlayerContext {
   downloadTrackForOffline: (track: ITrack) => Promise<void>;
   isTrackDownloaded: (track: ITrack) => Promise<boolean>;
   removeTrackOffline: (track: ITrack) => Promise<void>;
+  playNextTrack: () => void;
+  playPreviousTrack: () => void;
 }
 
 const PlayerContext = createContext<IPlayerContext | undefined>(undefined);
@@ -153,6 +156,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [currentTrack, setCurrentTrack] = useState<ITrack | null>(null);
   const [currentPlaylistId, setCurrentPlaylistId] = useState<string | null>(null);
   const [currentAlbumId, setCurrentAlbumId] = useState<string | null>(null);
+  const [currentQueue, setCurrentQueue] = useState<ITrack[]>([]);
+  const currentQueueRef = useRef<ITrack[]>([]);
+
+  const updateQueue = (queue: ITrack[]) => {
+    setCurrentQueue(queue);
+    currentQueueRef.current = queue;
+  };
 
   const listeningAccumulatorRef = useRef(0);
   const hasRecordedPlayRef = useRef(false);
@@ -293,7 +303,47 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return audioContextRef.current;
   };
 
-  const loadTrack = async (track: ITrack | null, playlistId?: string, albumId?: string) => {
+  const playNextTrack = () => {
+    if (currentQueueRef.current.length === 0 || !currentTrack) return;
+    const currentIndex = currentQueueRef.current.findIndex(t => t.TrackId === currentTrack.TrackId);
+    if (currentIndex !== -1 && currentIndex < currentQueueRef.current.length - 1) {
+      const nextTrack = currentQueueRef.current[currentIndex + 1];
+      console.log('[AUTOPLAY] Pulando para a próxima faixa:', nextTrack.TrackTitle);
+      loadTrack(nextTrack, currentPlaylistId || undefined, currentAlbumId || undefined);
+    } else {
+      console.log('[AUTOPLAY] Última faixa atingida na fila de reprodução.');
+      setIsPlayingSynced(false);
+      seek(0);
+    }
+  };
+
+  const playPreviousTrack = () => {
+    if (currentQueueRef.current.length === 0 || !currentTrack) return;
+    const currentIndex = currentQueueRef.current.findIndex(t => t.TrackId === currentTrack.TrackId);
+    
+    // Se a música estiver tocando há mais de 3 segundos, o comportamento padrão do Spotify é reiniciar a música atual
+    if (currentTime > 3) {
+      console.log('[PLAYBACK] Reiniciando faixa atual...');
+      seek(0);
+      return;
+    }
+
+    if (currentIndex > 0) {
+      const prevTrack = currentQueueRef.current[currentIndex - 1];
+      console.log('[PLAYBACK] Voltando para a faixa anterior:', prevTrack.TrackTitle);
+      loadTrack(prevTrack, currentPlaylistId || undefined, currentAlbumId || undefined);
+    } else {
+      console.log('[PLAYBACK] Primeira faixa atingida. Reiniciando...');
+      seek(0);
+    }
+  };
+
+  const loadTrack = async (
+    track: ITrack | null,
+    playlistId?: string,
+    albumId?: string,
+    tracksQueue?: ITrack[]
+  ) => {
     setIsPlayingSynced(false);
     cleanupActiveStems();
     setCurrentTime(0);
@@ -301,6 +351,16 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setCurrentTrack(track);
     setCurrentPlaylistId(playlistId || null);
     setCurrentAlbumId(albumId || null);
+
+    if (tracksQueue) {
+      updateQueue(tracksQueue);
+    } else if (track) {
+      // Se tocada de forma avulsa sem fila e a fila atual não contém ela, cria uma fila unitária
+      const existsInQueue = currentQueueRef.current.some(t => t.TrackId === track.TrackId);
+      if (!existsInQueue) {
+        updateQueue([track]);
+      }
+    }
 
     listeningAccumulatorRef.current = 0;
     hasRecordedPlayRef.current = false;
@@ -444,8 +504,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
 
       master.addEventListener('ended', () => {
-        setIsPlayingSynced(false);
-        seek(0);
+        playNextTrack();
       });
     }
 
@@ -788,6 +847,80 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  // Atualização de Metadados na Media Session API
+  useEffect(() => {
+    if (!currentTrack || !('mediaSession' in navigator)) return;
+
+    const fullCoverUrl = currentTrack.CoverUrl 
+      ? (currentTrack.CoverUrl.startsWith('http') ? currentTrack.CoverUrl : `${SERVER_URL}${currentTrack.CoverUrl}`)
+      : '';
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: currentTrack.TrackTitle,
+      artist: currentTrack.ArtistName,
+      album: currentPlaylistId ? 'Playlist Mixer8' : (currentAlbumId ? 'Álbum Mixer8' : 'Biblioteca Mixer8'),
+      artwork: fullCoverUrl ? [
+        { src: fullCoverUrl, sizes: '96x96', type: 'image/webp' },
+        { src: fullCoverUrl, sizes: '128x128', type: 'image/webp' },
+        { src: fullCoverUrl, sizes: '192x192', type: 'image/webp' },
+        { src: fullCoverUrl, sizes: '256x256', type: 'image/webp' },
+        { src: fullCoverUrl, sizes: '384x384', type: 'image/webp' },
+        { src: fullCoverUrl, sizes: '512x512', type: 'image/webp' },
+      ] : []
+    });
+  }, [currentTrack, currentPlaylistId, currentAlbumId]);
+
+  // Atualização do Estado de Reprodução (Playing/Paused)
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+    navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+  }, [isPlaying]);
+
+  // Registro de Action Handlers Nativos para a Lockscreen / Fones Bluetooth
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+
+    navigator.mediaSession.setActionHandler('play', () => {
+      togglePlay();
+    });
+    navigator.mediaSession.setActionHandler('pause', () => {
+      togglePlay();
+    });
+    navigator.mediaSession.setActionHandler('nexttrack', () => {
+      playNextTrack();
+    });
+    navigator.mediaSession.setActionHandler('previoustrack', () => {
+      playPreviousTrack();
+    });
+    navigator.mediaSession.setActionHandler('seekto', (details) => {
+      if (details.seekTime !== undefined) {
+        seek(details.seekTime);
+      }
+    });
+
+    return () => {
+      navigator.mediaSession.setActionHandler('play', null);
+      navigator.mediaSession.setActionHandler('pause', null);
+      navigator.mediaSession.setActionHandler('nexttrack', null);
+      navigator.mediaSession.setActionHandler('previoustrack', null);
+      navigator.mediaSession.setActionHandler('seekto', null);
+    };
+  }, [currentTrack, isPlaying]);
+
+  // Sincronização Dinâmica da Posição de Reprodução na Barra do Sistema
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !duration || isNaN(duration)) return;
+    try {
+      navigator.mediaSession.setPositionState({
+        duration: duration,
+        playbackRate: 1.0,
+        position: Math.min(currentTime, duration)
+      });
+    } catch (err) {
+      console.warn('[MEDIA-SESSION] Erro ao sincronizar posição de mídia:', err);
+    }
+  }, [currentTime, duration]);
+
   return (
     <PlayerContext.Provider
       value={{
@@ -808,7 +941,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setMasterVolume,
         downloadTrackForOffline,
         isTrackDownloaded,
-        removeTrackOffline
+        removeTrackOffline,
+        currentQueue,
+        playNextTrack,
+        playPreviousTrack
       }}
     >
       {children}

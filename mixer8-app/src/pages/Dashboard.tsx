@@ -455,7 +455,7 @@ export const Dashboard: React.FC = () => {
                   )}
                   <button 
                     disabled={track.ExtractionStatus !== 'Pronto'}
-                    onClick={() => loadTrack(track)}
+                    onClick={() => loadTrack(track, undefined, undefined, tracks)}
                     className="absolute w-12 h-12 rounded-full bg-brand-green text-black flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 hover:scale-105 transition-all shadow-lg duration-250 cursor-pointer disabled:opacity-30 disabled:scale-100"
                   >
                     <Play className="w-6 h-6 fill-current translate-x-[1px]" />

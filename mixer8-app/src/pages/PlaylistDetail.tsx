@@ -372,7 +372,23 @@ export const PlaylistDetail: React.FC = () => {
         AudioUrl: s.AudioUrl
       }))
     };
-    loadTrack(trackToPlay, playlist?.PlaylistId);
+
+    const tracksQueue = playlist ? playlist.Tracks.map(x => ({
+      TrackId: x.TrackId,
+      TrackTitle: x.TrackTitle,
+      ArtistName: x.ArtistName,
+      CoverUrl: x.CoverUrl,
+      ExtractionStatus: 'Pronto',
+      CreatedAt: x.AddedAt,
+      Stems: x.Stems.map(s => ({
+        StemId: s.StemId,
+        TrackId: s.TrackId,
+        StemType: s.StemType,
+        AudioUrl: s.AudioUrl
+      }))
+    })) : [];
+
+    loadTrack(trackToPlay, playlist?.PlaylistId, undefined, tracksQueue);
   };
 
   const handleRemoveTrack = async (trackId: string) => {
