@@ -1,7 +1,7 @@
 # Context Preservation (Save State) - Mixer8 Ecosystem
 
-**Data da Última Atualização:** 30/05/2026  
-**Status do Projeto:** Purga de Mocks Concluída, Player Multi-Stems Ativo, Uploader Direto Implementado e Conteinerização/Conversão Opus Concluída.
+**Data da Última Atualização:** 01/06/2026  
+**Status do Projeto:** Purga de Mocks Concluída, Player Multi-Stems Ativo, Uploader Direto Implementado, Conteinerização/Conversão Opus Concluída, e Recursos Premium/Shuffle/Repeat Dinâmicos Ativos.
 
 ---
 
@@ -58,6 +58,19 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
     * **Deleção Física Segura**: Implementadas regras de exclusão em disco que removem a imagem antiga/substituída ou deletada. A limpeza física é protegida, ocorrendo apenas caso o link inicie com `/playlists/`, mantendo as capas de músicas intactas. A deleção da playlist apaga síncronamente toda a sua pasta no servidor.
     * **Modais Centralizados no React**: Lógica de edição e exclusão de playlists migrada inteiramente para o escopo global reativo em `PlaylistContext.tsx`, limpando códigos duplicados das páginas internas.
     * **Timer de Segurança e Eventos Reativos**: A exclusão conta com aviso destrutivo e contagem regressiva reativa de 3 segundos no botão de ação. Ao salvar ou deletar, são emitidos os eventos personalizados `playlist-updated` e `playlist-deleted` garantindo atualização imediata sem recarregar a SPA.
+11. **Correção do Autoplay contra Stale Closures (Refs Mutáveis)**:
+    * O listener de fim de faixa (`ended`) no elemento master de áudio foi corrigido substituindo referências a funções locais por referências mutáveis (`useRef`). Isso evita closures congeladas/stale que impediam o avanço automático da fila de reprodução na SPA.
+12. **Shuffle (Aleatório) e Repeat (Repetição) no Player**:
+    * Implementados os modos Shuffle e Repeat no player com sincronização e persistência no `localStorage`.
+    * A reprodução aleatória gerencia uma pilha interna de histórico para evitar repetições no avanço e permitir o retorno de faixas exato na ordem inversa. O Repeat suporta One, All e Off.
+13. **Persistência Sem Perda do Mixer e Isenção de Faixa Única**:
+    * A mesa de stems foi ajustada para persistir volumes, mutes e solos por canal no `localStorage`. Em vez de limpar o dicionário ao carregar novas músicas, realizamos uma mesclagem (merge) preservando chaves de canais ausentes.
+    * A atualização de ganho de áudio foi otimizada com referências mutáveis para contornar atrasos de batching do React.
+    * Adicionada isenção de ganho (1.0 constante) para faixas contendo apenas uma única stem, evitando silenciamento colateral.
+14. **Parametrização Dinâmica de Recursos Premium (Roles & Anonymous)**:
+    * Criada a tabela de banco de dados `SystemSettings` e o endpoint restrito `SystemSettingsController` no backend API.
+    * Desenvolvido card de gerenciamento administrativo em `/admin` permitindo definir dinamicamente quais grupos de acesso (Roles) possuem o recurso premium de Download Offline.
+    * Integrado suporte para usuários não autenticados (`anonymous`) baixarem e cachearem músicas localmente de forma transparente.
 
 ---
 
