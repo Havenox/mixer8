@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { usePlayer } from '../context/PlayerContext';
 import { 
   Play, Pause, SkipBack, SkipForward, Volume2, 
-  Sliders, RefreshCw, Disc, Layers, Music, ChevronDown
+  Sliders, RefreshCw, Disc, Layers, Music, ChevronDown,
+  Shuffle, Repeat, Repeat1
 } from 'lucide-react';
 
 import { SERVER_URL } from '../config';
@@ -24,7 +25,11 @@ export const MesaPlayer: React.FC = () => {
     toggleStemSolo,
     setMasterVolume,
     playNextTrack,
-    playPreviousTrack
+    playPreviousTrack,
+    isShuffle,
+    repeatMode,
+    toggleShuffle,
+    toggleRepeatMode
   } = usePlayer();
 
   const [showMixer, setShowMixer] = useState(false);
@@ -114,6 +119,22 @@ export const MesaPlayer: React.FC = () => {
         <div className="flex flex-col items-center gap-1 md:gap-2 flex-[2] md:flex-1 max-w-[600px] w-full min-w-0 px-2">
           {/* Botões do Player */}
           <div className="flex items-center gap-4 md:gap-6">
+            {/* Shuffle (Aleatório) */}
+            <button 
+              onClick={toggleShuffle}
+              className={`transition-colors cursor-pointer flex flex-col items-center justify-center relative p-1 ${
+                isShuffle 
+                  ? 'text-brand-green hover:text-brand-green/80' 
+                  : 'text-brand-gray hover:text-white'
+              }`}
+              title={isShuffle ? 'Desativar modo aleatório' : 'Ativar modo aleatório'}
+            >
+              <Shuffle className="w-4 h-4 md:w-[18px] md:h-[18px]" />
+              {isShuffle && (
+                <span className="absolute -bottom-1 w-[3px] h-[3px] bg-brand-green rounded-full shadow-[0_0_8px_#1db954]" />
+              )}
+            </button>
+
             <button 
               onClick={playPreviousTrack}
               className="text-brand-gray hover:text-white transition-colors cursor-pointer"
@@ -139,6 +160,32 @@ export const MesaPlayer: React.FC = () => {
               title="Próxima música"
             >
               <SkipForward className="w-4 h-4 md:w-5 md:h-5 fill-current" />
+            </button>
+
+            {/* Repeat (Repetição) */}
+            <button 
+              onClick={toggleRepeatMode}
+              className={`transition-colors cursor-pointer flex flex-col items-center justify-center relative p-1 ${
+                repeatMode !== 'off'
+                  ? 'text-brand-green hover:text-brand-green/80' 
+                  : 'text-brand-gray hover:text-white'
+              }`}
+              title={
+                repeatMode === 'one' 
+                  ? 'Repetir uma faixa' 
+                  : repeatMode === 'all' 
+                    ? 'Repetir a lista toda' 
+                    : 'Não repetir'
+              }
+            >
+              {repeatMode === 'one' ? (
+                <Repeat1 className="w-4 h-4 md:w-[18px] md:h-[18px]" />
+              ) : (
+                <Repeat className="w-4 h-4 md:w-[18px] md:h-[18px]" />
+              )}
+              {repeatMode !== 'off' && (
+                <span className="absolute -bottom-1 w-[3px] h-[3px] bg-brand-green rounded-full shadow-[0_0_8px_#1db954]" />
+              )}
             </button>
           </div>
 
@@ -502,7 +549,22 @@ export const MesaPlayer: React.FC = () => {
             )}
 
             {/* Media buttons group */}
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-5 sm:gap-6">
+              {/* Shuffle (Aleatório) */}
+              <button 
+                onClick={toggleShuffle}
+                className={`transition-colors cursor-pointer flex flex-col items-center justify-center relative p-1 ${
+                  isShuffle 
+                    ? 'text-brand-green' 
+                    : 'text-brand-gray'
+                }`}
+              >
+                <Shuffle className="w-5 h-5" />
+                {isShuffle && (
+                  <span className="absolute -bottom-1 w-[3px] h-[3px] bg-brand-green rounded-full shadow-[0_0_8px_#1db954]" />
+                )}
+              </button>
+
               <button 
                 onClick={playPreviousTrack}
                 className="text-brand-gray hover:text-white active:scale-95 transition-transform cursor-pointer"
@@ -528,6 +590,25 @@ export const MesaPlayer: React.FC = () => {
                 title="Próxima"
               >
                 <SkipForward className="w-6 h-6 fill-current" />
+              </button>
+
+              {/* Repeat (Repetição) */}
+              <button 
+                onClick={toggleRepeatMode}
+                className={`transition-colors cursor-pointer flex flex-col items-center justify-center relative p-1 ${
+                  repeatMode !== 'off' 
+                    ? 'text-brand-green' 
+                    : 'text-brand-gray'
+                }`}
+              >
+                {repeatMode === 'one' ? (
+                  <Repeat1 className="w-5 h-5" />
+                ) : (
+                  <Repeat className="w-5 h-5" />
+                )}
+                {repeatMode !== 'off' && (
+                  <span className="absolute -bottom-1 w-[3px] h-[3px] bg-brand-green rounded-full shadow-[0_0_8px_#1db954]" />
+                )}
               </button>
             </div>
 

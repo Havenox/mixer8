@@ -39,6 +39,11 @@ interface IPlayerContext {
   removeTrackOffline: (track: ITrack) => Promise<void>;
   playNextTrack: () => void;
   playPreviousTrack: () => void;
+  isShuffle: boolean;
+  repeatMode: 'off' | 'all' | 'one';
+  toggleShuffle: () => void;
+  toggleRepeatMode: () => void;
+  isPremium: boolean;
 }
 
 const PlayerContext = createContext<IPlayerContext | undefined>(undefined);
@@ -159,6 +164,71 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [currentQueue, setCurrentQueue] = useState<ITrack[]>([]);
   const currentQueueRef = useRef<ITrack[]>([]);
 
+  // Referências mutáveis para garantir que closures em event listeners sempre acessem os dados mais recentes
+  const currentTrackRef = useRef<ITrack | null>(null);
+  const currentPlaylistIdRef = useRef<string | null>(null);
+  const currentAlbumIdRef = useRef<string | null>(null);
+
+  // Referências de funções do player para evitar unbind/rebind de event listeners e handlers da mediaSession
+  const playNextTrackRef = useRef<() => void>(() => {});
+  const playPreviousTrackRef = useRef<() => void>(() => {});
+  const togglePlayRef = useRef<() => void>(() => {});
+  const seekRef = useRef<(seconds: number) => Promise<void>>(() => Promise.resolve());
+
+  // Estados e referências mutáveis de Shuffle (Aleatório) e Repeat (Repetição)
+  const [isShuffle, setIsShuffle] = useState(() => {
+    const saved = localStorage.getItem('mixer8_shuffle');
+    return saved !== null ? saved === 'true' : false;
+  });
+  const isShuffleRef = useRef(isShuffle);
+
+  const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>(() => {
+    const saved = localStorage.getItem('mixer8_repeat_mode');
+    return saved !== null ? (saved as 'off' | 'all' | 'one') : 'all';
+  });
+  const repeatModeRef = useRef(repeatMode);
+
+  // Histórico de faixas tocadas em ordem cronológica no modo aleatório para evitar repetições
+  const playedTrackIdsRef = useRef<string[]>([]);
+
+  const setIsShuffleSynced = (val: boolean) => {
+    setIsShuffle(val);
+    isShuffleRef.current = val;
+    localStorage.setItem('mixer8_shuffle', String(val));
+  };
+
+  const setRepeatModeSynced = (val: 'off' | 'all' | 'one') => {
+    setRepeatMode(val);
+    repeatModeRef.current = val;
+    localStorage.setItem('mixer8_repeat_mode', val);
+  };
+
+  const toggleShuffle = () => {
+    const newVal = !isShuffleRef.current;
+    setIsShuffleSynced(newVal);
+    console.log('[PLAYER-SETTING] Modo aleatório (Shuffle) alterado para:', newVal);
+    // Se ativou shuffle, garantimos que a faixa atual esteja no histórico para não repeti-la
+    if (newVal && currentTrackRef.current) {
+      playedTrackIdsRef.current = [currentTrackRef.current.TrackId];
+    } else {
+      playedTrackIdsRef.current = [];
+    }
+  };
+
+  const toggleRepeatMode = () => {
+    let nextMode: 'off' | 'all' | 'one';
+    if (repeatModeRef.current === 'off') {
+      nextMode = 'all';
+    } else if (repeatModeRef.current === 'all') {
+      nextMode = 'one';
+    } else {
+      nextMode = 'off';
+    }
+    setRepeatModeSynced(nextMode);
+    console.log('[PLAYER-SETTING] Modo de repetição alterado para:', nextMode);
+  };
+
+
   const updateQueue = (queue: ITrack[]) => {
     setCurrentQueue(queue);
     currentQueueRef.current = queue;
@@ -177,13 +247,34 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   
-  // Volumes individuais de stems (padrão 1.0, exceto metronomo)
-  const [stemsVolume, setStemsVolume] = useState<Record<string, number>>({});
-  const [stemsMute, setStemsMute] = useState<Record<string, boolean>>({});
-  const [stemsSolo, setStemsSolo] = useState<Record<string, boolean>>({});
+  // Volumes individuais de stems (padrão 1.0, exceto metronomo) - carregados de localStorage para persistência
+  const [stemsVolume, setStemsVolume] = useState<Record<string, number>>(() => {
+    const saved = localStorage.getItem('mixer8_stems_volume');
+    return saved !== null ? JSON.parse(saved) : {};
+  });
+  const [stemsMute, setStemsMute] = useState<Record<string, boolean>>(() => {
+    const saved = localStorage.getItem('mixer8_stems_mute');
+    return saved !== null ? JSON.parse(saved) : {};
+  });
+  const [stemsSolo, setStemsSolo] = useState<Record<string, boolean>>(() => {
+    const saved = localStorage.getItem('mixer8_stems_solo');
+    return saved !== null ? JSON.parse(saved) : {};
+  });
   const [masterVolume, setMasterVolumeState] = useState(() => {
     const saved = localStorage.getItem('mixer8_master_volume');
     return saved !== null ? parseFloat(saved) : 1.0;
+  });
+
+  // Referências mutáveis globais para mutes, solos e volumes das stems para evitar atrasos reativos ou closures obsoletas
+  const stemsVolumeRef = useRef<Record<string, number>>(stemsVolume);
+  const stemsMuteRef = useRef<Record<string, boolean>>(stemsMute);
+  const stemsSoloRef = useRef<Record<string, boolean>>(stemsSolo);
+
+  // Sincroniza referências com os estados a cada ciclo de render
+  useEffect(() => {
+    stemsVolumeRef.current = stemsVolume;
+    stemsMuteRef.current = stemsMute;
+    stemsSoloRef.current = stemsSolo;
   });
 
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -202,8 +293,40 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const syncBarrierResolveRef = useRef<(() => void) | null>(null);
   const isSyncingRef = useRef(false);
 
-  // Determina se o usuário tem privilégio Premium (PaidUser, Admin, Moderator)
-  const isPremium = CurrentUser?.UserRole === 'PaidUser' || CurrentUser?.UserRole === 'Admin' || CurrentUser?.UserRole === 'Moderator';
+  // Estado de configurações globais de permissões do sistema
+  const [systemSettings, setSystemSettings] = useState<Record<string, string>>({
+    PremiumFeature_DownloadOffline: 'Admin,Moderator,PaidUser'
+  });
+
+  const fetchSystemSettings = async () => {
+    try {
+      const res = await fetch(`${API_URL}/SystemSettings`);
+      if (res.ok) {
+        const data = await res.json();
+        setSystemSettings(data);
+      }
+    } catch (err) {
+      console.warn('[SETTINGS] Falha ao obter configuracoes de rede. Usando defaults.', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchSystemSettings();
+    window.addEventListener('system-settings-changed', fetchSystemSettings);
+    return () => {
+      window.removeEventListener('system-settings-changed', fetchSystemSettings);
+    };
+  }, []);
+
+  const checkFeaturePermission = (featureKey: string): boolean => {
+    const allowedRolesStr = systemSettings[featureKey] || 'Admin,Moderator,PaidUser';
+    const allowedRoles = allowedRolesStr.split(',').map(r => r.trim().toLowerCase());
+    const userRole = CurrentUser ? CurrentUser.UserRole.toLowerCase() : 'anonymous';
+    return allowedRoles.includes(userRole);
+  };
+
+  // Determina se o usuário tem privilégio Premium (PaidUser, Admin, Moderator ou anonymous conforme config do sistema)
+  const isPremium = checkFeaturePermission('PremiumFeature_DownloadOffline');
 
   // Atualiza os ganhos de todas as stems ativas com base em volume, mute e solo
   const updateAudioGains = (
@@ -213,22 +336,28 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   ) => {
     const hasAnySolo = Object.values(solos).some(v => v);
     const isSyncing = isSyncingRef.current;
+    const stemsCount = activeStemsRef.current.length;
 
     activeStemsRef.current.forEach(item => {
       const type = item.type;
       
       let targetGain = 0;
       if (!isSyncing) {
-        const vol = volumes[type] ?? (type === 'Metrônomo' ? 0.0 : 1.0);
-        const isMuted = mutes[type] ?? false;
-        const isSoloed = solos[type] ?? false;
-
-        if (hasAnySolo) {
-          // Se houver qualquer SOLO ativo, apenas as marcadas com SOLO tocam (mesmo se estiverem em Mute)
-          targetGain = isSoloed ? vol : 0;
+        if (stemsCount === 1) {
+          // Isenção de faixa única: se a música contém apenas uma stem, ignora o mixer e toca a 100% (1.0)
+          targetGain = 1.0;
         } else {
-          // Sem SOLO ativo, tocamos baseado no volume individual do fader e Mute
-          targetGain = isMuted ? 0 : vol;
+          const vol = volumes[type] ?? (type === 'Metrônomo' ? 0.0 : 1.0);
+          const isMuted = mutes[type] ?? false;
+          const isSoloed = solos[type] ?? false;
+
+          if (hasAnySolo) {
+            // Se houver qualquer SOLO ativo, apenas as marcadas com SOLO tocam (mesmo se estiverem em Mute)
+            targetGain = isSoloed ? vol : 0;
+          } else {
+            // Sem SOLO ativo, tocamos baseado no volume individual do fader e Mute
+            targetGain = isMuted ? 0 : vol;
+          }
         }
       }
 
@@ -319,37 +448,132 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const playNextTrack = () => {
-    if (currentQueueRef.current.length === 0 || !currentTrack) return;
-    const currentIndex = currentQueueRef.current.findIndex(t => t.TrackId === currentTrack.TrackId);
-    if (currentIndex !== -1 && currentIndex < currentQueueRef.current.length - 1) {
-      const nextTrack = currentQueueRef.current[currentIndex + 1];
-      console.log('[AUTOPLAY] Pulando para a próxima faixa:', nextTrack.TrackTitle);
-      loadTrack(nextTrack, currentPlaylistId || undefined, currentAlbumId || undefined);
+    const activeTrack = currentTrackRef.current;
+    const queue = currentQueueRef.current;
+    
+    console.log('[AUTOPLAY] playNextTrack chamado. Fila:', queue.length, 'Faixa ativa:', activeTrack?.TrackTitle, 'Shuffle:', isShuffleRef.current, 'Repeat:', repeatModeRef.current);
+    if (queue.length === 0 || !activeTrack) {
+      console.warn('[AUTOPLAY] playNextTrack ignorado: fila vazia ou sem faixa ativa.');
+      return;
+    }
+
+    // 1. Regra de Repeat One (Repetir 1): Se estiver ativado, repete a faixa atual independente de shuffle/queue
+    if (repeatModeRef.current === 'one') {
+      console.log('[AUTOPLAY] Modo Repeat One ativo. Reiniciando a faixa atual:', activeTrack.TrackTitle);
+      loadTrack(activeTrack, currentPlaylistIdRef.current || undefined, currentAlbumIdRef.current || undefined);
+      return;
+    }
+
+    // 2. Regra de Shuffle (Aleatório)
+    if (isShuffleRef.current) {
+      // Filtrar as faixas que ainda não foram tocadas nesta rodada
+      const unplayed = queue.filter(t => !playedTrackIdsRef.current.includes(t.TrackId));
+      console.log('[AUTOPLAY] Faixas restantes não tocadas no aleatório:', unplayed.map(t => t.TrackTitle));
+
+      if (unplayed.length > 0) {
+        // Escolhe uma faixa aleatória entre as não tocadas
+        const randomIndex = Math.floor(Math.random() * unplayed.length);
+        const nextTrack = unplayed[randomIndex];
+        console.log('[AUTOPLAY] Modo Shuffle ativo. Faixa sorteada:', nextTrack.TrackTitle);
+        
+        // Registra no histórico para não tocá-la novamente
+        playedTrackIdsRef.current.push(nextTrack.TrackId);
+        loadTrack(nextTrack, currentPlaylistIdRef.current || undefined, currentAlbumIdRef.current || undefined);
+      } else {
+        // Todas as faixas foram tocadas
+        if (repeatModeRef.current === 'all') {
+          console.log('[AUTOPLAY] Todas as faixas tocadas no Shuffle. Reiniciando fila aleatória (Repeat All)...');
+          // Limpa o histórico, mas mantém a nova faixa inicial no histórico
+          playedTrackIdsRef.current = [];
+          
+          // Sorteia qualquer música da fila (preferencialmente diferente da atual se a fila tiver mais de uma música)
+          const pool = queue.length > 1 ? queue.filter(t => t.TrackId !== activeTrack.TrackId) : queue;
+          const randomIndex = Math.floor(Math.random() * pool.length);
+          const nextTrack = pool[randomIndex];
+          
+          playedTrackIdsRef.current.push(nextTrack.TrackId);
+          loadTrack(nextTrack, currentPlaylistIdRef.current || undefined, currentAlbumIdRef.current || undefined);
+        } else {
+          console.log('[AUTOPLAY] Todas as faixas tocadas no Shuffle. Parando player (Repeat Off)...');
+          playedTrackIdsRef.current = [];
+          setIsPlayingSynced(false);
+          seek(0);
+        }
+      }
+      return;
+    }
+
+    // 3. Regra de Reprodução Sequencial (Shuffle desligado)
+    const currentIndex = queue.findIndex(t => t.TrackId === activeTrack.TrackId);
+    if (currentIndex !== -1 && currentIndex < queue.length - 1) {
+      const nextTrack = queue[currentIndex + 1];
+      console.log('[AUTOPLAY] Pulando para a próxima faixa sequencial:', nextTrack.TrackTitle);
+      loadTrack(nextTrack, currentPlaylistIdRef.current || undefined, currentAlbumIdRef.current || undefined);
     } else {
-      console.log('[AUTOPLAY] Última faixa atingida na fila de reprodução.');
-      setIsPlayingSynced(false);
-      seek(0);
+      // Chegamos ao fim da fila
+      if (repeatModeRef.current === 'all') {
+        const nextTrack = queue[0];
+        console.log('[AUTOPLAY] Fim da fila sequencial. Retornando ao início (Repeat All):', nextTrack.TrackTitle);
+        loadTrack(nextTrack, currentPlaylistIdRef.current || undefined, currentAlbumIdRef.current || undefined);
+      } else {
+        console.log('[AUTOPLAY] Fim da fila sequencial atingido. Parando player (Repeat Off)...');
+        setIsPlayingSynced(false);
+        seek(0);
+      }
     }
   };
 
   const playPreviousTrack = () => {
-    if (currentQueueRef.current.length === 0 || !currentTrack) return;
-    const currentIndex = currentQueueRef.current.findIndex(t => t.TrackId === currentTrack.TrackId);
+    const activeTrack = currentTrackRef.current;
+    const queue = currentQueueRef.current;
+
+    if (queue.length === 0 || !activeTrack) return;
     
-    // Se a música estiver tocando há mais de 3 segundos, o comportamento padrão do Spotify é reiniciar a música atual
+    // Se a música estiver tocando há mais de 3 segundos, o comportamento padrão é reiniciar a música atual
     if (currentTime > 3) {
       console.log('[PLAYBACK] Reiniciando faixa atual...');
       seek(0);
       return;
     }
 
-    if (currentIndex > 0) {
-      const prevTrack = currentQueueRef.current[currentIndex - 1];
-      console.log('[PLAYBACK] Voltando para a faixa anterior:', prevTrack.TrackTitle);
-      loadTrack(prevTrack, currentPlaylistId || undefined, currentAlbumId || undefined);
-    } else {
-      console.log('[PLAYBACK] Primeira faixa atingida. Reiniciando...');
+    // 1. Regra de Shuffle: Volta com base no histórico de faixas tocadas
+    if (isShuffleRef.current) {
+      if (playedTrackIdsRef.current.length > 1) {
+        // Remove a faixa atual (último item)
+        playedTrackIdsRef.current.pop();
+        // Obtém o ID da faixa que tocou imediatamente antes
+        const prevTrackId = playedTrackIdsRef.current[playedTrackIdsRef.current.length - 1];
+        const prevTrack = queue.find(t => t.TrackId === prevTrackId);
+        
+        if (prevTrack) {
+          console.log('[PLAYBACK] Voltando para a faixa anterior do histórico do Shuffle:', prevTrack.TrackTitle);
+          // Nota: chamamos loadTrack, que vai re-registrar ela no histórico se não estiver, mas o final da pilha já a contém
+          loadTrack(prevTrack, currentPlaylistIdRef.current || undefined, currentAlbumIdRef.current || undefined);
+          return;
+        }
+      }
+      
+      // Se não há histórico anterior no modo Shuffle, apenas reinicia a faixa
+      console.log('[PLAYBACK] Sem histórico de faixas anteriores no Shuffle. Reiniciando...');
       seek(0);
+      return;
+    }
+
+    // 2. Regra de Reprodução Sequencial (Shuffle desligado)
+    const currentIndex = queue.findIndex(t => t.TrackId === activeTrack.TrackId);
+    if (currentIndex > 0) {
+      const prevTrack = queue[currentIndex - 1];
+      console.log('[PLAYBACK] Voltando para a faixa sequencial anterior:', prevTrack.TrackTitle);
+      loadTrack(prevTrack, currentPlaylistIdRef.current || undefined, currentAlbumIdRef.current || undefined);
+    } else {
+      if (repeatModeRef.current === 'all') {
+        const prevTrack = queue[queue.length - 1];
+        console.log('[PLAYBACK] Primeira faixa atingida. Indo para a última (Repeat All):', prevTrack.TrackTitle);
+        loadTrack(prevTrack, currentPlaylistIdRef.current || undefined, currentAlbumIdRef.current || undefined);
+      } else {
+        console.log('[PLAYBACK] Primeira faixa atingida. Reiniciando (Repeat Off/One)...');
+        seek(0);
+      }
     }
   };
 
@@ -359,21 +583,39 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     albumId?: string,
     tracksQueue?: ITrack[]
   ) => {
+    console.log(`[PLAYER-LIFECYCLE] Iniciando loadTrack para a faixa: ${track?.TrackTitle || 'null'}`);
     setIsPlayingSynced(false);
     cleanupActiveStems();
     setCurrentTime(0);
     setDuration(0);
+    
+    // Atualiza estados para renderização reativa
     setCurrentTrack(track);
     setCurrentPlaylistId(playlistId || null);
     setCurrentAlbumId(albumId || null);
 
+    // Atualiza referências mutáveis imediatamente de forma síncrona
+    currentTrackRef.current = track;
+    currentPlaylistIdRef.current = playlistId || null;
+    currentAlbumIdRef.current = albumId || null;
+
     if (tracksQueue) {
       updateQueue(tracksQueue);
+      // Se carregou uma fila de faixas totalmente nova, limpamos o histórico e adicionamos a faixa atual
+      playedTrackIdsRef.current = track ? [track.TrackId] : [];
+      console.log('[PLAYER-LIFECYCLE] Nova fila carregada. Histórico de tocadas resetado.');
     } else if (track) {
       // Se tocada de forma avulsa sem fila e a fila atual não contém ela, cria uma fila unitária
       const existsInQueue = currentQueueRef.current.some(t => t.TrackId === track.TrackId);
       if (!existsInQueue) {
         updateQueue([track]);
+        playedTrackIdsRef.current = [track.TrackId];
+        console.log('[PLAYER-LIFECYCLE] Faixa avulsa. Fila unitária criada. Histórico de tocadas resetado.');
+      } else {
+        // Já existe na fila. Garantimos que esteja adicionada no histórico
+        if (!playedTrackIdsRef.current.includes(track.TrackId)) {
+          playedTrackIdsRef.current.push(track.TrackId);
+        }
       }
     }
 
@@ -389,8 +631,17 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Ativa a fase de sincronização inicial silenciosa
     isSyncingRef.current = true;
 
-    // Inicializa os volumes padrões para cada tipo de stem disponível na música
-    const initialVolumes: Record<string, number> = {};
+    // Lê os volumes, mutes e solos globais salvos diretamente de localStorage para evitar delay ou closures obsoletas
+    const savedVolumesStr = localStorage.getItem('mixer8_stems_volume');
+    const savedMutesStr = localStorage.getItem('mixer8_stems_mute');
+    const savedSolosStr = localStorage.getItem('mixer8_stems_solo');
+
+    const globalVolumes: Record<string, number> = savedVolumesStr ? JSON.parse(savedVolumesStr) : {};
+    const globalMutes: Record<string, boolean> = savedMutesStr ? JSON.parse(savedMutesStr) : {};
+    const globalSolos: Record<string, boolean> = savedSolosStr ? JSON.parse(savedSolosStr) : {};
+
+    // Mantém todos os volumes globais persistidos no dicionário inicial de carregamento
+    const initialVolumes: Record<string, number> = { ...globalVolumes };
     const loadedStems: typeof activeStemsRef.current = [];
 
     // Master track/audio elemento de referência para progresso
@@ -442,8 +693,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     resolvedStems.forEach(stem => {
       const stemType = stem.StemType; // ex: Voz, Bateria, Baixo
-      // O volume padrão das stems é 100% (1.0), exceto para o "Metrônomo" que inicia zerado (0.0)
-      initialVolumes[stemType] = stemType === 'Metrônomo' ? 0.0 : 1.0;
+      // Se a stem atual do novo track ainda não possui um volume global salvo, aplica o valor padrão
+      if (initialVolumes[stemType] === undefined) {
+        initialVolumes[stemType] = stemType === 'Metrônomo' ? 0.0 : 1.0;
+      }
 
       // Cria elemento HTML5 Audio. Se a ResolvedUrl for um Blob URL, ele carrega localmente de forma instantânea
       const audio = new Audio(stem.ResolvedUrl);
@@ -498,13 +751,19 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     });
 
-    setStemsMute({});
-    setStemsSolo({});
+    // Atualiza os estados e referências mutáveis imediatamente
     setStemsVolume(initialVolumes);
+    setStemsMute(globalMutes);
+    setStemsSolo(globalSolos);
+
+    stemsVolumeRef.current = initialVolumes;
+    stemsMuteRef.current = globalMutes;
+    stemsSoloRef.current = globalSolos;
+
     activeStemsRef.current = loadedStems;
     
-    // Atualiza os ganhos para zero de forma explícita
-    updateAudioGains(initialVolumes, {}, {});
+    // Atualiza os ganhos de forma explícita respeitando mutes e solos persistidos de forma imediata e síncrona
+    updateAudioGains(initialVolumes, globalMutes, globalSolos);
 
     // Sincroniza progresso e duração a partir do master audio
     if (masterAudioElement) {
@@ -518,8 +777,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setCurrentTime(master.currentTime);
       });
 
+      console.log(`[PLAYER-EVENTS] Vinculando listener 'ended' no elemento master para a faixa: ${track?.TrackTitle}`);
       master.addEventListener('ended', () => {
-        playNextTrack();
+        console.log('[AUTOPLAY-EVENT] Evento ended disparado no elemento master de áudio!');
+        playNextTrackRef.current();
       });
     }
 
@@ -572,7 +833,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       item.audio.currentTime = targetTime;
     });
 
-    updateAudioGains(initialVolumes, {}, {});
+    updateAudioGains(stemsVolumeRef.current, stemsMuteRef.current, stemsSoloRef.current);
 
     // Dispara o download em cache de background após 3 segundos para priorizar reprodução inicial
     setTimeout(() => {
@@ -710,10 +971,20 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  // Efeito de renderização sem dependências para manter as referências das funções sempre atualizadas com a closure atualizada
+  useEffect(() => {
+    playNextTrackRef.current = playNextTrack;
+    playPreviousTrackRef.current = playPreviousTrack;
+    togglePlayRef.current = togglePlay;
+    seekRef.current = seek;
+  });
+
   const setStemVolume = (type: string, volume: number) => {
     setStemsVolume(prev => {
       const next = { ...prev, [type]: volume };
-      updateAudioGains(next, stemsMute, stemsSolo);
+      stemsVolumeRef.current = next;
+      updateAudioGains(next, stemsMuteRef.current, stemsSoloRef.current);
+      localStorage.setItem('mixer8_stems_volume', JSON.stringify(next));
       return next;
     });
   };
@@ -721,7 +992,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const toggleStemMute = (type: string) => {
     setStemsMute(prev => {
       const next = { ...prev, [type]: !prev[type] };
-      updateAudioGains(stemsVolume, next, stemsSolo);
+      stemsMuteRef.current = next;
+      updateAudioGains(stemsVolumeRef.current, next, stemsSoloRef.current);
+      localStorage.setItem('mixer8_stems_mute', JSON.stringify(next));
       return next;
     });
   };
@@ -729,7 +1002,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const toggleStemSolo = (type: string) => {
     setStemsSolo(prev => {
       const next = { ...prev, [type]: !prev[type] };
-      updateAudioGains(stemsVolume, stemsMute, next);
+      stemsSoloRef.current = next;
+      updateAudioGains(stemsVolumeRef.current, stemsMuteRef.current, next);
+      localStorage.setItem('mixer8_stems_solo', JSON.stringify(next));
       return next;
     });
   };
@@ -891,25 +1166,26 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
   }, [isPlaying]);
 
-  // Registro de Action Handlers Nativos para a Lockscreen / Fones Bluetooth
+  // Registro de Action Handlers Nativos para a Lockscreen / Fones Bluetooth - roda apenas no mount
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
 
+    console.log('[PLAYER-LIFECYCLE] Registrando handlers da Media Session API uma única vez no mount');
     navigator.mediaSession.setActionHandler('play', () => {
-      togglePlay();
+      togglePlayRef.current();
     });
     navigator.mediaSession.setActionHandler('pause', () => {
-      togglePlay();
+      togglePlayRef.current();
     });
     navigator.mediaSession.setActionHandler('nexttrack', () => {
-      playNextTrack();
+      playNextTrackRef.current();
     });
     navigator.mediaSession.setActionHandler('previoustrack', () => {
-      playPreviousTrack();
+      playPreviousTrackRef.current();
     });
     navigator.mediaSession.setActionHandler('seekto', (details) => {
       if (details.seekTime !== undefined) {
-        seek(details.seekTime);
+        seekRef.current(details.seekTime);
       }
     });
 
@@ -920,7 +1196,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       navigator.mediaSession.setActionHandler('previoustrack', null);
       navigator.mediaSession.setActionHandler('seekto', null);
     };
-  }, [currentTrack, isPlaying]);
+  }, []);
 
   // Sincronização Dinâmica da Posição de Reprodução na Barra do Sistema
   useEffect(() => {
@@ -959,7 +1235,12 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         removeTrackOffline,
         currentQueue,
         playNextTrack,
-        playPreviousTrack
+        playPreviousTrack,
+        isShuffle,
+        repeatMode,
+        toggleShuffle,
+        toggleRepeatMode,
+        isPremium
       }}
     >
       {children}
