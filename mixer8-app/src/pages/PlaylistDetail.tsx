@@ -9,7 +9,7 @@ import {
   Loader2, ArrowLeft, Settings, Trash2,
   Clock, X, AlertTriangle, Plus, Minus,
   Lock, Globe, EyeOff, MoreHorizontal,
-  Heart, Share2, ListMusic
+  Heart, Share2, ListMusic, CheckCircle
 } from 'lucide-react';
 
 import { API_URL, SERVER_URL } from '../config';
@@ -80,6 +80,7 @@ export const PlaylistDetail: React.FC = () => {
   const [selectedTrackIndex, setSelectedTrackIndex] = useState<number | null>(null);
   const [mobileTrackMenu, setMobileTrackMenu] = useState<IPlaylistTrack | null>(null);
   const [mobilePlaylistMenuOpen, setMobilePlaylistMenuOpen] = useState(false);
+  const [showToast, setShowToast] = useState(false);
 
   // Estados e lógicas para Colunas Redimensionáveis (Spotify-like)
   const [colWidths, setColWidths] = useState({
@@ -595,8 +596,15 @@ export const PlaylistDetail: React.FC = () => {
 
   const handleSharePlaylist = () => {
     navigator.clipboard.writeText(window.location.href);
-    alert('Link da playlist copiado para a área de transferência!');
+    setShowToast(true);
   };
+
+  useEffect(() => {
+    if (showToast) {
+      const timer = setTimeout(() => setShowToast(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showToast]);
 
   const handlePlayPlaylist = () => {
     if (playlist && playlist.Tracks.length > 0) {
@@ -803,8 +811,30 @@ export const PlaylistDetail: React.FC = () => {
           </div>
         </div>
 
-        {/* Ações Desktop (Configurações & Download) - Oculto no Mobile */}
+        {/* Ações Desktop (Configurações, Download, Curtir, Compartilhar) - Oculto no Mobile */}
         <div className="hidden md:flex gap-3 self-end justify-end mt-0 shrink-0 items-center w-auto">
+          {IsAuthenticated && (
+            <button
+              onClick={handleToggleSavePlaylist}
+              className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shadow hover:scale-105 active:scale-95 ${
+                playlist.IsSaved
+                  ? 'bg-brand-green text-black border-none'
+                  : 'bg-transparent border border-brand-gray/30 text-brand-gray hover:text-white hover:border-white'
+              }`}
+              title={playlist.IsSaved ? "Remover da Biblioteca" : "Salvar na Biblioteca"}
+            >
+              <Heart className={`w-4 h-4 ${playlist.IsSaved ? 'fill-current text-black' : ''}`} />
+            </button>
+          )}
+
+          <button
+            onClick={handleSharePlaylist}
+            className="w-8 h-8 rounded-full flex items-center justify-center bg-transparent border border-brand-gray/30 hover:border-white text-brand-gray hover:text-white hover:bg-white/5 transition-all cursor-pointer shadow hover:scale-105 active:scale-95"
+            title="Compartilhar Playlist"
+          >
+            <Share2 className="w-4 h-4" />
+          </button>
+
           {isPremium && (
             <button
               onClick={handlePlaylistDownloadClick}
@@ -1732,6 +1762,14 @@ export const PlaylistDetail: React.FC = () => {
               </button>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Toast Notificação de Link Copiado */}
+      {showToast && (
+        <div className="fixed bottom-20 md:bottom-28 right-4 md:right-8 bg-brand-green text-black px-4 py-3 rounded-lg shadow-2xl flex items-center gap-2.5 font-bold text-xs z-[200] animate-in slide-in-from-bottom duration-300 select-none">
+          <CheckCircle className="w-4 h-4 shrink-0" />
+          <span>Link copiado com sucesso!</span>
         </div>
       )}
     </div>
