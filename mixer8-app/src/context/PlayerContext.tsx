@@ -253,13 +253,28 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!isPlaying || activeStemsRef.current.length <= 1) return;
 
     const interval = setInterval(() => {
+      // Se estiver na fase de sincronização inicial ou de seek, pula a correção
+      if (isSyncingRef.current) return;
+
       const masterItem = activeStemsRef.current[0];
       if (!masterItem) return;
 
       const masterTime = masterItem.audio.currentTime;
+      const masterDuration = masterItem.audio.duration;
+
+      // Se a música terminou ou está muito perto do fim (últimos 1.5s), não corrige drift.
+      // Isso evita congestionar a thread de áudio com múltiplos seeks concorrentes no final da faixa,
+      // o que gerava repetições em loop (gaguejos) e impedia o disparo do evento 'ended' no elemento master.
+      if (masterItem.audio.ended || (masterDuration && masterTime >= masterDuration - 1.5)) {
+        return;
+      }
 
       for (let i = 1; i < activeStemsRef.current.length; i++) {
         const item = activeStemsRef.current[i];
+        
+        // Se a stem secundária terminou ou está pausada, pula a correção
+        if (item.audio.ended || item.audio.paused) continue;
+
         const diff = Math.abs(item.audio.currentTime - masterTime);
         // Se o desvio for maior do que 50 milissegundos (0.05s)
         if (diff > 0.05) {
