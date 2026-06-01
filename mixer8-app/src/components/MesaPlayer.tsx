@@ -41,6 +41,7 @@ export const MesaPlayer: React.FC = () => {
   const [showMobileVolume, setShowMobileVolume] = useState(false);
 
   const displayTime = isDraggingProgress ? dragProgressTime : currentTime;
+  const progressPercent = (displayTime / (duration || 1)) * 100;
 
   // Se nenhuma música foi carregada ainda, o player fica 100% oculto no rodapé (Zero Mocks)
   if (!currentTrack) {
@@ -215,7 +216,8 @@ export const MesaPlayer: React.FC = () => {
                 setIsDraggingProgress(false);
                 seek(parseFloat((e.target as HTMLInputElement).value));
               }}
-              className="flex-1 accent-brand-green bg-brand-hover h-1 md:h-1.5 rounded-lg appearance-none cursor-pointer min-w-0"
+              className="flex-1 accent-brand-green dynamic-progress h-1 md:h-1.5 rounded-lg appearance-none cursor-pointer min-w-0"
+              style={{ '--slider-progress': `${progressPercent}%` } as React.CSSProperties}
             />
             <span className="w-6 md:w-8 shrink-0">{formatTime(duration)}</span>
           </div>
@@ -523,7 +525,8 @@ export const MesaPlayer: React.FC = () => {
                 setIsDraggingProgress(false);
                 seek(parseFloat((e.target as HTMLInputElement).value));
               }}
-              className="w-full accent-brand-green bg-brand-hover h-1.5 rounded-lg appearance-none cursor-pointer"
+              className="w-full accent-brand-green dynamic-progress h-1.5 rounded-lg appearance-none cursor-pointer"
+              style={{ '--slider-progress': `${progressPercent}%` } as React.CSSProperties}
             />
             <div className="flex justify-between text-xs text-brand-gray mt-2 font-semibold">
               <span>{formatTime(displayTime)}</span>

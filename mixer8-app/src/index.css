@@ -80,6 +80,14 @@ input[type="range"]:hover {
   background: #333333;
 }
 
+input[type="range"].dynamic-progress {
+  background: linear-gradient(to right, #1db954 0%, #1db954 var(--slider-progress, 0%), #282828 var(--slider-progress, 0%), #282828 100%);
+}
+
+input[type="range"].dynamic-progress:hover {
+  background: linear-gradient(to right, #1db954 0%, #1db954 var(--slider-progress, 0%), #333333 var(--slider-progress, 0%), #333333 100%);
+}
+
 input[type="range"]::-webkit-slider-runnable-track {
   background: transparent;
   height: 6px;
