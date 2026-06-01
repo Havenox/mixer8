@@ -512,6 +512,10 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         {
             process.Start();
 
+            // Inicia a leitura da saída de erro (stderr) de forma assíncrona concorrente para evitar deadlocks
+            // gerados pelo preenchimento do buffer pequeno do pipe do SO ao processar arquivos grandes.
+            var errorReaderTask = process.StandardError.ReadToEndAsync();
+
             // Escreve a entrada in-memory de forma assíncrona na stdin do processo
             var copyTask = inputStream.CopyToAsync(process.StandardInput.BaseStream);
             await copyTask;
@@ -519,9 +523,11 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
 
             await process.WaitForExitAsync();
 
+            // Aguarda o término da tarefa de leitura do StandardError
+            string errorOutput = await errorReaderTask;
+
             if (process.ExitCode != 0)
             {
-                string errorOutput = await process.StandardError.ReadToEndAsync();
                 Console.WriteLine($"[FFMPEG ERROR] Conversão para Opus falhou com ExitCode {process.ExitCode}. Erro: {errorOutput}");
                 return false;
             }
@@ -551,9 +557,15 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         try
         {
             process.Start();
-            var output = await process.StandardOutput.ReadToEndAsync();
-            var error = await process.StandardError.ReadToEndAsync();
+
+            // Lê as saídas de stdout e stderr de forma assíncrona concorrente para proteção completa contra deadlocks
+            var outputTask = process.StandardOutput.ReadToEndAsync();
+            var errorTask = process.StandardError.ReadToEndAsync();
+
             await process.WaitForExitAsync();
+
+            var output = await outputTask;
+            var error = await errorTask;
 
             if (process.ExitCode == 0 && double.TryParse(output.Trim(), System.Globalization.CultureInfo.InvariantCulture, out var duration))
             {
