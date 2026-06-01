@@ -70,7 +70,7 @@ public class AdminController(IConfiguration configuration) : ControllerBase
             return Ok(new { CookiesJson = content });
         }
 
-        return NotFound(new { ErrorMessage = "NO_SESSION_FOUND" });
+        return Ok(new { CookiesJson = "" });
     }
 
     [Authorize(Roles = "Admin,Moderator")]
