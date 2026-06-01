@@ -19,17 +19,22 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
   const navigate = useNavigate();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     return localStorage.getItem('mixer8_sidebar_collapsed') === 'true';
   });
   const [isHovered, setIsHovered] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   // Fecha o menu de contexto ao clicar fora dele
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setIsMenuOpen(false);
+      }
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target as Node)) {
+        setIsMobileMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -69,13 +74,75 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
     : (CurrentUser?.UserName?.trim() ? `@${CurrentUser.UserName}` : CurrentUser?.Email || '');
 
   return (
-    <div className={`flex h-screen bg-brand-black text-white overflow-hidden transition-all duration-300 ${currentTrack ? 'pb-24' : ''}`}>
+    <div className={`flex h-screen bg-brand-black text-white overflow-hidden transition-all duration-300 ${currentTrack ? 'pb-16 md:pb-24' : ''}`}>
       
+      {/* Header Superior Mobile */}
+      <div className="fixed top-0 left-0 right-0 h-16 bg-black/90 backdrop-blur-md border-b border-brand-hover flex items-center justify-between px-4 z-40 md:hidden">
+        <Link to="/" onClick={() => setIsMobileMenuOpen(false)}>
+          <img src="/mixer8-logo.webp" alt="Mixer8 Logo" className="h-6 w-auto object-contain" />
+        </Link>
+        
+        {/* Navegação Rápida no Mobile */}
+        <div className="flex items-center gap-5">
+          <Link to="/" className={`text-brand-gray hover:text-white ${location.pathname === '/' ? 'text-brand-green' : ''}`} onClick={() => setIsMobileMenuOpen(false)}>
+            <Home className="w-5 h-5" />
+          </Link>
+          {IsAuthenticated && (
+            <>
+              <Link to="/dashboard" className={`text-brand-gray hover:text-white ${location.pathname === '/dashboard' ? 'text-brand-green' : ''}`} onClick={() => setIsMobileMenuOpen(false)}>
+                <Library className="w-5 h-5" />
+              </Link>
+              <Link to="/playlists" className={`text-brand-gray hover:text-white ${location.pathname.startsWith('/playlists') ? 'text-brand-green' : ''}`} onClick={() => setIsMobileMenuOpen(false)}>
+                <ListMusic className="w-5 h-5" />
+              </Link>
+            </>
+          )}
+        </div>
+
+        {/* Avatar do Usuário com Menu Mobile */}
+        {IsAuthenticated && CurrentUser ? (
+          <div className="relative" ref={mobileMenuRef}>
+            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="focus:outline-none flex items-center justify-center cursor-pointer">
+              {CurrentUser.AvatarUrl ? (
+                <img src={CurrentUser.AvatarUrl.startsWith('http') ? CurrentUser.AvatarUrl : `${SERVER_URL}${CurrentUser.AvatarUrl}`} className="w-8 h-8 rounded-full object-cover border border-brand-green/20" alt="Avatar" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-brand-hover flex items-center justify-center text-brand-green border border-brand-green/20">
+                  <User className="w-4 h-4" />
+                </div>
+              )}
+            </button>
+            
+            {/* Menu Dropdown Suspenso no Mobile */}
+            {isMobileMenuOpen && (
+              <div className="absolute right-0 mt-2 bg-brand-card border border-brand-hover rounded-md shadow-2xl p-2 z-50 flex flex-col gap-1 w-48 animate-in slide-in-from-top-2 duration-200">
+                <button onClick={() => { navigate('/settings'); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded text-white hover:bg-brand-hover hover:text-brand-green w-full text-left cursor-pointer">
+                  <Settings className="w-4 h-4 text-brand-green" />
+                  <span>Configurações</span>
+                </button>
+                <button onClick={() => { navigate(`/@${CurrentUser.UserName}`); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded text-white hover:bg-brand-hover hover:text-brand-green w-full text-left cursor-pointer">
+                  <User className="w-4 h-4 text-brand-green" />
+                  <span>Meu Perfil</span>
+                </button>
+                <div className="h-[1px] bg-brand-hover my-1" />
+                <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded text-red-400 hover:bg-red-500/10 w-full text-left cursor-pointer">
+                  <LogOut className="w-4 h-4" />
+                  <span>Sair</span>
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <Link to="/login" className="py-1 px-3 bg-brand-green text-black font-bold rounded text-xs">
+            Entrar
+          </Link>
+        )}
+      </div>
+
       {/* 1. SIDEBAR (Estilo Mesa de Som Retrátil) */}
       <div 
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className={`bg-black flex flex-col justify-between border-r border-brand-hover select-none shrink-0 transition-all duration-300 ${
+        className={`bg-black flex flex-col justify-between border-r border-brand-hover select-none shrink-0 transition-all duration-300 hidden md:flex ${
           isSidebarCollapsed ? 'w-20 p-4 py-6 items-center' : 'w-64 p-6'
         }`}
       >
@@ -392,11 +459,11 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
       {/* 2. CONTEÚDO PRINCIPAL (Mesa de Som com rolagem) */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden bg-brand-dark">
         {/* Barra superior transparente */}
-        <div className="h-16 flex items-center justify-end px-8 select-none shrink-0 border-b border-brand-hover">
+        <div className="h-16 items-center justify-end px-8 select-none shrink-0 border-b border-brand-hover hidden md:flex">
         </div>
 
         {/* Scroll Container para as Páginas */}
-        <div className="flex-1 overflow-y-auto pb-28 px-8 py-6">
+        <div className="flex-1 overflow-y-auto px-4 md:px-8 pt-22 md:pt-6 pb-24 md:pb-28">
           {children}
         </div>
       </div>
