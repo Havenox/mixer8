@@ -78,13 +78,27 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 
 // 4. Configura CORS de forma segura
+var corsRestricted = Environment.GetEnvironmentVariable("CORS_RESTRICTED")?.Trim().ToLower() == "true";
+var corsAllowedOrigins = Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS")?.Trim();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Mixer8CorsPolicy", policy =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+        if (corsRestricted && !string.IsNullOrEmpty(corsAllowedOrigins))
+        {
+            var origins = corsAllowedOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            policy.WithOrigins(origins)
+                  .AllowAnyMethod()
+                  .AllowAnyHeader()
+                  .AllowCredentials();
+        }
+        else
+        {
+            policy.AllowAnyOrigin()
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+        }
     });
 });
 
