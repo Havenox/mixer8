@@ -759,7 +759,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           });
 
           if (res.ok) {
-            console.log('[PLAY RECORDED]', await res.json());
+            // console.log('[PLAY RECORDED]', await res.json());
           } else {
             console.warn('[PLAY RECORD FAILED]', res.status);
           }
