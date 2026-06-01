@@ -149,7 +149,7 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         className={`bg-black flex flex-col justify-between border-r border-brand-hover select-none shrink-0 transition-all duration-300 hidden md:flex ${
-          isSidebarCollapsed ? 'w-20 p-4 py-6 items-center' : 'w-64 p-6'
+          isSidebarCollapsed ? 'w-14 p-1 py-6 items-center' : 'w-64 p-6'
         }`}
       >
         <div className="flex flex-col gap-6 w-full">
