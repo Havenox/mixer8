@@ -8,7 +8,8 @@ import {
   Play, Pause, Disc, Music, Users, Download,
   Loader2, ArrowLeft, Settings, Trash2,
   Clock, X, AlertTriangle, Plus, Minus,
-  Lock, Globe, EyeOff
+  Lock, Globe, EyeOff, MoreHorizontal,
+  Heart, Share2, ListMusic
 } from 'lucide-react';
 
 import { API_URL, SERVER_URL } from '../config';
@@ -76,6 +77,9 @@ export const PlaylistDetail: React.FC = () => {
   const [error, setError] = useState('');
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [selectedTrackIndex, setSelectedTrackIndex] = useState<number | null>(null);
+  const [mobileTrackMenu, setMobileTrackMenu] = useState<IPlaylistTrack | null>(null);
+  const [mobilePlaylistMenuOpen, setMobilePlaylistMenuOpen] = useState(false);
 
   // Estados e lógicas para Colunas Redimensionáveis (Spotify-like)
   const [colWidths, setColWidths] = useState({
@@ -172,11 +176,21 @@ export const PlaylistDetail: React.FC = () => {
     return () => clearTimeout(timer);
   }, [trackToDelete, deleteCountdown]);
 
-  // Listener para fechar o menu de contexto
+  // Listener para fechar o menu de contexto e limpar a seleção
   useEffect(() => {
     const closeMenu = () => setContextMenu(null);
+    const handleGlobalClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('tbody')) {
+        setSelectedTrackIndex(null);
+      }
+    };
     window.addEventListener('click', closeMenu);
-    return () => window.removeEventListener('click', closeMenu);
+    document.addEventListener('click', handleGlobalClick);
+    return () => {
+      window.removeEventListener('click', closeMenu);
+      document.removeEventListener('click', handleGlobalClick);
+    };
   }, []);
 
   const isPremium = CurrentUser?.UserRole === 'PaidUser' || CurrentUser?.UserRole === 'Admin' || CurrentUser?.UserRole === 'Moderator';
@@ -554,6 +568,42 @@ export const PlaylistDetail: React.FC = () => {
     }
   };
 
+  const handleToggleSavePlaylist = async () => {
+    if (!Token || !playlist) return;
+    const isCurrentlySaved = playlist.IsSaved;
+    try {
+      const res = await fetch(`${API_URL}/Playlists/${playlist.PlaylistId}/Save`, {
+        method: isCurrentlySaved ? 'DELETE' : 'POST',
+        headers: {
+          'Authorization': `Bearer ${Token}`
+        }
+      });
+      if (res.ok) {
+        setPlaylist(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            IsSaved: !isCurrentlySaved
+          };
+        });
+        fetchPlaylists(); // atualiza barra lateral
+      }
+    } catch (err) {
+      console.error("Erro ao salvar/remover playlist", err);
+    }
+  };
+
+  const handleSharePlaylist = () => {
+    navigator.clipboard.writeText(window.location.href);
+    alert('Link da playlist copiado para a área de transferência!');
+  };
+
+  const handlePlayPlaylist = () => {
+    if (playlist && playlist.Tracks.length > 0) {
+      handlePlayTrack(playlist.Tracks[0]);
+    }
+  };
+
   const getOwnerDisplayName = (
     firstName?: string,
     lastName?: string,
@@ -653,9 +703,9 @@ export const PlaylistDetail: React.FC = () => {
       </button>
 
       {/* 1. Header */}
-      <div className="flex flex-col md:flex-row gap-6 items-start md:items-end bg-gradient-to-b from-brand-hover/40 to-transparent p-6 rounded-lg border border-brand-hover/30 shadow-inner">
+      <div className="flex flex-col md:flex-row gap-4 md:gap-6 items-center md:items-end bg-transparent md:bg-gradient-to-b md:from-brand-hover/40 md:to-transparent p-0 md:p-6 rounded-none md:rounded-lg border-none md:border md:border-brand-hover/30 shadow-none md:shadow-inner text-center md:text-left">
         {/* Capa */}
-        <div className="w-48 h-48 bg-black rounded shadow-2xl flex items-center justify-center shrink-0 overflow-hidden relative group border border-brand-hover">
+        <div className="w-52 h-52 md:w-48 md:h-48 bg-black rounded shadow-2xl flex items-center justify-center shrink-0 overflow-hidden relative group border border-brand-hover mx-auto md:mx-0">
           {playlist.CoverUrl ? (
             <img 
               src={playlist.CoverUrl.startsWith('http') ? playlist.CoverUrl : `${SERVER_URL}${playlist.CoverUrl}`} 
@@ -668,8 +718,8 @@ export const PlaylistDetail: React.FC = () => {
         </div>
 
         {/* Info Cabeçalho */}
-        <div className="flex-1 flex flex-col gap-2">
-          <div className="flex items-center gap-2">
+        <div className="flex-1 flex flex-col gap-1.5 md:gap-2 w-full">
+          <div className="flex items-center justify-center md:justify-start gap-2">
             <span className="text-[10px] bg-brand-green/10 border border-brand-green/30 text-brand-green px-2 py-0.5 rounded uppercase font-bold tracking-wider">
               {playlist.Visibility === 'Public' ? 'Pública' : playlist.Visibility === 'Private' ? 'Privada' : 'Não Listada'}
             </span>
@@ -680,17 +730,17 @@ export const PlaylistDetail: React.FC = () => {
             )}
           </div>
 
-          <h1 className="text-3xl md:text-5xl font-black tracking-tight text-white leading-tight m-0 uppercase select-text">
+          <h1 className="text-2xl md:text-5xl font-black tracking-tight text-white leading-tight m-0 uppercase select-text">
             {playlist.Name}
           </h1>
 
           {playlist.Description && (
-            <p className="text-xs text-brand-gray leading-normal m-0 select-text max-w-xl">
+            <p className="text-xs text-brand-gray leading-normal m-0 select-text max-w-xl mx-auto md:mx-0">
               {playlist.Description}
             </p>
           )}
 
-          <div className="flex items-center gap-2 text-xs text-brand-gray font-medium flex-wrap mt-2.5 select-none leading-none">
+          <div className="flex items-center justify-center md:justify-start gap-2 text-xs text-brand-gray font-medium flex-wrap mt-1 md:mt-2.5 select-none leading-none">
             {/* Foto de perfil real ou fallback do criador */}
             <div className="flex items-center gap-1.5 shrink-0 h-5">
               {playlist.OwnerAvatarUrl ? (
@@ -753,8 +803,8 @@ export const PlaylistDetail: React.FC = () => {
           </div>
         </div>
 
-        {/* Ações (Configurações & Download) */}
-        <div className="flex gap-3 self-stretch md:self-end justify-end mt-4 md:mt-0 shrink-0 items-center">
+        {/* Ações Desktop (Configurações & Download) - Oculto no Mobile */}
+        <div className="hidden md:flex gap-3 self-end justify-end mt-0 shrink-0 items-center w-auto">
           {isPremium && (
             <button
               onClick={handlePlaylistDownloadClick}
@@ -794,8 +844,55 @@ export const PlaylistDetail: React.FC = () => {
         </div>
       </div>
 
+      {/* Ações Mobile (Estilo Spotify) - Exibido apenas no Mobile */}
+      <div className="flex md:hidden items-center justify-between px-2 py-1 select-none w-full shrink-0">
+        <div className="flex items-center gap-6">
+          {/* Botão de Salvar/Gostar da Playlist na Biblioteca */}
+          {IsAuthenticated && (
+            <button
+              onClick={handleToggleSavePlaylist}
+              className="text-brand-gray hover:text-brand-green active:scale-90 transition-all cursor-pointer p-1"
+              title={playlist.IsSaved ? "Remover da Biblioteca" : "Salvar na Biblioteca"}
+            >
+              <Heart 
+                className={`w-6 h-6 ${playlist.IsSaved ? 'fill-brand-green text-brand-green' : 'text-brand-gray hover:text-white'}`} 
+              />
+            </button>
+          )}
+
+          {/* Botão de Compartilhar Playlist */}
+          <button
+            onClick={handleSharePlaylist}
+            className="text-brand-gray hover:text-white active:scale-90 transition-all cursor-pointer p-1"
+            title="Compartilhar Playlist"
+          >
+            <Share2 className="w-6 h-6" />
+          </button>
+
+          {/* Botão de Reticências para mais opções da playlist */}
+          <button
+            onClick={() => setMobilePlaylistMenuOpen(true)}
+            className="text-brand-gray hover:text-white active:scale-90 transition-all cursor-pointer p-1"
+            title="Mais Opções da Playlist"
+          >
+            <MoreHorizontal className="w-6 h-6" />
+          </button>
+        </div>
+
+        {/* Botão Gigante de Play Circular Verde no lado direito */}
+        {playlist.Tracks.length > 0 && (
+          <button
+            onClick={handlePlayPlaylist}
+            className="w-12 h-12 rounded-full bg-brand-green text-black flex items-center justify-center shadow-lg active:scale-95 hover:scale-105 transition-all cursor-pointer"
+            title="Tocar Playlist"
+          >
+            <Play className="w-6 h-6 fill-current translate-x-[1px]" />
+          </button>
+        )}
+      </div>
+
       {/* 2. Playlist Track List */}
-      <div className="bg-black/15 p-6 rounded-lg flex flex-col gap-6 mt-4">
+      <div className="bg-transparent md:bg-black/15 p-0 md:p-6 rounded-none md:rounded-lg flex flex-col gap-4 md:gap-6 mt-2 md:mt-4">
         {playlist.Tracks.length === 0 ? (
           <div className="text-center py-10 flex flex-col gap-3 items-center">
             <Disc className="w-12 h-12 text-brand-gray/30 animate-pulse" />
@@ -805,202 +902,315 @@ export const PlaylistDetail: React.FC = () => {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto w-full select-none">
-            <table className="w-full text-left text-xs border-collapse table-fixed" style={{ minWidth: '600px' }}>
-              <thead>
-                <tr className="border-b border-brand-hover text-brand-gray font-bold uppercase tracking-wider text-[10px] pb-3 group">
-                  <th 
-                    style={{ width: colWidths.index }} 
-                    className="py-2.5 px-3 text-center relative select-none"
-                  >
-                    <span className="truncate block">#</span>
-                    <div 
-                      onMouseDown={(e) => startResize('index', e)}
-                      className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-full cursor-col-resize flex items-center justify-center z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+          <>
+            {/* Desktop View: Table */}
+            <div className="hidden md:block overflow-x-auto w-full select-none">
+              <table className="w-full text-left text-xs border-collapse table-fixed" style={{ minWidth: '600px' }}>
+                <thead>
+                  <tr className="border-b border-brand-hover text-brand-gray font-bold uppercase tracking-wider text-[10px] pb-3 group">
+                    <th 
+                      style={{ width: colWidths.index }} 
+                      className="py-2.5 px-3 text-center relative select-none"
                     >
-                      <div className="w-[1px] h-3 bg-brand-gray/40" />
-                    </div>
-                  </th>
-                  <th 
-                    style={{ width: colWidths.titleArtist }} 
-                    className="py-2.5 px-3 relative select-none"
-                  >
-                    <span className="truncate block">Título / Artista</span>
-                    <div 
-                      onMouseDown={(e) => startResize('titleArtist', e)}
-                      className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-full cursor-col-resize flex items-center justify-center z-10 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <div className="w-[1px] h-3 bg-brand-gray/40" />
-                    </div>
-                  </th>
-                  <th 
-                    style={{ width: colWidths.addedBy }} 
-                    className="py-2.5 px-3 relative select-none"
-                  >
-                    <span className="truncate block">Adicionado por</span>
-                    <div 
-                      onMouseDown={(e) => startResize('addedBy', e)}
-                      className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-full cursor-col-resize flex items-center justify-center z-10 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <div className="w-[1px] h-3 bg-brand-gray/40" />
-                    </div>
-                  </th>
-                  <th 
-                    style={{ width: colWidths.addedAt }} 
-                    className="py-2.5 px-3 relative select-none"
-                  >
-                    <span className="truncate block">Adicionado em</span>
-                    <div 
-                      onMouseDown={(e) => startResize('addedAt', e)}
-                      className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-full cursor-col-resize flex items-center justify-center z-10 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <div className="w-[1px] h-3 bg-brand-gray/40" />
-                    </div>
-                  </th>
-                  {isPremium && (
-                    <th style={{ width: 44 }} className="py-2.5 px-3 relative select-none">
-                      {/* Coluna vazia para download */}
+                      <span className="truncate block">#</span>
+                      <div 
+                        onMouseDown={(e) => startResize('index', e)}
+                        className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-full cursor-col-resize flex items-center justify-center z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <div className="w-[1px] h-3 bg-brand-gray/40" />
+                      </div>
                     </th>
-                  )}
-                  <th 
-                    style={{ width: colWidths.duration }} 
-                    className="py-2.5 px-3 text-right relative select-none"
-                  >
-                    <div className="flex items-center justify-end gap-1">
-                      <Clock className="w-4 h-4 text-brand-gray shrink-0" />
-                    </div>
-                  </th>
-                </tr>
-              </thead>
-              <tbody onDragLeave={canModifyPlaylist ? handleTableDragLeave : undefined}>
-                {playlist.Tracks.map((t, index) => {
-                  const isCurrentTrack = currentTrack && currentTrack.TrackId === t.TrackId;
-
-                  return (
-                    <tr 
-                      key={t.TrackId} 
-                      onContextMenu={(e) => handleTrackContextMenu(e, t)}
-                      draggable={canModifyPlaylist}
-                      onDragStart={canModifyPlaylist ? (e) => handleDragStart(e, index) : undefined}
-                      onDragOver={canModifyPlaylist ? (e) => handleDragOver(e, index) : undefined}
-                      onDragEnd={canModifyPlaylist ? handleDragEnd : undefined}
-                      onDrop={canModifyPlaylist ? (e) => handleDrop(e) : undefined}
-                      className={`border-b border-brand-hover/40 hover:bg-brand-hover/30 transition-colors group ${
-                        isCurrentTrack ? 'bg-brand-hover/10' : ''
-                      } ${draggedIndex === index ? '!opacity-35 !bg-brand-hover/65' : ''} ${
-                        dragOverIndex === index && draggedIndex !== index && draggedIndex !== index - 1 ? '!border-t-2 !border-t-brand-green' : ''
-                      } ${
-                        dragOverIndex === index + 1 && index === playlist.Tracks.length - 1 && draggedIndex !== index ? '!border-b-2 !border-b-brand-green' : ''
-                      } ${canModifyPlaylist ? 'cursor-default' : ''}`}
+                    <th 
+                      style={{ width: colWidths.titleArtist }} 
+                      className="py-2.5 px-3 relative select-none"
                     >
-                      {/* Play Action / Index */}
-                      <td className="py-3 px-3 text-center text-brand-gray font-semibold relative select-none">
-                        <span className="group-hover:opacity-0 transition-opacity">
-                          {index + 1}
-                        </span>
-                        <button
-                          onClick={() => {
-                            if (isCurrentTrack) {
-                              togglePlay();
-                            } else {
-                              handlePlayTrack(t);
-                            }
-                          }}
-                          className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 text-brand-green hover:scale-110 transition-all cursor-pointer bg-brand-card/90 rounded-l"
-                        >
-                          {isCurrentTrack && isPlaying ? (
-                            <Pause className="w-4 h-4 fill-current" />
-                          ) : (
-                            <Play className="w-4 h-4 fill-current translate-x-[0.5px]" />
-                          )}
-                        </button>
-                      </td>
+                      <span className="truncate block">Título / Artista</span>
+                      <div 
+                        onMouseDown={(e) => startResize('titleArtist', e)}
+                        className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-full cursor-col-resize flex items-center justify-center z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <div className="w-[1px] h-3 bg-brand-gray/40" />
+                      </div>
+                    </th>
+                    <th 
+                      style={{ width: colWidths.addedBy }} 
+                      className="py-2.5 px-3 relative select-none"
+                    >
+                      <span className="truncate block">Adicionado por</span>
+                      <div 
+                        onMouseDown={(e) => startResize('addedBy', e)}
+                        className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-full cursor-col-resize flex items-center justify-center z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <div className="w-[1px] h-3 bg-brand-gray/40" />
+                      </div>
+                    </th>
+                    <th 
+                      style={{ width: colWidths.addedAt }} 
+                      className="py-2.5 px-3 relative select-none"
+                    >
+                      <span className="truncate block">Adicionado em</span>
+                      <div 
+                        onMouseDown={(e) => startResize('addedAt', e)}
+                        className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-full cursor-col-resize flex items-center justify-center z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <div className="w-[1px] h-3 bg-brand-gray/40" />
+                      </div>
+                    </th>
+                    {isPremium && (
+                      <th style={{ width: 44 }} className="py-2.5 px-3 relative select-none">
+                        {/* Coluna vazia para download */}
+                      </th>
+                    )}
+                    <th 
+                      style={{ width: colWidths.duration }} 
+                      className="py-2.5 px-3 text-right relative select-none"
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        <Clock className="w-4 h-4 text-brand-gray shrink-0" />
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody onDragLeave={canModifyPlaylist ? handleTableDragLeave : undefined}>
+                  {playlist.Tracks.map((t, index) => {
+                    const isCurrentTrack = currentTrack && currentTrack.TrackId === t.TrackId;
 
-                      {/* Título & Capa */}
-                      <td className="py-3 px-3 min-w-0">
-                        <div className="flex items-center gap-3 truncate">
-                          <div className="w-9 h-9 bg-black rounded overflow-hidden flex items-center justify-center text-brand-green shrink-0 border border-brand-hover">
-                            {t.CoverUrl ? (
-                              <img 
-                                src={t.CoverUrl.startsWith('http') ? t.CoverUrl : `${SERVER_URL}${t.CoverUrl}`} 
-                                alt="Capa" 
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <Music className="w-4 h-4" />
-                            )}
-                          </div>
-                          <div className="flex flex-col truncate">
-                            <span className={`font-bold truncate text-sm ${isCurrentTrack ? 'text-brand-green' : 'text-white'}`}>
-                              {t.TrackTitle}
-                            </span>
-                            <span className="text-[11px] text-brand-gray truncate">
-                              {t.ArtistName}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Quem adicionou */}
-                      <td className="py-3 px-3 text-brand-gray truncate">
-                        {playlist.Collaborators.length > 0 || !isPlaylistOwner ? (
-                          <span className="capitalize">{t.AddedByEmail.split('@')[0]}</span>
-                        ) : (
-                          <span className="italic">Dono</span>
-                        )}
-                      </td>
-
-                      {/* Data de adição */}
-                      <td className="py-3 px-3 text-brand-gray truncate">
-                        {formatDistanceToNow(t.AddedAt)}
-                      </td>
-
-                      {isPremium && (
-                        <td className="py-3 px-3 text-center">
-                          <div className="flex items-center justify-center">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleTrackDownloadClick(t);
-                              }}
-                              disabled={downloadingTrackIds[t.TrackId]}
-                              className={`w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer hover:scale-105 active:scale-95 ${
-                                downloadedTrackIds[t.TrackId]
-                                  ? 'bg-brand-green text-black border-none'
-                                  : downloadingTrackIds[t.TrackId]
-                                  ? 'bg-transparent text-brand-green border-none'
-                                  : 'bg-transparent text-brand-gray/40 hover:text-white border border-brand-gray/25 opacity-0 group-hover:opacity-100'
-                              }`}
-                              title={
-                                downloadedTrackIds[t.TrackId]
-                                  ? 'Remover download offline'
-                                  : downloadingTrackIds[t.TrackId]
-                                  ? 'Baixando...'
-                                  : 'Salvar para ouvir offline'
+                    return (
+                      <tr 
+                        key={t.TrackId} 
+                        onContextMenu={(e) => handleTrackContextMenu(e, t)}
+                        draggable={canModifyPlaylist}
+                        onDragStart={canModifyPlaylist ? (e) => handleDragStart(e, index) : undefined}
+                        onDragOver={canModifyPlaylist ? (e) => handleDragOver(e, index) : undefined}
+                        onDragEnd={canModifyPlaylist ? handleDragEnd : undefined}
+                        onDrop={canModifyPlaylist ? (e) => handleDrop(e) : undefined}
+                        onClick={(e) => {
+                          const target = e.target as HTMLElement;
+                          if (target.closest('button') || target.closest('.hover\\:underline') || target.tagName === 'A') {
+                            return;
+                          }
+                          setSelectedTrackIndex(index);
+                        }}
+                        onDoubleClick={(e) => {
+                          const target = e.target as HTMLElement;
+                          if (target.closest('button') || target.closest('.hover\\:underline') || target.tagName === 'A') {
+                            return;
+                          }
+                          if (isCurrentTrack) {
+                            togglePlay();
+                          } else {
+                            handlePlayTrack(t);
+                          }
+                        }}
+                        className={`border-b border-brand-hover/40 hover:bg-brand-hover/30 transition-colors group ${
+                          isCurrentTrack ? 'bg-brand-hover/10' : ''
+                        } ${selectedTrackIndex === index ? '!bg-brand-hover/55 border-l-2 border-l-brand-green' : ''} ${draggedIndex === index ? '!opacity-35 !bg-brand-hover/65' : ''} ${
+                          dragOverIndex === index && draggedIndex !== index && draggedIndex !== index - 1 ? '!border-t-2 !border-t-brand-green' : ''
+                        } ${
+                          dragOverIndex === index + 1 && index === playlist.Tracks.length - 1 && draggedIndex !== index ? '!border-b-2 !border-b-brand-green' : ''
+                        } ${canModifyPlaylist ? 'cursor-default' : ''}`}
+                      >
+                        {/* Play Action / Index */}
+                        <td className="py-3 px-3 text-center text-brand-gray font-semibold relative select-none">
+                          <span className="group-hover:opacity-0 transition-opacity">
+                            {index + 1}
+                          </span>
+                          <button
+                            onClick={() => {
+                              if (isCurrentTrack) {
+                                togglePlay();
+                              } else {
+                                handlePlayTrack(t);
                               }
-                            >
-                              {downloadingTrackIds[t.TrackId] ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              ) : downloadedTrackIds[t.TrackId] ? (
-                                <Download className="w-3.5 h-3.5 fill-current text-black" />
+                            }}
+                            className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 text-brand-green hover:scale-110 transition-all cursor-pointer bg-brand-card/90 rounded-l animate-in fade-in duration-100"
+                          >
+                            {isCurrentTrack && isPlaying ? (
+                              <Pause className="w-4 h-4 fill-current" />
+                            ) : (
+                              <Play className="w-4 h-4 fill-current translate-x-[0.5px]" />
+                            )}
+                          </button>
+                        </td>
+
+                        {/* Título & Capa */}
+                        <td className="py-3 px-3 min-w-0">
+                          <div className="flex items-center gap-3 truncate">
+                            <div className="w-9 h-9 bg-black rounded overflow-hidden flex items-center justify-center text-brand-green shrink-0 border border-brand-hover">
+                              {t.CoverUrl ? (
+                                <img 
+                                  src={t.CoverUrl.startsWith('http') ? t.CoverUrl : `${SERVER_URL}${t.CoverUrl}`} 
+                                  alt="Capa" 
+                                  className="w-full h-full object-cover"
+                                />
                               ) : (
-                                <Download className="w-3.5 h-3.5" />
+                                <Music className="w-4 h-4" />
                               )}
-                            </button>
+                            </div>
+                            <div className="flex flex-col truncate">
+                              <span 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // Future: navigate(`/tracks/${t.TrackId}`)
+                                }}
+                                className={`font-bold truncate text-sm hover:underline cursor-pointer ${isCurrentTrack ? 'text-brand-green' : 'text-white'}`}
+                              >
+                                {t.TrackTitle}
+                              </span>
+                              <span 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // Future: navigate(`/artists/${t.ArtistName}`)
+                                }}
+                                className="text-[11px] text-brand-gray truncate hover:underline cursor-pointer mt-0.5"
+                              >
+                                {t.ArtistName}
+                              </span>
+                            </div>
                           </div>
                         </td>
-                      )}
 
-                      {/* Duração real */}
-                      <td className="py-3 px-3 text-right text-brand-gray font-medium truncate">
-                        {formatTrackDuration(t.Duration)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        {/* Quem adicionou */}
+                        <td className="py-3 px-3 text-brand-gray truncate">
+                          {playlist.Collaborators.length > 0 || !isPlaylistOwner ? (
+                            <span className="capitalize">{t.AddedByEmail.split('@')[0]}</span>
+                          ) : (
+                            <span className="italic">Dono</span>
+                          )}
+                        </td>
+
+                        {/* Data de adição */}
+                        <td className="py-3 px-3 text-brand-gray truncate">
+                          {formatDistanceToNow(t.AddedAt)}
+                        </td>
+
+                        {isPremium && (
+                          <td className="py-3 px-3 text-center">
+                            <div className="flex items-center justify-center">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleTrackDownloadClick(t);
+                                }}
+                                disabled={downloadingTrackIds[t.TrackId]}
+                                className={`w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer hover:scale-105 active:scale-95 ${
+                                  downloadedTrackIds[t.TrackId]
+                                    ? 'bg-brand-green text-black border-none'
+                                    : downloadingTrackIds[t.TrackId]
+                                    ? 'bg-transparent text-brand-green border-none'
+                                    : 'bg-transparent text-brand-gray/40 hover:text-white border border-brand-gray/25 opacity-0 group-hover:opacity-100'
+                                }`}
+                                title={
+                                  downloadedTrackIds[t.TrackId]
+                                    ? 'Remover download offline'
+                                    : downloadingTrackIds[t.TrackId]
+                                    ? 'Baixando...'
+                                    : 'Salvar para ouvir offline'
+                                }
+                              >
+                                {downloadingTrackIds[t.TrackId] ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : downloadedTrackIds[t.TrackId] ? (
+                                  <Download className="w-3.5 h-3.5 fill-current text-black" />
+                                ) : (
+                                  <Download className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                        )}
+
+                        {/* Duração real */}
+                        <td className="py-3 px-3 text-right text-brand-gray font-medium truncate">
+                          {formatTrackDuration(t.Duration)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile View: minimalist vertical list */}
+            <div className="flex md:hidden flex-col gap-1 w-full select-none">
+              {playlist.Tracks.map((t) => {
+                const isCurrentTrack = currentTrack && currentTrack.TrackId === t.TrackId;
+
+                return (
+                  <div 
+                    key={t.TrackId}
+                    onClick={() => {
+                      if (isCurrentTrack) {
+                        togglePlay();
+                      } else {
+                        handlePlayTrack(t);
+                      }
+                    }}
+                    className={`flex items-center gap-3 p-2 rounded-md active:bg-brand-hover/40 transition-colors cursor-pointer ${
+                      isCurrentTrack ? 'bg-brand-hover/10' : ''
+                    }`}
+                  >
+                    {/* Capa */}
+                    <div className="w-11 h-11 bg-black rounded overflow-hidden flex items-center justify-center text-brand-green shrink-0 border border-brand-hover relative">
+                      {t.CoverUrl ? (
+                        <img 
+                          src={t.CoverUrl.startsWith('http') ? t.CoverUrl : `${SERVER_URL}${t.CoverUrl}`} 
+                          alt="Capa" 
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Music className="w-4 h-4" />
+                      )}
+                      {isCurrentTrack && isPlaying && (
+                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                          <div className="flex gap-0.5 items-end h-3">
+                            <div className="w-0.75 bg-brand-green animate-bounce" style={{ animationDuration: '0.6s' }} />
+                            <div className="w-0.75 bg-brand-green animate-bounce h-2" style={{ animationDuration: '0.8s', animationDelay: '0.15s' }} />
+                            <div className="w-0.75 bg-brand-green animate-bounce h-1" style={{ animationDuration: '0.5s', animationDelay: '0.3s' }} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Título & Artista */}
+                    <div className="flex-1 min-w-0 flex flex-col justify-center">
+                      <span 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Future: navigate(`/tracks/${t.TrackId}`)
+                        }}
+                        className={`font-bold text-sm truncate hover:underline cursor-pointer leading-tight ${
+                          isCurrentTrack ? 'text-brand-green' : 'text-white'
+                        }`}
+                      >
+                        {t.TrackTitle}
+                      </span>
+                      <span 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Future: navigate(`/artists/${t.ArtistName}`)
+                        }}
+                        className="text-xs text-brand-gray truncate hover:underline cursor-pointer mt-0.5 leading-none"
+                      >
+                        {t.ArtistName}
+                      </span>
+                    </div>
+
+                    {/* Reticências (Menu Mobile) */}
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMobileTrackMenu(t);
+                      }}
+                      className="p-2 text-brand-gray hover:text-white transition-colors cursor-pointer shrink-0"
+                    >
+                      <MoreHorizontal className="w-5 h-5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
 
@@ -1321,6 +1531,206 @@ export const PlaylistDetail: React.FC = () => {
                 Confirmar Remoção
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* BACKDROP DO MENU MOBILE */}
+      {mobileTrackMenu && (
+        <div 
+          className="fixed inset-0 bg-black/60 z-[95] animate-in fade-in duration-200 md:hidden"
+          onClick={() => setMobileTrackMenu(null)}
+        />
+      )}
+
+      {/* BOTTOM SHEET DO MENU MOBILE */}
+      {mobileTrackMenu && (
+        <div className="fixed inset-x-0 bottom-0 bg-brand-card border-t border-brand-hover rounded-t-2xl shadow-2xl p-5 z-[100] flex flex-col gap-4 animate-in slide-in-from-bottom duration-250 md:hidden select-none animate-duration-200">
+          {/* Barra discreta de arrastar no topo */}
+          <div className="w-12 h-1 bg-brand-gray/30 rounded-full mx-auto mb-1 shrink-0" />
+
+          {/* Cabeçalho com Info da Música */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="w-12 h-12 bg-black rounded overflow-hidden flex items-center justify-center text-brand-green shrink-0 border border-brand-hover">
+              {mobileTrackMenu.CoverUrl ? (
+                <img 
+                  src={mobileTrackMenu.CoverUrl.startsWith('http') ? mobileTrackMenu.CoverUrl : `${SERVER_URL}${mobileTrackMenu.CoverUrl}`} 
+                  alt="Capa" 
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <Music className="w-5 h-5" />
+              )}
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="font-bold text-sm text-white truncate leading-tight select-text">
+                {mobileTrackMenu.TrackTitle}
+              </span>
+              <span className="text-xs text-brand-gray truncate mt-1 select-text">
+                {mobileTrackMenu.ArtistName}
+              </span>
+            </div>
+          </div>
+
+          <div className="h-[1px] bg-brand-hover w-full shrink-0" />
+
+          {/* Opções */}
+          <div className="flex flex-col gap-1 overflow-y-auto max-h-[300px]">
+            <button
+              onClick={() => {
+                openAddToPlaylist(mobileTrackMenu.TrackId, mobileTrackMenu.TrackTitle, mobileTrackMenu.ArtistName);
+                setMobileTrackMenu(null);
+              }}
+              className="w-full text-left px-3 py-3 rounded-lg text-sm font-semibold hover:bg-brand-hover text-white active:bg-brand-hover/50 transition-all cursor-pointer flex items-center gap-3"
+            >
+              <Plus className="w-5 h-5 text-brand-green shrink-0" />
+              <span>Adicionar à playlist</span>
+            </button>
+
+            {isPremium && (
+              <button
+                onClick={() => {
+                  handleTrackDownloadClick(mobileTrackMenu);
+                  setMobileTrackMenu(null);
+                }}
+                disabled={downloadingTrackIds[mobileTrackMenu.TrackId]}
+                className="w-full text-left px-3 py-3 rounded-lg text-sm font-semibold hover:bg-brand-hover text-white active:bg-brand-hover/50 transition-all cursor-pointer flex items-center gap-3"
+              >
+                {downloadingTrackIds[mobileTrackMenu.TrackId] ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin text-brand-green shrink-0" />
+                    <span>Baixando stems...</span>
+                  </>
+                ) : downloadedTrackIds[mobileTrackMenu.TrackId] ? (
+                  <>
+                    <Download className="w-5 h-5 fill-current text-brand-green shrink-0" />
+                    <span>Remover download offline</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-5 h-5 text-brand-gray shrink-0" />
+                    <span>Baixar para ouvir offline</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            {/* Opção para remover da playlist */}
+            {canModifyPlaylist && (
+              <button
+                onClick={() => {
+                  setTrackToRemove(mobileTrackMenu);
+                  setMobileTrackMenu(null);
+                }}
+                className="w-full text-left px-3 py-3 rounded-lg text-sm font-semibold hover:bg-brand-hover text-white active:bg-brand-hover/50 transition-all cursor-pointer flex items-center gap-3"
+              >
+                <Minus className="w-5 h-5 text-brand-gray shrink-0" />
+                <span>Remover desta playlist</span>
+              </button>
+            )}
+
+            {/* Exclusão do Admin */}
+            {CurrentUser?.UserRole === 'Admin' && (
+              <>
+                <div className="h-[1px] bg-brand-hover my-1 shrink-0" />
+                <button
+                  onClick={() => {
+                    setTrackToDelete(mobileTrackMenu);
+                    setDeleteCountdown(3);
+                    setDeleteError('');
+                    setMobileTrackMenu(null);
+                  }}
+                  className="w-full text-left px-3 py-3 rounded-lg text-sm font-semibold hover:bg-red-950/20 text-white hover:text-red-400 active:bg-red-950/40 transition-all cursor-pointer flex items-center gap-3"
+                >
+                  <Trash2 className="w-5 h-5 text-red-500 shrink-0" />
+                  <span>Excluir Música (Total)</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* BACKDROP DO MENU PLAYLIST MOBILE */}
+      {mobilePlaylistMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 z-[95] animate-in fade-in duration-200 md:hidden"
+          onClick={() => setMobilePlaylistMenuOpen(false)}
+        />
+      )}
+
+      {/* BOTTOM SHEET DO MENU PLAYLIST MOBILE */}
+      {mobilePlaylistMenuOpen && (
+        <div className="fixed inset-x-0 bottom-0 bg-brand-card border-t border-brand-hover rounded-t-2xl shadow-2xl p-5 z-[100] flex flex-col gap-4 animate-in slide-in-from-bottom duration-250 md:hidden select-none animate-duration-200">
+          {/* Barra discreta de arrastar no topo */}
+          <div className="w-12 h-1 bg-brand-gray/30 rounded-full mx-auto mb-1 shrink-0" />
+
+          {/* Cabeçalho com Info da Playlist */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="w-12 h-12 bg-black rounded overflow-hidden flex items-center justify-center text-brand-green shrink-0 border border-brand-hover">
+              {playlist.CoverUrl ? (
+                <img 
+                  src={playlist.CoverUrl.startsWith('http') ? playlist.CoverUrl : `${SERVER_URL}${playlist.CoverUrl}`} 
+                  alt="Capa" 
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <ListMusic className="w-5 h-5" />
+              )}
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="font-bold text-sm text-white truncate leading-tight select-text">
+                {playlist.Name}
+              </span>
+              <span className="text-xs text-brand-gray truncate mt-1 select-text">
+                de {getOwnerDisplayName(playlist.OwnerFirstName, playlist.OwnerLastName, playlist.OwnerUserName, playlist.OwnerEmail)}
+              </span>
+            </div>
+          </div>
+
+          <div className="h-[1px] bg-brand-hover w-full shrink-0" />
+
+          {/* Opções */}
+          <div className="flex flex-col gap-1 overflow-y-auto max-h-[300px]">
+            {isPremium && (
+              <button
+                onClick={() => {
+                  handlePlaylistDownloadClick();
+                  setMobilePlaylistMenuOpen(false);
+                }}
+                disabled={playlistDownloadStatus === 'loading'}
+                className="w-full text-left px-3 py-3 rounded-lg text-sm font-semibold hover:bg-brand-hover text-white active:bg-brand-hover/50 transition-all cursor-pointer flex items-center gap-3"
+              >
+                {playlistDownloadStatus === 'loading' ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin text-brand-green shrink-0" />
+                    <span>Baixando faixas...</span>
+                  </>
+                ) : playlistDownloadStatus === 'downloaded' ? (
+                  <>
+                    <Download className="w-5 h-5 fill-current text-brand-green shrink-0" />
+                    <span>Remover downloads offline</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-5 h-5 text-brand-gray shrink-0" />
+                    <span>Baixar playlist para ouvir offline</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            {isOwnerOrAdmin && (
+              <button
+                onClick={() => {
+                  triggerGlobalEdit();
+                  setMobilePlaylistMenuOpen(false);
+                }}
+                className="w-full text-left px-3 py-3 rounded-lg text-sm font-semibold hover:bg-brand-hover text-white active:bg-brand-hover/50 transition-all cursor-pointer flex items-center gap-3"
+              >
+                <Settings className="w-5 h-5 text-brand-green shrink-0" />
+                <span>Configurações da Playlist</span>
+              </button>
+            )}
           </div>
         </div>
       )}
