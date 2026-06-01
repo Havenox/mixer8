@@ -78,7 +78,7 @@ const getCachedOrFetchAudioUrl = async (url: string, isPremiumUser: boolean): Pr
     if (expiry && !isPremiumUser) {
       const expiresAt = parseInt(expiry, 10);
       if (Date.now() > expiresAt) {
-        console.log('[CACHE] Cache expirou para:', url);
+        // console.log('[CACHE] Cache expirou para:', url);
         await cache.delete(url);
         localStorage.removeItem(expiryKey);
         return url;
@@ -87,7 +87,7 @@ const getCachedOrFetchAudioUrl = async (url: string, isPremiumUser: boolean): Pr
 
     const cachedResponse = await cache.match(url);
     if (cachedResponse) {
-      console.log('[CACHE] Hit! Carregando do cache local:', url);
+      // console.log('[CACHE] Hit! Carregando do cache local:', url);
       const blob = await cachedResponse.blob();
       return URL.createObjectURL(blob);
     }
@@ -112,9 +112,9 @@ const cacheAudioInBackground = async (url: string, durationInSeconds: number, is
           const ttlSeconds = durationInSeconds * 10;
           const expiresAt = Date.now() + ttlSeconds * 1000;
           localStorage.setItem(`mixer8_cache_expiry_${url}`, expiresAt.toString());
-          console.log(`[CACHE] Audio cacheado em background. Expira em ${ttlSeconds}s:`, url);
+          // console.log(`[CACHE] Audio cacheado em background. Expira em ${ttlSeconds}s:`, url);
         } else {
-          console.log(`[CACHE] Audio cacheado permanentemente em background (Premium):`, url);
+          // console.log(`[CACHE] Audio cacheado permanentemente em background (Premium):`, url);
         }
       }
     }
@@ -125,7 +125,7 @@ const cacheAudioInBackground = async (url: string, durationInSeconds: number, is
 
 const cleanExpiredAudioCache = async (isPremiumUser: boolean) => {
   if (isPremiumUser) {
-    console.log('[CACHE-GC] Usuário Premium ativo. Pulando limpeza de expirados.');
+    // console.log('[CACHE-GC] Usuário Premium ativo. Pulando limpeza de expirados.');
     return;
   }
   if (typeof window === 'undefined' || !window.caches) return;
@@ -139,7 +139,7 @@ const cleanExpiredAudioCache = async (isPremiumUser: boolean) => {
         if (expiry) {
           const expiresAt = parseInt(expiry, 10);
           if (Date.now() > expiresAt) {
-            console.log('[CACHE-GC] Removendo cache expirado:', url);
+            // console.log('[CACHE-GC] Removendo cache expirado:', url);
             await cache.delete(url);
             localStorage.removeItem(key);
           }
@@ -263,7 +263,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const diff = Math.abs(item.audio.currentTime - masterTime);
         // Se o desvio for maior do que 50 milissegundos (0.05s)
         if (diff > 0.05) {
-          console.log(`[SYNC] Ajustando drift em stem '${item.type}': desvio de ${(diff * 1000).toFixed(1)}ms. Novo tempo alinhado: ${masterTime.toFixed(3)}s`);
+          // console.log(`[SYNC] Ajustando drift em stem '${item.type}': desvio de ${(diff * 1000).toFixed(1)}ms. Novo tempo alinhado: ${masterTime.toFixed(3)}s`);
           item.audio.currentTime = masterTime;
         }
       }
@@ -778,7 +778,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return;
     }
     try {
-      console.log(`[CACHE] Iniciando download offline completo da faixa: ${track.TrackTitle}`);
+      // console.log(`[CACHE] Iniciando download offline completo da faixa: ${track.TrackTitle}`);
       await Promise.all(
         track.Stems.map(async stem => {
           const fullAudioUrl = stem.AudioUrl.startsWith('http')
@@ -800,7 +800,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           }
         })
       );
-      console.log(`[CACHE] Download concluído com sucesso: ${track.TrackTitle}`);
+      // console.log(`[CACHE] Download concluído com sucesso: ${track.TrackTitle}`);
       window.dispatchEvent(new CustomEvent('track-downloaded', { detail: { trackId: track.TrackId } }));
     } catch (err) {
       console.error('[CACHE] Erro no download offline da faixa:', err);
@@ -828,7 +828,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const removeTrackOffline = async (track: ITrack) => {
     try {
-      console.log(`[CACHE] Removendo download offline da faixa: ${track.TrackTitle}`);
+      // console.log(`[CACHE] Removendo download offline da faixa: ${track.TrackTitle}`);
       if (typeof window !== 'undefined' && window.caches) {
         const cache = await caches.open(CACHE_NAME);
         for (const stem of track.Stems) {
@@ -840,7 +840,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           localStorage.removeItem(expiryKey);
         }
       }
-      console.log(`[CACHE] Downloads removidos para a faixa: ${track.TrackTitle}`);
+      // console.log(`[CACHE] Downloads removidos para a faixa: ${track.TrackTitle}`);
       window.dispatchEvent(new CustomEvent('track-downloaded', { detail: { trackId: track.TrackId } }));
     } catch (err) {
       console.error('[CACHE] Erro ao remover track do cache:', err);
