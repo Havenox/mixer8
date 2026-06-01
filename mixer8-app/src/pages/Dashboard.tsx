@@ -413,7 +413,7 @@ export const Dashboard: React.FC = () => {
         </div>
       ) : (
         <div className="flex flex-col gap-6 select-none w-full animate-in fade-in duration-300">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,220px))] gap-4">
             {tracks.map((track) => (
               <div 
                 key={track.TrackId} 

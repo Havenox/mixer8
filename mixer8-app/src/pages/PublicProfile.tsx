@@ -212,7 +212,7 @@ export const PublicProfile: React.FC = () => {
             Nenhuma playlist pública criada por este usuário.
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,220px))] gap-4">
             {profile.PublicPlaylists.map((playlist) => (
               <div 
                 key={playlist.PlaylistId} 

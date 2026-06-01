@@ -112,7 +112,7 @@ export const Playlists: React.FC = () => {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 select-none">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,220px))] gap-4 select-none">
           {playlists.map((playlist) => {
             const canManage = playlist.IsOwner || CurrentUser?.UserRole === 'Admin';
             const canContext = canManage || playlist.IsSaved || playlist.IsCollaborator;
