@@ -82,60 +82,66 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
           <img src="/mixer8-logo.webp" alt="Mixer8 Logo" className="h-6 w-auto object-contain" />
         </Link>
         
-        {/* Navegação Rápida no Mobile */}
+        {/* Container agrupando navegação e avatar na direita */}
         <div className="flex items-center gap-5">
-          <Link to="/" className={`text-brand-gray hover:text-white ${location.pathname === '/' ? 'text-brand-green' : ''}`} onClick={() => setIsMobileMenuOpen(false)}>
-            <Home className="w-5 h-5" />
-          </Link>
-          {IsAuthenticated && (
-            <>
-              <Link to="/dashboard" className={`text-brand-gray hover:text-white ${location.pathname === '/dashboard' ? 'text-brand-green' : ''}`} onClick={() => setIsMobileMenuOpen(false)}>
-                <Library className="w-5 h-5" />
-              </Link>
-              <Link to="/playlists" className={`text-brand-gray hover:text-white ${location.pathname.startsWith('/playlists') ? 'text-brand-green' : ''}`} onClick={() => setIsMobileMenuOpen(false)}>
-                <ListMusic className="w-5 h-5" />
-              </Link>
-            </>
-          )}
-        </div>
-
-        {/* Avatar do Usuário com Menu Mobile */}
-        {IsAuthenticated && CurrentUser ? (
-          <div className="relative" ref={mobileMenuRef}>
-            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="focus:outline-none flex items-center justify-center cursor-pointer">
-              {CurrentUser.AvatarUrl ? (
-                <img src={CurrentUser.AvatarUrl.startsWith('http') ? CurrentUser.AvatarUrl : `${SERVER_URL}${CurrentUser.AvatarUrl}`} className="w-8 h-8 rounded-full object-cover border border-brand-green/20" alt="Avatar" />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-brand-hover flex items-center justify-center text-brand-green border border-brand-green/20">
-                  <User className="w-4 h-4" />
-                </div>
-              )}
-            </button>
-            
-            {/* Menu Dropdown Suspenso no Mobile */}
-            {isMobileMenuOpen && (
-              <div className="absolute right-0 mt-2 bg-brand-card border border-brand-hover rounded-md shadow-2xl p-2 z-50 flex flex-col gap-1 w-48 animate-in slide-in-from-top-2 duration-200">
-                <button onClick={() => { navigate('/settings'); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded text-white hover:bg-brand-hover hover:text-brand-green w-full text-left cursor-pointer">
-                  <Settings className="w-4 h-4 text-brand-green" />
-                  <span>Configurações</span>
-                </button>
-                <button onClick={() => { navigate(`/@${CurrentUser.UserName}`); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded text-white hover:bg-brand-hover hover:text-brand-green w-full text-left cursor-pointer">
-                  <User className="w-4 h-4 text-brand-green" />
-                  <span>Meu Perfil</span>
-                </button>
-                <div className="h-[1px] bg-brand-hover my-1" />
-                <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded text-red-400 hover:bg-red-500/10 w-full text-left cursor-pointer">
-                  <LogOut className="w-4 h-4" />
-                  <span>Sair</span>
-                </button>
-              </div>
+          {/* Navegação Rápida no Mobile */}
+          <div className="flex items-center gap-4.5">
+            <Link to="/" className={`text-brand-gray hover:text-white ${location.pathname === '/' ? 'text-brand-green' : ''}`} onClick={() => setIsMobileMenuOpen(false)}>
+              <Home className="w-5 h-5" />
+            </Link>
+            {IsAuthenticated && (
+              <>
+                <Link to="/dashboard" className={`text-brand-gray hover:text-white ${location.pathname === '/dashboard' ? 'text-brand-green' : ''}`} onClick={() => setIsMobileMenuOpen(false)}>
+                  <Library className="w-5 h-5" />
+                </Link>
+                <Link to="/playlists" className={`text-brand-gray hover:text-white ${location.pathname.startsWith('/playlists') ? 'text-brand-green' : ''}`} onClick={() => setIsMobileMenuOpen(false)}>
+                  <ListMusic className="w-5 h-5 text-brand-green shrink-0" />
+                </Link>
+              </>
             )}
           </div>
-        ) : (
-          <Link to="/login" className="py-1 px-3 bg-brand-green text-black font-bold rounded text-xs">
-            Entrar
-          </Link>
-        )}
+
+          {/* Divisor vertical sutil */}
+          {IsAuthenticated && <div className="w-[1px] h-5 bg-brand-hover" />}
+
+          {/* Avatar do Usuário com Menu Mobile */}
+          {IsAuthenticated && CurrentUser ? (
+            <div className="relative" ref={mobileMenuRef}>
+              <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="focus:outline-none flex items-center justify-center cursor-pointer">
+                {CurrentUser.AvatarUrl ? (
+                  <img src={CurrentUser.AvatarUrl.startsWith('http') ? CurrentUser.AvatarUrl : `${SERVER_URL}${CurrentUser.AvatarUrl}`} className="w-8 h-8 rounded-full object-cover border border-brand-green/20" alt="Avatar" />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-brand-hover flex items-center justify-center text-brand-green border border-brand-green/20">
+                    <User className="w-4 h-4" />
+                  </div>
+                )}
+              </button>
+              
+              {/* Menu Dropdown Suspenso no Mobile */}
+              {isMobileMenuOpen && (
+                <div className="absolute right-0 mt-2 bg-brand-card border border-brand-hover rounded-md shadow-2xl p-2 z-50 flex flex-col gap-1 w-48 animate-in slide-in-from-top-2 duration-200">
+                  <button onClick={() => { navigate('/settings'); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded text-white hover:bg-brand-hover hover:text-brand-green w-full text-left cursor-pointer">
+                    <Settings className="w-4 h-4 text-brand-green" />
+                    <span>Configurações</span>
+                  </button>
+                  <button onClick={() => { navigate(`/@${CurrentUser.UserName}`); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded text-white hover:bg-brand-hover hover:text-brand-green w-full text-left cursor-pointer">
+                    <User className="w-4 h-4 text-brand-green" />
+                    <span>Meu Perfil</span>
+                  </button>
+                  <div className="h-[1px] bg-brand-hover my-1" />
+                  <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded text-red-400 hover:bg-red-500/10 w-full text-left cursor-pointer">
+                    <LogOut className="w-4 h-4" />
+                    <span>Sair</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <Link to="/login" className="py-1 px-3 bg-brand-green text-black font-bold rounded text-xs">
+              Entrar
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* 1. SIDEBAR (Estilo Mesa de Som Retrátil) */}
