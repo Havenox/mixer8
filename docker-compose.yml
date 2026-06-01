@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # =========================================================================
   # 1. MICROSERVIÇO: Extrator de Stems (mixer8-extractor - .NET 10 Headless Bot)
