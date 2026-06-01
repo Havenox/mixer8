@@ -14,7 +14,7 @@ import { PlaylistDetail } from './pages/PlaylistDetail';
 import { Playlists } from './pages/Playlists';
 import { Settings as SettingsPage } from './pages/Settings';
 import { PublicProfile } from './pages/PublicProfile';
-import { Play, Sparkles, Disc, Flame, Music, Radio, Loader2, Plus, Trash2, AlertTriangle, X, Settings, RefreshCw, ListMusic, Clock, User } from 'lucide-react';
+import { Play, Sparkles, Disc, Flame, Music, Radio, Loader2, Plus, Trash2, AlertTriangle, X, Settings, RefreshCw, ListMusic, Clock, User, Heart } from 'lucide-react';
 
 import { API_URL, SERVER_URL } from './config';
 
@@ -396,7 +396,7 @@ const Explore: React.FC = () => {
             Nenhuma playlist popular disponível no momento.
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,220px))] gap-4">
             {popularPlaylists.map((playlist) => (
               <div 
                 key={playlist.PlaylistId} 
@@ -419,10 +419,14 @@ const Explore: React.FC = () => {
                       e.stopPropagation();
                       handleToggleSavePlaylist(playlist);
                     }}
-                    className="absolute bottom-3 right-3 w-8 h-8 rounded-full bg-black/80 border border-brand-hover hover:border-brand-green text-brand-green hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-105 transition-all shadow-md cursor-pointer duration-200"
+                    className={`absolute bottom-3 right-3 w-8 h-8 rounded-full bg-black/80 border flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-105 transition-all shadow-md cursor-pointer duration-200 ${
+                      playlist.IsSaved
+                        ? 'border-brand-green text-brand-green'
+                        : 'border-brand-hover hover:border-white text-brand-gray hover:text-white'
+                    }`}
                     title={playlist.IsSaved ? "Remover da Biblioteca" : "Salvar na Biblioteca"}
                   >
-                    {playlist.IsSaved ? <Trash2 className="w-4 h-4 text-red-500" /> : <Plus className="w-4 h-4 text-brand-green" />}
+                    <Heart className={`w-4.5 h-4.5 ${playlist.IsSaved ? 'fill-brand-green text-brand-green' : ''}`} />
                   </button>
                 </div>
                 
