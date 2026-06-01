@@ -8,6 +8,14 @@ import {
 
 import { API_URL } from '../config';
 
+interface IFileProgress {
+  fileName: string;
+  sizeMb: string;
+  percent: number;
+  status: 'pending' | 'uploading' | 'assembling' | 'completed' | 'error';
+  errorMessage?: string;
+}
+
 export const UploadDireto: React.FC = () => {
   const { Token, CurrentUser } = useAuth();
   const navigate = useNavigate();
@@ -18,6 +26,7 @@ export const UploadDireto: React.FC = () => {
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [filesProgress, setFilesProgress] = useState<Record<string, IFileProgress>>({});
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
   const [error, setError] = useState('');
@@ -87,6 +96,18 @@ export const UploadDireto: React.FC = () => {
       }
 
       setSelectedFiles(filesArray);
+      
+      // Inicializa o progresso visual de cada arquivo
+      const initialProgress: Record<string, IFileProgress> = {};
+      filesArray.forEach(file => {
+        initialProgress[file.name] = {
+          fileName: file.name,
+          sizeMb: (file.size / (1024 * 1024)).toFixed(1),
+          percent: 0,
+          status: 'pending'
+        };
+      });
+      setFilesProgress(initialProgress);
       setError('');
     }
   };
@@ -112,6 +133,18 @@ export const UploadDireto: React.FC = () => {
       }
 
       setSelectedFiles(filesArray);
+      
+      // Inicializa o progresso visual de cada arquivo
+      const initialProgress: Record<string, IFileProgress> = {};
+      filesArray.forEach(file => {
+        initialProgress[file.name] = {
+          fileName: file.name,
+          sizeMb: (file.size / (1024 * 1024)).toFixed(1),
+          percent: 0,
+          status: 'pending'
+        };
+      });
+      setFilesProgress(initialProgress);
       setError('');
     }
   };
@@ -132,43 +165,141 @@ export const UploadDireto: React.FC = () => {
 
     setError('');
     setIsUploading(true);
-    setUploadProgress('Preparando o envio das faixas...');
+    setUploadProgress('Iniciando envio seguro e fragmentado...');
 
-    const formData = new FormData();
-    formData.append('TrackTitle', trackTitle.trim());
-    formData.append('ArtistName', artistName.trim());
-    
-    if (coverFile) {
-      formData.append('CoverFile', coverFile);
-    }
+    const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB
+    const uploadedIds: string[] = [];
 
-    selectedFiles.forEach(file => {
-      formData.append('Files', file);
+    // Certifica-se de que todos os arquivos estão com status pending
+    setFilesProgress(prev => {
+      const reset = { ...prev };
+      selectedFiles.forEach(file => {
+        if (reset[file.name]) {
+          reset[file.name] = { ...reset[file.name], percent: 0, status: 'pending', errorMessage: undefined };
+        }
+      });
+      return reset;
     });
 
     try {
-      setUploadProgress('Enviando dados e arquivos para o servidor principal...');
-      const res = await fetch(`${API_URL}/Tracks/UploadDirect`, {
+      // Faz upload de cada arquivo sequencialmente para não sobrecarregar
+      for (const file of selectedFiles) {
+        const uploadId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+        
+        setFilesProgress(prev => ({
+          ...prev,
+          [file.name]: {
+            ...prev[file.name],
+            status: 'uploading',
+            percent: 0
+          }
+        }));
+
+        for (let i = 0; i < totalChunks; i++) {
+          const start = i * CHUNK_SIZE;
+          const end = Math.min(start + CHUNK_SIZE, file.size);
+          const chunkBlob = file.slice(start, end);
+
+          setUploadProgress(`Enviando ${file.name}: Parte ${i + 1} de ${totalChunks}...`);
+
+          const chunkFormData = new FormData();
+          chunkFormData.append('File', chunkBlob, file.name);
+          chunkFormData.append('UploadId', uploadId);
+          chunkFormData.append('ChunkIndex', i.toString());
+          chunkFormData.append('TotalChunks', totalChunks.toString());
+          chunkFormData.append('FileName', file.name);
+
+          const res = await fetch(`${API_URL}/Tracks/UploadChunk`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${Token}`
+            },
+            body: chunkFormData
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            const errMsg = errData.ErrorMessage || `Erro HTTP ${res.status} ao enviar fatia ${i + 1}.`;
+            throw { fileName: file.name, message: errMsg };
+          }
+
+          const percent = Math.round(((i + 1) / totalChunks) * 100);
+          setFilesProgress(prev => ({
+            ...prev,
+            [file.name]: {
+              ...prev[file.name],
+              percent,
+              status: i === totalChunks - 1 ? 'assembling' : 'uploading'
+            }
+          }));
+        }
+
+        // Chunking completo para este arquivo! O backend retornou Completed: true e montou o arquivo temporário
+        uploadedIds.push(uploadId);
+        setFilesProgress(prev => ({
+          ...prev,
+          [file.name]: {
+            ...prev[file.name],
+            percent: 100,
+            status: 'completed'
+          }
+        }));
+      }
+
+      // Agora que todos os arquivos foram fatiados, enviados e remontados na pasta temporária,
+      // disparamos o UploadDirect enviando os UploadIds acumulados para gravação definitiva
+      setUploadProgress('Processando e registrando stems finais na base de dados...');
+
+      const finalFormData = new FormData();
+      finalFormData.append('TrackTitle', trackTitle.trim());
+      finalFormData.append('ArtistName', artistName.trim());
+      finalFormData.append('UploadIds', uploadedIds.join(','));
+
+      if (coverFile) {
+        finalFormData.append('CoverFile', coverFile);
+      }
+
+      const directRes = await fetch(`${API_URL}/Tracks/UploadDirect`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${Token}`
         },
-        body: formData
+        body: finalFormData
       });
 
-      if (res.ok) {
+      if (directRes.ok) {
         setSuccess(true);
         setTrackTitle('');
         setArtistName('');
         setCoverFile(null);
         setCoverPreview(null);
         setSelectedFiles([]);
+        setFilesProgress({});
       } else {
-        const data = await res.json();
-        setError(data.ErrorMessage || 'Falha ao processar e salvar stems directas.');
+        const directErrData = await directRes.json().catch(() => ({}));
+        setError(directErrData.ErrorMessage || 'Falha ao consolidar as stems prontas no servidor.');
       }
-    } catch {
-      setError('Erro de conexão ao tentar enviar stems ao servidor.');
+
+    } catch (err: any) {
+      console.error('[UPLOAD ERROR]', err);
+      const failedFile = err.fileName;
+      const errMsg = err.message || 'Erro de rede ou conexão perdida durante a transmissão.';
+
+      if (failedFile) {
+        setFilesProgress(prev => ({
+          ...prev,
+          [failedFile]: {
+            ...prev[failedFile],
+            status: 'error',
+            errorMessage: errMsg
+          }
+        }));
+      }
+      setError(`Falha no arquivo ${failedFile || ''}: ${errMsg}`);
     } finally {
       setIsUploading(false);
       setUploadProgress('');
@@ -343,34 +474,94 @@ export const UploadDireto: React.FC = () => {
               {/* Lista de Arquivos Selecionados e Previsão de Fader (UX Premium) */}
               {selectedFiles.length > 0 && (
                 <div className="flex flex-col gap-3">
-                  <span className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Faixas a serem importadas ({selectedFiles.length})</span>
+                  <span className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">
+                    Faixas a serem importadas ({selectedFiles.length})
+                  </span>
                   
-                  <div className="flex flex-col gap-2 max-h-[220px] overflow-y-auto pr-1">
+                  <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto pr-1">
                     {selectedFiles.map((file, index) => {
                       const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
                       const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
                       const isZip = ext === '.zip';
+                      const prog = filesProgress[file.name] || {
+                        percent: 0,
+                        status: 'pending'
+                      };
 
                       return (
-                        <div key={index} className="bg-black/40 border border-brand-hover p-3 rounded flex items-center justify-between gap-3 text-xs shadow-inner">
-                          <div className="flex items-center gap-3 truncate">
-                            <div className="w-8 h-8 rounded bg-brand-hover flex items-center justify-center shrink-0 text-brand-green">
-                              {isZip ? <Layers className="w-4 h-4" /> : <Music className="w-4 h-4" />}
+                        <div key={index} className="bg-black/40 border border-brand-hover p-3 rounded flex flex-col gap-2.5 text-xs shadow-inner transition-all hover:border-brand-green/30">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 truncate">
+                              <div className={`w-8 h-8 rounded flex items-center justify-center shrink-0 transition-colors ${
+                                prog.status === 'completed' ? 'bg-brand-green/10 text-brand-green' :
+                                prog.status === 'error' ? 'bg-red-500/10 text-red-400' :
+                                prog.status === 'uploading' || prog.status === 'assembling' ? 'bg-blue-500/10 text-blue-400 animate-pulse' :
+                                'bg-brand-hover text-brand-gray'
+                              }`}>
+                                {isZip ? <Layers className="w-4 h-4" /> : <Music className="w-4 h-4" />}
+                              </div>
+                              <div className="flex flex-col truncate">
+                                <span className="font-bold text-white truncate">{file.name}</span>
+                                <span className="text-[9px] text-brand-gray">
+                                  Tamanho: {sizeMb} MB
+                                </span>
+                              </div>
                             </div>
-                            <div className="flex flex-col truncate">
-                              <span className="font-bold text-white truncate">{file.name}</span>
-                              <span className="text-[9px] text-brand-gray">
-                                Tamanho: {sizeMb} MB
+                            
+                            {/* Previsão do fader ou status do chunk */}
+                            <div className="shrink-0 text-right flex items-center gap-2">
+                              {prog.status === 'pending' && (
+                                <span className="text-[9px] px-1.5 py-0.5 bg-brand-hover border border-brand-hover text-brand-gray rounded font-medium">
+                                  Pendente
+                                </span>
+                              )}
+                              {prog.status === 'uploading' && (
+                                <span className="text-[9px] px-1.5 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded font-semibold animate-pulse">
+                                  Enviando ({prog.percent}%)
+                                </span>
+                              )}
+                              {prog.status === 'assembling' && (
+                                <span className="text-[9px] px-1.5 py-0.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 rounded font-semibold animate-pulse">
+                                  Montando...
+                                </span>
+                              )}
+                              {prog.status === 'completed' && (
+                                <span className="text-[9px] px-1.5 py-0.5 bg-brand-green/10 border border-brand-green/20 text-brand-green rounded font-semibold flex items-center gap-1">
+                                  Pronto ✓
+                                </span>
+                              )}
+                              {prog.status === 'error' && (
+                                <span className="text-[9px] px-1.5 py-0.5 bg-red-500/10 border border-red-500/20 text-red-400 rounded font-semibold">
+                                  Falhou
+                                </span>
+                              )}
+                              
+                              <span className="text-[9px] px-1.5 py-0.5 bg-brand-hover border border-brand-hover text-brand-green rounded font-semibold">
+                                {isZip ? '📦 Pacote' : mapFileNameToStemType(file.name)}
                               </span>
                             </div>
                           </div>
-                          
-                          {/* Previsão do fader correspondente */}
-                          <div className="shrink-0 text-right">
-                            <span className="text-[10px] px-2 py-0.5 bg-brand-hover border border-brand-hover text-brand-green rounded font-semibold">
-                              {isZip ? '📦 Pacote Stems' : mapFileNameToStemType(file.name)}
-                            </span>
-                          </div>
+
+                          {/* Barra de progresso do uploader */}
+                          {(prog.status === 'uploading' || prog.status === 'assembling' || prog.status === 'completed' || prog.status === 'error') && (
+                            <div className="w-full flex flex-col gap-1">
+                              <div className="w-full h-1 bg-brand-hover rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full rounded-full transition-all duration-350 ${
+                                    prog.status === 'error' ? 'bg-red-500' :
+                                    prog.status === 'completed' ? 'bg-brand-green' :
+                                    'bg-brand-green animate-pulse'
+                                  }`} 
+                                  style={{ width: `${prog.percent}%` }} 
+                                />
+                              </div>
+                              {prog.errorMessage && (
+                                <span className="text-[9px] text-red-400 font-medium">
+                                  {prog.errorMessage}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -413,3 +604,4 @@ export const UploadDireto: React.FC = () => {
     </div>
   );
 };
+
