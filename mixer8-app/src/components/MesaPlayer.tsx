@@ -566,48 +566,48 @@ export const MesaPlayer: React.FC = () => {
             </div>
           </div>
 
-          {/* Mixer Stems Mobile (Collapsible) */}
+          {/* Mixer Stems Mobile (Directly below playback controls) */}
           {showMobileMixer && hasMultipleStems && (
-            <div className="w-full bg-brand-card/60 border border-brand-hover rounded-xl p-4 flex flex-col gap-3 my-2 overflow-y-auto max-h-[220px] shrink-0 animate-in slide-in-from-bottom duration-250">
+            <div className="w-full mt-6 border-t border-brand-hover pt-6 flex flex-col gap-4 animate-in slide-in-from-bottom duration-250 select-none pb-12">
               <div className="flex items-center justify-between border-b border-brand-hover pb-2">
-                <span className="font-bold text-xs text-brand-green uppercase tracking-wider flex items-center gap-1.5 select-none">
+                <span className="font-bold text-sm text-brand-green uppercase tracking-wider flex items-center gap-1.5">
                   <Layers className="w-4 h-4" /> Mixer de Som (Realtime)
                 </span>
-                <span className="text-[9px] bg-brand-hover text-brand-green font-black px-1.5 py-0.5 rounded">
+                <span className="text-xs bg-brand-hover text-brand-green font-black px-2 py-0.5 rounded">
                   {currentTrack.Stems?.length} STEMS
                 </span>
               </div>
 
               {/* Presets Rápidos */}
-              <div className="grid grid-cols-4 gap-1 text-[9px] font-bold uppercase select-none shrink-0">
+              <div className="grid grid-cols-4 gap-2 text-xs font-bold uppercase select-none shrink-0">
                 <button 
                   onClick={() => applyPreset('acapella')} 
-                  className="py-1 bg-brand-hover rounded text-brand-gray hover:text-brand-green text-center cursor-pointer border border-transparent active:border-brand-green/20 transition-all"
+                  className="py-2 bg-brand-hover rounded text-brand-gray hover:text-brand-green text-center cursor-pointer border border-transparent active:border-brand-green/20 transition-all"
                 >
                   Voz
                 </button>
                 <button 
                   onClick={() => applyPreset('karaoke')} 
-                  className="py-1 bg-brand-hover rounded text-brand-gray hover:text-brand-green text-center cursor-pointer border border-transparent active:border-brand-green/20 transition-all"
+                  className="py-2 bg-brand-hover rounded text-brand-gray hover:text-brand-green text-center cursor-pointer border border-transparent active:border-brand-green/20 transition-all"
                 >
                   Sem Voz
                 </button>
                 <button 
                   onClick={() => applyPreset('instrumental')} 
-                  className="py-1 bg-brand-hover rounded text-brand-gray hover:text-brand-green text-center cursor-pointer border border-transparent active:border-brand-green/20 transition-all"
+                  className="py-2 bg-brand-hover rounded text-brand-gray hover:text-brand-green text-center cursor-pointer border border-transparent active:border-brand-green/20 transition-all"
                 >
                   Instru.
                 </button>
                 <button 
                   onClick={() => applyPreset('reset')} 
-                  className="py-1 bg-brand-hover rounded text-brand-gray hover:text-brand-green text-center cursor-pointer border border-transparent active:border-brand-green/20 transition-all"
+                  className="py-2 bg-brand-hover rounded text-brand-gray hover:text-brand-green text-center cursor-pointer border border-transparent active:border-brand-green/20 transition-all"
                 >
                   Reset
                 </button>
               </div>
 
               {/* Sliders de Stems */}
-              <div className="flex flex-col gap-2.5 overflow-y-auto pr-0.5">
+              <div className="flex flex-col gap-4">
                 {[...currentTrack.Stems]
                   .sort((a, b) => {
                     const order = [
@@ -640,14 +640,14 @@ export const MesaPlayer: React.FC = () => {
                     const isSilenced = hasAnySolo ? !isSoloed : isMuted;
 
                     return (
-                      <div key={stem.StemId} className={`flex flex-col gap-1 transition-all duration-200 ${isSilenced ? 'opacity-40' : 'opacity-100'}`}>
-                        <div className="flex justify-between text-[11px] font-medium items-center">
-                          <span className="text-white flex items-center gap-1.5 capitalize font-semibold select-none">
-                            <span>{stemName}</span>
-                            <span className="flex items-center gap-1 shrink-0 ml-1">
+                      <div key={stem.StemId} className={`flex flex-col gap-2 transition-all duration-200 ${isSilenced ? 'opacity-40' : 'opacity-100'}`}>
+                        <div className="flex justify-between text-xs font-semibold items-center">
+                          <span className="text-white flex items-center gap-2 capitalize font-semibold select-none">
+                            <span className="text-sm">{stemName}</span>
+                            <span className="flex items-center gap-1.5 shrink-0 ml-1">
                               <button
                                 onClick={() => toggleStemMute(stemName)}
-                                className={`w-4 h-4 rounded-[3px] flex items-center justify-center text-[9px] font-black transition-all border cursor-pointer ${
+                                className={`w-5 h-5 rounded-[4px] flex items-center justify-center text-[10px] font-black transition-all border cursor-pointer ${
                                   isMuted
                                     ? 'bg-red-500 text-white border-red-500 hover:bg-red-500'
                                     : 'bg-brand-hover text-brand-gray border-transparent'
@@ -657,7 +657,7 @@ export const MesaPlayer: React.FC = () => {
                               </button>
                               <button
                                 onClick={() => toggleStemSolo(stemName)}
-                                className={`w-4 h-4 rounded-[3px] flex items-center justify-center text-[9px] font-black transition-all border cursor-pointer ${
+                                className={`w-5 h-5 rounded-[4px] flex items-center justify-center text-[10px] font-black transition-all border cursor-pointer ${
                                   isSoloed
                                     ? 'bg-yellow-500 text-black border-yellow-500 hover:bg-yellow-500'
                                     : 'bg-brand-hover text-brand-gray border-transparent'
@@ -667,7 +667,7 @@ export const MesaPlayer: React.FC = () => {
                               </button>
                             </span>
                           </span>
-                          <span className="text-brand-gray font-mono">{Math.round(volume * 100)}%</span>
+                          <span className="text-brand-gray font-mono text-xs">{Math.round(volume * 100)}%</span>
                         </div>
                         <input 
                           type="range" 
@@ -676,7 +676,7 @@ export const MesaPlayer: React.FC = () => {
                           step="0.05"
                           value={volume}
                           onChange={(e) => setStemVolume(stemName, parseFloat(e.target.value))}
-                          className="w-full accent-brand-green bg-brand-hover h-1 rounded-lg appearance-none cursor-pointer"
+                          className="w-full accent-brand-green bg-brand-hover h-1.5 rounded-lg appearance-none cursor-pointer"
                         />
                       </div>
                     );
