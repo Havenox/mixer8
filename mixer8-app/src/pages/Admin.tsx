@@ -29,6 +29,19 @@ export const Admin: React.FC = () => {
   const [users, setUsers] = useState<{ UserId: string; Email: string; UserRole: string; CreatedAt: string }[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
 
+  // Controle de configurações de recursos premium
+  const [offlineRoles, setOfflineRoles] = useState<Record<string, boolean>>({
+    admin: true,
+    moderator: true,
+    paiduser: true,
+    user: false,
+    anonymous: false
+  });
+  const [customRolesText, setCustomRolesText] = useState('');
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [settingsSuccess, setSettingsSuccess] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
+
   const fetchSessionStatus = async () => {
     if (!Token) return;
     try {
@@ -86,10 +99,46 @@ export const Admin: React.FC = () => {
     }
   };
 
+  const fetchSystemSettings = async () => {
+    if (!Token) return;
+    try {
+      const res = await fetch(`${API_URL}/SystemSettings`);
+      if (res.ok) {
+        const data = await res.json();
+        const allowedRolesStr = data.PremiumFeature_DownloadOffline || 'Admin,Moderator,PaidUser';
+        const allowedRoles = allowedRolesStr.split(',').map((r: string) => r.trim().toLowerCase());
+        
+        const standardRoles = ['admin', 'moderator', 'paiduser', 'user', 'anonymous'];
+        const standardMap: Record<string, boolean> = {
+          admin: false,
+          moderator: false,
+          paiduser: false,
+          user: false,
+          anonymous: false
+        };
+        const custom: string[] = [];
+        
+        allowedRoles.forEach((role: string) => {
+          if (standardRoles.includes(role)) {
+            standardMap[role] = true;
+          } else if (role) {
+            custom.push(role);
+          }
+        });
+        
+        setOfflineRoles(standardMap);
+        setCustomRolesText(custom.join(', '));
+      }
+    } catch {
+      // Ignora falha silenciosa
+    }
+  };
+
   useEffect(() => {
     fetchSessionStatus();
     fetchCookies();
     fetchUsers();
+    fetchSystemSettings();
   }, []);
 
   if (CurrentUser?.UserRole !== 'Admin' && CurrentUser?.UserRole !== 'Moderator') {
@@ -132,6 +181,58 @@ export const Admin: React.FC = () => {
       setSaveError('Erro de conexão ao tentar salvar cookies.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    if (!Token) return;
+    setIsSavingSettings(true);
+    setSettingsError('');
+    setSettingsSuccess(false);
+
+    try {
+      // Reconstrói a string de roles
+      const roles: string[] = [];
+      Object.entries(offlineRoles).forEach(([role, enabled]) => {
+        if (enabled) {
+          // Salva com casing correto esperado
+          const properCase = role === 'paiduser' ? 'PaidUser' : role.charAt(0).toUpperCase() + role.slice(1);
+          roles.push(properCase);
+        }
+      });
+
+      if (customRolesText) {
+        customRolesText.split(',').forEach(r => {
+          const trimmed = r.trim();
+          if (trimmed && !roles.includes(trimmed)) {
+            roles.push(trimmed);
+          }
+        });
+      }
+
+      const value = roles.join(',');
+      const res = await fetch(`${API_URL}/SystemSettings`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${Token}`
+        },
+        body: JSON.stringify({ PremiumFeature_DownloadOffline: value })
+      });
+
+      if (res.ok) {
+        setSettingsSuccess(true);
+        // Dispara evento customizado para notificar outras partes do app (como o PlayerContext)
+        window.dispatchEvent(new CustomEvent('system-settings-changed'));
+        setTimeout(() => setSettingsSuccess(false), 3000);
+      } else {
+        const errorData = await res.json();
+        setSettingsError(errorData.ErrorMessage || 'Falha ao salvar configurações.');
+      }
+    } catch {
+      setSettingsError('Erro de conexão ao tentar salvar configurações do sistema.');
+    } finally {
+      setIsSavingSettings(false);
     }
   };
 
@@ -290,6 +391,78 @@ export const Admin: React.FC = () => {
             >
               {isSaving ? 'Salvando no Container...' : 'Importar Cookies de Sessão'}
               {saveSuccess && <span className="text-xs text-black font-normal bg-white px-2 py-0.5 rounded ml-2 animate-bounce">Sessão Salva!</span>}
+            </button>
+
+          </div>
+
+          {/* Caixa de Parametrização de Recursos Premium (Global Settings) */}
+          <div className="bg-brand-card border border-brand-hover p-6 rounded-md flex flex-col gap-4 shadow-xl">
+            <div className="flex flex-col gap-1 border-b border-brand-hover pb-3">
+              <h2 className="text-base font-bold text-white flex items-center gap-2 m-0">
+                ⚙️ Configurações Globais (Recursos Premium)
+              </h2>
+              <p className="text-xs text-brand-gray">
+                Gerencie quais papéis (Roles) possuem acesso a funcionalidades específicas, como download offline.
+              </p>
+            </div>
+
+            {settingsError && (
+              <div className="bg-red-500/10 border border-red-500/30 p-3 rounded text-xs text-red-400">
+                {settingsError}
+              </div>
+            )}
+
+            {/* Feature 1: Download Offline */}
+            <div className="flex flex-col gap-3">
+              <span className="text-xs font-bold text-white flex items-center gap-2">
+                📥 Permissões para Download Offline
+              </span>
+              <p className="text-[11px] text-brand-gray -mt-1 leading-normal">
+                Determine quais níveis de acesso têm permissão de salvar músicas localmente. Visitantes não autenticados são mapeados como <strong>Anonymous</strong>.
+              </p>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 my-1">
+                {[
+                  { id: 'admin', label: 'Administrador' },
+                  { id: 'moderator', label: 'Moderador' },
+                  { id: 'paiduser', label: 'Paid PRO' },
+                  { id: 'user', label: 'Free Tier' },
+                  { id: 'anonymous', label: 'Anônimo (Não Logado)' }
+                ].map(item => (
+                  <label key={item.id} className="flex items-center gap-2 text-xs text-white cursor-pointer select-none">
+                    <input 
+                      type="checkbox"
+                      checked={offlineRoles[item.id] || false}
+                      onChange={(e) => setOfflineRoles(prev => ({ ...prev, [item.id]: e.target.checked }))}
+                      className="accent-brand-green w-4 h-4 cursor-pointer"
+                    />
+                    <span>{item.label}</span>
+                  </label>
+                ))}
+              </div>
+
+              {/* Roles customizadas */}
+              <div className="flex flex-col gap-1.5 mt-2">
+                <label className="text-xs font-semibold text-brand-gray">Funções Customizadas Adicionais (separadas por vírgula)</label>
+                <input 
+                  type="text"
+                  value={customRolesText}
+                  onChange={(e) => setCustomRolesText(e.target.value)}
+                  placeholder="ex: premium1, premium2"
+                  disabled={isSavingSettings}
+                  className="w-full bg-black border border-brand-hover rounded p-2.5 text-xs text-brand-green focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green"
+                />
+              </div>
+            </div>
+
+            {/* Botão Salvar */}
+            <button 
+              onClick={handleSaveSettings}
+              disabled={isSavingSettings}
+              className="py-2.5 px-4 bg-brand-green text-black font-bold text-sm rounded hover:scale-105 active:scale-95 transition-all self-start flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:scale-100 mt-2"
+            >
+              {isSavingSettings ? 'Salvando Configurações...' : 'Salvar Configurações'}
+              {settingsSuccess && <span className="text-xs text-black font-normal bg-white px-2 py-0.5 rounded ml-2 animate-bounce">Salvo!</span>}
             </button>
 
           </div>

@@ -63,7 +63,7 @@ interface IPlaylistDetail {
 export const PlaylistDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { Token, CurrentUser, IsAuthenticated } = useAuth();
-  const { loadTrack, currentTrack, isPlaying, togglePlay, downloadTrackForOffline, isTrackDownloaded, removeTrackOffline } = usePlayer();
+  const { loadTrack, currentTrack, isPlaying, togglePlay, downloadTrackForOffline, isTrackDownloaded, removeTrackOffline, isPremium } = usePlayer();
   const { fetchPlaylists, openEditPlaylist, openAddToPlaylist } = usePlaylists();
   const navigate = useNavigate();
 
@@ -194,7 +194,7 @@ export const PlaylistDetail: React.FC = () => {
     };
   }, []);
 
-  const isPremium = CurrentUser?.UserRole === 'PaidUser' || CurrentUser?.UserRole === 'Admin' || CurrentUser?.UserRole === 'Moderator';
+
 
   // Efeito de Checagem Reativa do Cache
   useEffect(() => {
