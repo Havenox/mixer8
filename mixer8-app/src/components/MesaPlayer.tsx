@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { usePlayer } from '../context/PlayerContext';
 import { 
   Play, Pause, SkipBack, SkipForward, Volume2, 
-  Sliders, RefreshCw, Disc, Layers, Music
+  Sliders, RefreshCw, Disc, Layers, Music, ChevronDown
 } from 'lucide-react';
 
 import { SERVER_URL } from '../config';
@@ -30,6 +30,10 @@ export const MesaPlayer: React.FC = () => {
   const [showMixer, setShowMixer] = useState(false);
   const [isDraggingProgress, setIsDraggingProgress] = useState(false);
   const [dragProgressTime, setDragProgressTime] = useState(0);
+  
+  const [isExpandedMobile, setIsExpandedMobile] = useState(false);
+  const [showMobileMixer, setShowMobileMixer] = useState(false);
+  const [showMobileVolume, setShowMobileVolume] = useState(false);
 
   const displayTime = isDraggingProgress ? dragProgressTime : currentTime;
 
@@ -73,266 +77,615 @@ export const MesaPlayer: React.FC = () => {
   const hasMultipleStems = currentTrack.Stems && currentTrack.Stems.length > 1;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 h-24 bg-brand-black border-t border-brand-hover px-3 md:px-6 flex items-center justify-between z-50 shadow-2xl animate-in slide-in-from-bottom duration-300">
-      
-      {/* Esquerda: Info da Música Real */}
-      <div className="flex items-center gap-2.5 md:gap-4 flex-1 md:flex-none min-w-0 md:w-1/4 md:min-w-[200px]">
-        <div className="w-10 h-10 md:w-14 md:h-14 bg-brand-card border border-brand-hover rounded flex items-center justify-center relative overflow-hidden group shadow-lg shrink-0">
+    <>
+      {/* 1. DESKTOP AUDIO PLAYER */}
+      <div className="fixed bottom-0 left-0 right-0 h-24 bg-brand-black border-t border-brand-hover px-3 md:px-6 hidden md:flex items-center justify-between z-50 shadow-2xl animate-in slide-in-from-bottom duration-300">
+        
+        {/* Esquerda: Info da Música Real */}
+        <div className="flex items-center gap-2.5 md:gap-4 flex-1 md:flex-none min-w-0 md:w-1/4 md:min-w-[200px]">
+          <div className="w-10 h-10 md:w-14 md:h-14 bg-brand-card border border-brand-hover rounded flex items-center justify-center relative overflow-hidden group shadow-lg shrink-0">
+            {currentTrack.CoverUrl ? (
+              <img 
+                src={currentTrack.CoverUrl.startsWith('http') ? currentTrack.CoverUrl : `${SERVER_URL}${currentTrack.CoverUrl}`} 
+                alt="Capa" 
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <Disc className={`w-6 h-6 md:w-8 md:h-8 text-brand-green ${isPlaying ? 'animate-spin' : ''}`} style={{ animationDuration: '4s' }} />
+            )}
+            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <Music className="w-4 h-4 md:w-5 md:h-5 text-white" />
+            </div>
+          </div>
+          <div className="flex flex-col truncate max-w-[80px] xs:max-w-[120px] md:max-w-[150px]">
+            <span className="text-xs md:text-sm font-semibold text-white hover:underline cursor-pointer truncate leading-tight">
+              {currentTrack.TrackTitle}
+            </span>
+            <span className="text-[10px] md:text-xs text-brand-gray/80 hover:text-white cursor-pointer truncate mt-0.5 leading-none">
+              {currentTrack.ArtistName}
+            </span>
+          </div>
+          <div className="hidden sm:inline-block px-2 py-0.5 bg-brand-hover text-[9px] text-brand-green font-bold rounded uppercase tracking-wider border border-brand-green/20 shrink-0 select-none">
+            {currentTrack.Stems?.length || 0} Stems
+          </div>
+        </div>
+
+        {/* Centro: Controles de Player Sincronizado */}
+        <div className="flex flex-col items-center gap-1 md:gap-2 flex-[2] md:flex-1 max-w-[600px] w-full min-w-0 px-2">
+          {/* Botões do Player */}
+          <div className="flex items-center gap-4 md:gap-6">
+            <button 
+              onClick={playPreviousTrack}
+              className="text-brand-gray hover:text-white transition-colors cursor-pointer"
+              title="Música anterior"
+            >
+              <SkipBack className="w-4 h-4 md:w-5 md:h-5 fill-current" />
+            </button>
+            
+            <button 
+              onClick={togglePlay}
+              className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-transform cursor-pointer shadow-lg shrink-0"
+            >
+              {isPlaying ? (
+                <Pause className="w-4 h-4 md:w-5 md:h-5 fill-current" />
+              ) : (
+                <Play className="w-4 h-4 md:w-5 md:h-5 fill-current translate-x-[0.5px] md:translate-x-[1px]" />
+              )}
+            </button>
+            
+            <button 
+              onClick={playNextTrack}
+              className="text-brand-gray hover:text-white transition-colors cursor-pointer"
+              title="Próxima música"
+            >
+              <SkipForward className="w-4 h-4 md:w-5 md:h-5 fill-current" />
+            </button>
+          </div>
+
+          {/* Progress Bar com Click/Arrasto e Bolinha Premium */}
+          <div className="flex items-center gap-2 md:gap-3 w-full text-[10px] md:text-xs text-brand-gray select-none">
+            <span className="w-6 md:w-8 text-right shrink-0">{formatTime(displayTime)}</span>
+            <input 
+              type="range"
+              min="0"
+              max={duration || 100}
+              step="0.1"
+              value={displayTime}
+              onMouseDown={() => {
+                setIsDraggingProgress(true);
+                setDragProgressTime(currentTime);
+              }}
+              onTouchStart={() => {
+                setIsDraggingProgress(true);
+                setDragProgressTime(currentTime);
+              }}
+              onChange={(e) => setDragProgressTime(parseFloat(e.target.value))}
+              onMouseUp={(e) => {
+                setIsDraggingProgress(false);
+                seek(parseFloat((e.target as HTMLInputElement).value));
+              }}
+              onTouchEnd={(e) => {
+                setIsDraggingProgress(false);
+                seek(parseFloat((e.target as HTMLInputElement).value));
+              }}
+              className="flex-1 accent-brand-green bg-brand-hover h-1 md:h-1.5 rounded-lg appearance-none cursor-pointer min-w-0"
+            />
+            <span className="w-6 md:w-8 shrink-0">{formatTime(duration)}</span>
+          </div>
+        </div>
+
+        {/* Direita: Mixagem DAW & Volume Geral */}
+        <div className="flex items-center gap-2 md:gap-4 flex-1 md:flex-none md:w-1/4 justify-end min-w-0 md:min-w-[220px] relative select-none">
+          
+          {/* Botão de Mixer apenas se houver múltiplas stems */}
+          {hasMultipleStems && (
+            <button 
+              onClick={() => setShowMixer(!showMixer)}
+              className={`flex items-center justify-center gap-2 p-2 md:px-3 md:py-1.5 rounded-full border transition-all cursor-pointer shrink-0 ${
+                showMixer 
+                  ? 'bg-brand-green/10 border-brand-green text-brand-green shadow-md' 
+                  : 'border-brand-hover text-brand-gray hover:text-white hover:border-white'
+              }`}
+              title="Mesa Mixer de Stems"
+            >
+              <Sliders className="w-4 h-4 shrink-0" />
+              <span className="hidden md:inline text-xs font-semibold">Mixer Stems</span>
+            </button>
+          )}
+
+          {/* Barra de volume geral real com Bolinha Premium */}
+          <div className="flex items-center gap-1.5 md:gap-2 text-brand-gray shrink-0">
+            <Volume2 className="w-4 h-4 md:w-5 md:h-5 shrink-0" />
+            <input 
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={masterVolume}
+              onChange={(e) => setMasterVolume(parseFloat(e.target.value))}
+              className="w-14 sm:w-20 accent-brand-green bg-brand-hover h-1 md:h-1.5 rounded-lg appearance-none cursor-pointer"
+            />
+          </div>
+
+          {/* PAINEL FLUTUANTE DA DAW (Mesa de Mixagem Dinâmica para até 10 stems) */}
+          {showMixer && hasMultipleStems && (
+            <div className="absolute right-0 bottom-28 w-80 bg-brand-card border border-brand-hover p-5 rounded-lg shadow-2xl flex flex-col gap-4 animate-in slide-in-from-bottom-2 duration-200">
+              <div className="flex items-center justify-between border-b border-brand-hover pb-3">
+                <div className="flex items-center gap-2 text-white">
+                  <Layers className="w-5 h-5 text-brand-green" />
+                  <span className="font-bold text-sm">Mesa de Som (Stems)</span>
+                </div>
+                <span className="text-[10px] bg-brand-hover text-brand-green font-bold px-1.5 py-0.5 rounded">
+                  REALTIME
+                </span>
+              </div>
+
+              {/* Presets Rápidos */}
+              <div className="grid grid-cols-4 gap-1.5 text-[10px] font-bold uppercase">
+                <button 
+                  onClick={() => applyPreset('acapella')} 
+                  className="py-1 px-1 bg-brand-hover rounded text-brand-gray hover:text-brand-green border border-transparent hover:border-brand-green/20 transition-all cursor-pointer text-center"
+                >
+                  Voz
+                </button>
+                <button 
+                  onClick={() => applyPreset('karaoke')} 
+                  className="py-1 px-1 bg-brand-hover rounded text-brand-gray hover:text-brand-green border border-transparent hover:border-brand-green/20 transition-all cursor-pointer text-center"
+                >
+                  Sem Voz
+                </button>
+                <button 
+                  onClick={() => applyPreset('instrumental')} 
+                  className="py-1 px-1 bg-brand-hover rounded text-brand-gray hover:text-brand-green border border-transparent hover:border-brand-green/20 transition-all cursor-pointer text-center"
+                >
+                  Instru.
+                </button>
+                <button 
+                  onClick={() => applyPreset('reset')} 
+                  className="py-1 px-1 bg-brand-hover rounded text-brand-gray hover:text-brand-green border border-transparent hover:border-brand-green/20 transition-all cursor-pointer text-center"
+                >
+                  Reset
+                </button>
+              </div>
+
+              {/* Faders / Sliders Dinâmicos baseados nas Stems Reais Ordenadas */}
+              <div className="flex flex-col gap-3 my-1 max-h-[300px] overflow-y-auto pr-1">
+                {[...currentTrack.Stems]
+                  .sort((a, b) => {
+                    const order = [
+                      'Voz',
+                      'Vocal',
+                      'Bateria',
+                      'Baixo',
+                      'Guitarra',
+                      'Guitarra Solo',
+                      'Guitarra Base',
+                      'Sopro',
+                      'Teclado',
+                      'Piano',
+                      'Cordas',
+                      'Outros',
+                      'Metrônomo'
+                    ];
+                    const indexA = order.indexOf(a.StemType);
+                    const indexB = order.indexOf(b.StemType);
+                    // Compatibilidade legada para "Vocais" (mapeia para a posição de "Voz")
+                    const valA = a.StemType === 'Vocais' ? 0 : (indexA === -1 ? 999 : indexA);
+                    const valB = b.StemType === 'Vocais' ? 0 : (indexB === -1 ? 999 : indexB);
+                    return valA - valB;
+                  })
+                  .map((stem) => {
+                    const stemName = stem.StemType; // ex: Voz, Bateria, Baixo
+                    const volume = stemsVolume[stemName] ?? (stemName === 'Metrônomo' ? 0.0 : 1.0);
+                    const isMuted = stemsMute[stemName] ?? false;
+                    const isSoloed = stemsSolo[stemName] ?? false;
+                    const hasAnySolo = Object.values(stemsSolo).some(v => v);
+                    const isSilenced = hasAnySolo ? !isSoloed : isMuted;
+                    
+                    return (
+                      <div key={stem.StemId} className={`flex flex-col gap-1 transition-all duration-200 ${isSilenced ? 'opacity-40' : 'opacity-100'}`}>
+                        <div className="flex justify-between text-xs font-medium items-center">
+                          <span className="text-white flex items-center gap-1.5 capitalize font-semibold select-none">
+                            <span>{stemName}</span>
+                            <span className="flex items-center gap-1 shrink-0 ml-1">
+                              <button
+                                onClick={() => toggleStemMute(stemName)}
+                                className={`w-4 h-4 rounded-[3px] flex items-center justify-center text-[9px] font-black transition-all border cursor-pointer ${
+                                  isMuted
+                                    ? 'bg-red-500 text-white border-red-500 hover:bg-red-500'
+                                    : 'bg-brand-hover hover:bg-red-500/80 hover:text-white hover:border-red-500/80 text-brand-gray border-transparent'
+                                }`}
+                                title="Mute"
+                              >
+                                M
+                              </button>
+                              <button
+                                onClick={() => toggleStemSolo(stemName)}
+                                className={`w-4 h-4 rounded-[3px] flex items-center justify-center text-[9px] font-black transition-all border cursor-pointer ${
+                                  isSoloed
+                                    ? 'bg-yellow-500 text-black border-yellow-500 hover:bg-yellow-500'
+                                    : 'bg-brand-hover hover:bg-yellow-500/80 hover:text-black hover:border-yellow-500/80 text-brand-gray border-transparent'
+                                }`}
+                                title="Solo"
+                              >
+                                S
+                              </button>
+                            </span>
+                          </span>
+                          <span className="text-brand-gray font-mono">{Math.round(volume * 100)}%</span>
+                        </div>
+                        <input 
+                          type="range" 
+                          min="0" 
+                          max="1.5" 
+                          step="0.05"
+                          value={volume}
+                          onChange={(e) => setStemVolume(stemName, parseFloat(e.target.value))}
+                          className="w-full accent-brand-green bg-brand-hover h-1 rounded-lg appearance-none cursor-pointer"
+                        />
+                      </div>
+                    );
+                  })}
+              </div>
+
+              {/* Presets Salvar */}
+              <div className="flex justify-between items-center border-t border-brand-hover pt-3 text-[10px] text-brand-gray">
+                <span>Preset Ativo: Personalizado</span>
+                <button className="flex items-center gap-1 text-brand-green hover:underline cursor-pointer">
+                  <RefreshCw className="w-3 h-3 animate-spin" style={{ animationDuration: '6s' }} /> Salvar Preset
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      {/* 2. COMPACT MOBILE AUDIO PLAYER */}
+      <div 
+        onClick={() => setIsExpandedMobile(true)}
+        className="fixed bottom-0 left-0 right-0 h-16 bg-brand-black/95 backdrop-blur border-t border-brand-hover px-4 flex md:hidden items-center justify-between z-40 shadow-xl select-none cursor-pointer"
+      >
+        {/* Barra de progresso ultrafina no topo absoluto do mini player */}
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-brand-hover">
+          <div 
+            className="h-full bg-brand-green transition-all duration-100" 
+            style={{ width: `${(currentTime / (duration || 1)) * 100}%` }}
+          />
+        </div>
+
+        {/* Info da música no canto */}
+        <div className="flex items-center gap-3 flex-1 min-w-0">
           {currentTrack.CoverUrl ? (
             <img 
               src={currentTrack.CoverUrl.startsWith('http') ? currentTrack.CoverUrl : `${SERVER_URL}${currentTrack.CoverUrl}`} 
               alt="Capa" 
-              className="w-full h-full object-cover"
+              className="w-10 h-10 rounded object-cover shadow-md shrink-0"
             />
           ) : (
-            <Disc className={`w-6 h-6 md:w-8 md:h-8 text-brand-green ${isPlaying ? 'animate-spin' : ''}`} style={{ animationDuration: '4s' }} />
+            <div className="w-10 h-10 rounded bg-brand-card flex items-center justify-center text-brand-green border border-brand-green/20 shrink-0">
+              <Disc className={`w-5 h-5 ${isPlaying ? 'animate-spin' : ''}`} style={{ animationDuration: '4s' }} />
+            </div>
           )}
-          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-            <Music className="w-4 h-4 md:w-5 md:h-5 text-white" />
+          <div className="flex flex-col min-w-0">
+            <span className="text-xs font-semibold text-white truncate leading-tight">
+              {currentTrack.TrackTitle}
+            </span>
+            <span className="text-[10px] text-brand-gray/80 truncate mt-0.5">
+              {currentTrack.ArtistName}
+            </span>
           </div>
         </div>
-        <div className="flex flex-col truncate max-w-[80px] xs:max-w-[120px] md:max-w-[150px]">
-          <span className="text-xs md:text-sm font-semibold text-white hover:underline cursor-pointer truncate leading-tight">
-            {currentTrack.TrackTitle}
-          </span>
-          <span className="text-[10px] md:text-xs text-brand-gray/80 hover:text-white cursor-pointer truncate mt-0.5 leading-none">
-            {currentTrack.ArtistName}
-          </span>
-        </div>
-        <div className="hidden sm:inline-block px-2 py-0.5 bg-brand-hover text-[9px] text-brand-green font-bold rounded uppercase tracking-wider border border-brand-green/20 shrink-0 select-none">
-          {currentTrack.Stems?.length || 0} Stems
-        </div>
-      </div>
 
-      {/* Centro: Controles de Player Sincronizado */}
-      <div className="flex flex-col items-center gap-1 md:gap-2 flex-[2] md:flex-1 max-w-[600px] w-full min-w-0 px-2">
-        {/* Botões do Player */}
-        <div className="flex items-center gap-4 md:gap-6">
+        {/* Controles de Mídia Compactos */}
+        <div className="flex items-center gap-3 shrink-0">
+          {hasMultipleStems && (
+            <button 
+              onClick={(e) => { e.stopPropagation(); setIsExpandedMobile(true); setShowMobileMixer(true); }}
+              className="text-brand-gray hover:text-white p-2 cursor-pointer transition-colors"
+              title="Mixer de Som"
+            >
+              <Sliders className="w-5 h-5" />
+            </button>
+          )}
+
           <button 
-            onClick={playPreviousTrack}
-            className="text-brand-gray hover:text-white transition-colors cursor-pointer"
-            title="Música anterior"
-          >
-            <SkipBack className="w-4 h-4 md:w-5 md:h-5 fill-current" />
-          </button>
-          
-          <button 
-            onClick={togglePlay}
-            className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-transform cursor-pointer shadow-lg shrink-0"
+            onClick={(e) => { e.stopPropagation(); togglePlay(); }}
+            className="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-transform cursor-pointer shadow shrink-0"
           >
             {isPlaying ? (
-              <Pause className="w-4 h-4 md:w-5 md:h-5 fill-current" />
+              <Pause className="w-4 h-4 fill-current text-black" />
             ) : (
-              <Play className="w-4 h-4 md:w-5 md:h-5 fill-current translate-x-[0.5px] md:translate-x-[1px]" />
+              <Play className="w-4 h-4 fill-current text-black translate-x-[0.5px]" />
             )}
           </button>
-          
-          <button 
-            onClick={playNextTrack}
-            className="text-brand-gray hover:text-white transition-colors cursor-pointer"
-            title="Próxima música"
-          >
-            <SkipForward className="w-4 h-4 md:w-5 md:h-5 fill-current" />
-          </button>
-        </div>
-
-        {/* Progress Bar com Click/Arrasto e Bolinha Premium */}
-        <div className="flex items-center gap-2 md:gap-3 w-full text-[10px] md:text-xs text-brand-gray select-none">
-          <span className="w-6 md:w-8 text-right shrink-0">{formatTime(displayTime)}</span>
-          <input 
-            type="range"
-            min="0"
-            max={duration || 100}
-            step="0.1"
-            value={displayTime}
-            onMouseDown={() => {
-              setIsDraggingProgress(true);
-              setDragProgressTime(currentTime);
-            }}
-            onTouchStart={() => {
-              setIsDraggingProgress(true);
-              setDragProgressTime(currentTime);
-            }}
-            onChange={(e) => setDragProgressTime(parseFloat(e.target.value))}
-            onMouseUp={(e) => {
-              setIsDraggingProgress(false);
-              seek(parseFloat((e.target as HTMLInputElement).value));
-            }}
-            onTouchEnd={(e) => {
-              setIsDraggingProgress(false);
-              seek(parseFloat((e.target as HTMLInputElement).value));
-            }}
-            className="flex-1 accent-brand-green bg-brand-hover h-1 md:h-1.5 rounded-lg appearance-none cursor-pointer min-w-0"
-          />
-          <span className="w-6 md:w-8 shrink-0">{formatTime(duration)}</span>
         </div>
       </div>
 
-      {/* Direita: Mixagem DAW & Volume Geral */}
-      <div className="flex items-center gap-2 md:gap-4 flex-1 md:flex-none md:w-1/4 justify-end min-w-0 md:min-w-[220px] relative select-none">
-        
-        {/* Botão de Mixer apenas se houver múltiplas stems */}
-        {hasMultipleStems && (
-          <button 
-            onClick={() => setShowMixer(!showMixer)}
-            className={`flex items-center justify-center gap-2 p-2 md:px-3 md:py-1.5 rounded-full border transition-all cursor-pointer shrink-0 ${
-              showMixer 
-                ? 'bg-brand-green/10 border-brand-green text-brand-green shadow-md' 
-                : 'border-brand-hover text-brand-gray hover:text-white hover:border-white'
-            }`}
-            title="Mesa Mixer de Stems"
-          >
-            <Sliders className="w-4 h-4 shrink-0" />
-            <span className="hidden md:inline text-xs font-semibold">Mixer Stems</span>
-          </button>
-        )}
-
-        {/* Barra de volume geral real com Bolinha Premium */}
-        <div className="flex items-center gap-1.5 md:gap-2 text-brand-gray shrink-0">
-          <Volume2 className="w-4 h-4 md:w-5 md:h-5 shrink-0" />
-          <input 
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            value={masterVolume}
-            onChange={(e) => setMasterVolume(parseFloat(e.target.value))}
-            className="w-14 sm:w-20 accent-brand-green bg-brand-hover h-1 md:h-1.5 rounded-lg appearance-none cursor-pointer"
-          />
-        </div>
-
-        {/* PAINEL FLUTUANTE DA DAW (Mesa de Mixagem Dinâmica para até 10 stems) */}
-        {showMixer && hasMultipleStems && (
-          <div className="absolute right-0 bottom-28 w-80 bg-brand-card border border-brand-hover p-5 rounded-lg shadow-2xl flex flex-col gap-4 animate-in slide-in-from-bottom-2 duration-200">
-            <div className="flex items-center justify-between border-b border-brand-hover pb-3">
-              <div className="flex items-center gap-2 text-white">
-                <Layers className="w-5 h-5 text-brand-green" />
-                <span className="font-bold text-sm">Mesa de Som (Stems)</span>
-              </div>
-              <span className="text-[10px] bg-brand-hover text-brand-green font-bold px-1.5 py-0.5 rounded">
-                REALTIME
+      {/* 3. FULL SCREEN MOBILE AUDIO PLAYER */}
+      {isExpandedMobile && (
+        <div className="fixed inset-0 bg-gradient-to-b from-brand-hover via-brand-black to-brand-black z-50 flex flex-col p-6 overflow-y-auto select-none md:hidden animate-in slide-in-from-bottom duration-300">
+          {/* Header */}
+          <div className="flex items-center justify-between w-full shrink-0 mb-4">
+            <button 
+              onClick={() => setIsExpandedMobile(false)} 
+              className="p-2 text-brand-gray hover:text-white transition-colors cursor-pointer"
+            >
+              <ChevronDown className="w-6 h-6" />
+            </button>
+            <div className="flex flex-col items-center">
+              <span className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">
+                Tocando da biblioteca
               </span>
             </div>
+            <div className="w-10" /> {/* Spacer */}
+          </div>
 
-            {/* Presets Rápidos */}
-            <div className="grid grid-cols-4 gap-1.5 text-[10px] font-bold uppercase">
-              <button 
-                onClick={() => applyPreset('acapella')} 
-                className="py-1 px-1 bg-brand-hover rounded text-brand-gray hover:text-brand-green border border-transparent hover:border-brand-green/20 transition-all cursor-pointer text-center"
-              >
-                Voz
-              </button>
-              <button 
-                onClick={() => applyPreset('karaoke')} 
-                className="py-1 px-1 bg-brand-hover rounded text-brand-gray hover:text-brand-green border border-transparent hover:border-brand-green/20 transition-all cursor-pointer text-center"
-              >
-                Sem Voz
-              </button>
-              <button 
-                onClick={() => applyPreset('instrumental')} 
-                className="py-1 px-1 bg-brand-hover rounded text-brand-gray hover:text-brand-green border border-transparent hover:border-brand-green/20 transition-all cursor-pointer text-center"
-              >
-                Instru.
-              </button>
-              <button 
-                onClick={() => applyPreset('reset')} 
-                className="py-1 px-1 bg-brand-hover rounded text-brand-gray hover:text-brand-green border border-transparent hover:border-brand-green/20 transition-all cursor-pointer text-center"
-              >
-                Reset
-              </button>
-            </div>
-
-            {/* Faders / Sliders Dinâmicos baseados nas Stems Reais Ordenadas */}
-            <div className="flex flex-col gap-3 my-1 max-h-[300px] overflow-y-auto pr-1">
-              {[...currentTrack.Stems]
-                .sort((a, b) => {
-                  const order = [
-                    'Voz',
-                    'Vocal',
-                    'Bateria',
-                    'Baixo',
-                    'Guitarra',
-                    'Guitarra Solo',
-                    'Guitarra Base',
-                    'Sopro',
-                    'Teclado',
-                    'Piano',
-                    'Cordas',
-                    'Outros',
-                    'Metrônomo'
-                  ];
-                  const indexA = order.indexOf(a.StemType);
-                  const indexB = order.indexOf(b.StemType);
-                  // Compatibilidade legada para "Vocais" (mapeia para a posição de "Voz")
-                  const valA = a.StemType === 'Vocais' ? 0 : (indexA === -1 ? 999 : indexA);
-                  const valB = b.StemType === 'Vocais' ? 0 : (indexB === -1 ? 999 : indexB);
-                  return valA - valB;
-                })
-                .map((stem) => {
-                  const stemName = stem.StemType; // ex: Voz, Bateria, Baixo
-                  const volume = stemsVolume[stemName] ?? (stemName === 'Metrônomo' ? 0.0 : 1.0);
-                  const isMuted = stemsMute[stemName] ?? false;
-                  const isSoloed = stemsSolo[stemName] ?? false;
-                  const hasAnySolo = Object.values(stemsSolo).some(v => v);
-                  const isSilenced = hasAnySolo ? !isSoloed : isMuted;
-                  
-                  return (
-                    <div key={stem.StemId} className={`flex flex-col gap-1 transition-all duration-200 ${isSilenced ? 'opacity-40' : 'opacity-100'}`}>
-                      <div className="flex justify-between text-xs font-medium items-center">
-                        <span className="text-white flex items-center gap-1.5 capitalize font-semibold select-none">
-                          <span>{stemName}</span>
-                          <span className="flex items-center gap-1 shrink-0 ml-1">
-                            <button
-                              onClick={() => toggleStemMute(stemName)}
-                              className={`w-4 h-4 rounded-[3px] flex items-center justify-center text-[9px] font-black transition-all border cursor-pointer ${
-                                isMuted
-                                  ? 'bg-red-500 text-white border-red-500 hover:bg-red-500'
-                                  : 'bg-brand-hover hover:bg-red-500/80 hover:text-white hover:border-red-500/80 text-brand-gray border-transparent'
-                              }`}
-                              title="Mute"
-                            >
-                              M
-                            </button>
-                            <button
-                              onClick={() => toggleStemSolo(stemName)}
-                              className={`w-4 h-4 rounded-[3px] flex items-center justify-center text-[9px] font-black transition-all border cursor-pointer ${
-                                isSoloed
-                                  ? 'bg-yellow-500 text-black border-yellow-500 hover:bg-yellow-500'
-                                  : 'bg-brand-hover hover:bg-yellow-500/80 hover:text-black hover:border-yellow-500/80 text-brand-gray border-transparent'
-                              }`}
-                              title="Solo"
-                            >
-                              S
-                            </button>
-                          </span>
-                        </span>
-                        <span className="text-brand-gray font-mono">{Math.round(volume * 100)}%</span>
-                      </div>
-                      <input 
-                        type="range" 
-                        min="0" 
-                        max="1.5" 
-                        step="0.05"
-                        value={volume}
-                        onChange={(e) => setStemVolume(stemName, parseFloat(e.target.value))}
-                        className="w-full accent-brand-green bg-brand-hover h-1 rounded-lg appearance-none cursor-pointer"
-                      />
-                    </div>
-                  );
-                })}
-            </div>
-
-            {/* Presets Salvar */}
-            <div className="flex justify-between items-center border-t border-brand-hover pt-3 text-[10px] text-brand-gray">
-              <span>Preset Ativo: Personalizado</span>
-              <button className="flex items-center gap-1 text-brand-green hover:underline cursor-pointer">
-                <RefreshCw className="w-3 h-3 animate-spin" style={{ animationDuration: '6s' }} /> Salvar Preset
-              </button>
+          {/* Capa Gigante */}
+          <div className="flex-1 flex items-center justify-center my-4 max-h-[340px] shrink-0">
+            <div className="w-full aspect-square max-w-[260px] xs:max-w-[300px] rounded-lg overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.8)] border border-white/5 bg-brand-card flex items-center justify-center">
+              {currentTrack.CoverUrl ? (
+                <img 
+                  src={currentTrack.CoverUrl.startsWith('http') ? currentTrack.CoverUrl : `${SERVER_URL}${currentTrack.CoverUrl}`} 
+                  alt="Capa" 
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <Disc className={`w-32 h-32 text-brand-green ${isPlaying ? 'animate-spin' : ''}`} style={{ animationDuration: '6s' }} />
+              )}
             </div>
           </div>
-        )}
-      </div>
 
-    </div>
+          {/* Informações da Música */}
+          <div className="flex justify-between items-center w-full px-2 mb-4 shrink-0">
+            <div className="flex flex-col min-w-0">
+              <h2 className="text-xl font-bold text-white truncate leading-tight select-text">
+                {currentTrack.TrackTitle}
+              </h2>
+              <p className="text-sm text-brand-gray hover:text-white cursor-pointer truncate mt-1 select-text">
+                {currentTrack.ArtistName}
+              </p>
+            </div>
+            <div className="px-2 py-0.5 bg-brand-hover text-[9px] text-brand-green font-bold rounded uppercase tracking-wider border border-brand-green/20 shrink-0">
+              {currentTrack.Stems?.length || 0} Stems
+            </div>
+          </div>
+
+          {/* Linha de Tempo / Progresso */}
+          <div className="w-full px-2 mb-4 shrink-0 select-none">
+            <input 
+              type="range"
+              min="0"
+              max={duration || 100}
+              step="0.1"
+              value={displayTime}
+              onMouseDown={() => {
+                setIsDraggingProgress(true);
+                setDragProgressTime(currentTime);
+              }}
+              onTouchStart={() => {
+                setIsDraggingProgress(true);
+                setDragProgressTime(currentTime);
+              }}
+              onChange={(e) => setDragProgressTime(parseFloat(e.target.value))}
+              onMouseUp={(e) => {
+                setIsDraggingProgress(false);
+                seek(parseFloat((e.target as HTMLInputElement).value));
+              }}
+              onTouchEnd={(e) => {
+                setIsDraggingProgress(false);
+                seek(parseFloat((e.target as HTMLInputElement).value));
+              }}
+              className="w-full accent-brand-green bg-brand-hover h-1.5 rounded-lg appearance-none cursor-pointer"
+            />
+            <div className="flex justify-between text-xs text-brand-gray mt-2 font-semibold">
+              <span>{formatTime(displayTime)}</span>
+              <span>{formatTime(duration)}</span>
+            </div>
+          </div>
+
+          {/* Controles Principais */}
+          <div className="flex items-center justify-between w-full px-4 mb-6 shrink-0 relative">
+            {/* Mixer Trigger */}
+            {hasMultipleStems ? (
+              <button 
+                onClick={() => setShowMobileMixer(!showMobileMixer)}
+                className={`p-2.5 rounded-full transition-colors cursor-pointer ${
+                  showMobileMixer ? 'text-brand-green bg-brand-green/10' : 'text-brand-gray hover:text-white'
+                }`}
+                title="Mixer de Som"
+              >
+                <Sliders className="w-5 h-5" />
+              </button>
+            ) : (
+              <div className="w-10" />
+            )}
+
+            {/* Media buttons group */}
+            <div className="flex items-center gap-6">
+              <button 
+                onClick={playPreviousTrack}
+                className="text-brand-gray hover:text-white active:scale-95 transition-transform cursor-pointer"
+                title="Anterior"
+              >
+                <SkipBack className="w-6 h-6 fill-current" />
+              </button>
+              
+              <button 
+                onClick={togglePlay}
+                className="w-14 h-14 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-transform cursor-pointer shadow-2xl shrink-0"
+              >
+                {isPlaying ? (
+                  <Pause className="w-6 h-6 fill-current text-black" />
+                ) : (
+                  <Play className="w-6 h-6 fill-current text-black translate-x-[0.5px]" />
+                )}
+              </button>
+              
+              <button 
+                onClick={playNextTrack}
+                className="text-brand-gray hover:text-white active:scale-95 transition-transform cursor-pointer"
+                title="Próxima"
+              >
+                <SkipForward className="w-6 h-6 fill-current" />
+              </button>
+            </div>
+
+            {/* Volume Toggle */}
+            <div className="relative">
+              <button 
+                onClick={() => setShowMobileVolume(!showMobileVolume)}
+                className={`p-2.5 rounded-full transition-colors cursor-pointer ${
+                  showMobileVolume ? 'text-brand-green bg-brand-green/10' : 'text-brand-gray hover:text-white'
+                }`}
+                title="Volume"
+              >
+                <Volume2 className="w-5 h-5" />
+              </button>
+              
+              {/* Vertical Volume Popover */}
+              {showMobileVolume && (
+                <div className="absolute right-0 bottom-12 bg-brand-hover/95 backdrop-blur border border-brand-green/20 rounded-full px-2 py-4 shadow-2xl flex flex-col items-center gap-2 z-50 h-32 w-10 animate-in slide-in-from-bottom duration-200">
+                  <input 
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={masterVolume}
+                    onChange={(e) => setMasterVolume(parseFloat(e.target.value))}
+                    className="accent-brand-green w-24 h-1 rounded appearance-none cursor-pointer"
+                    style={{ 
+                      WebkitAppearance: 'slider-vertical',
+                      transform: 'rotate(-90deg) translateY(-2px)',
+                      transformOrigin: 'center',
+                      margin: '30px 0'
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Mixer Stems Mobile (Collapsible) */}
+          {showMobileMixer && hasMultipleStems && (
+            <div className="w-full bg-brand-card/60 border border-brand-hover rounded-xl p-4 flex flex-col gap-3 my-2 overflow-y-auto max-h-[220px] shrink-0 animate-in slide-in-from-bottom duration-250">
+              <div className="flex items-center justify-between border-b border-brand-hover pb-2">
+                <span className="font-bold text-xs text-brand-green uppercase tracking-wider flex items-center gap-1.5 select-none">
+                  <Layers className="w-4 h-4" /> Mixer de Som (Realtime)
+                </span>
+                <span className="text-[9px] bg-brand-hover text-brand-green font-black px-1.5 py-0.5 rounded">
+                  {currentTrack.Stems?.length} STEMS
+                </span>
+              </div>
+
+              {/* Presets Rápidos */}
+              <div className="grid grid-cols-4 gap-1 text-[9px] font-bold uppercase select-none shrink-0">
+                <button 
+                  onClick={() => applyPreset('acapella')} 
+                  className="py-1 bg-brand-hover rounded text-brand-gray hover:text-brand-green text-center cursor-pointer border border-transparent active:border-brand-green/20 transition-all"
+                >
+                  Voz
+                </button>
+                <button 
+                  onClick={() => applyPreset('karaoke')} 
+                  className="py-1 bg-brand-hover rounded text-brand-gray hover:text-brand-green text-center cursor-pointer border border-transparent active:border-brand-green/20 transition-all"
+                >
+                  Sem Voz
+                </button>
+                <button 
+                  onClick={() => applyPreset('instrumental')} 
+                  className="py-1 bg-brand-hover rounded text-brand-gray hover:text-brand-green text-center cursor-pointer border border-transparent active:border-brand-green/20 transition-all"
+                >
+                  Instru.
+                </button>
+                <button 
+                  onClick={() => applyPreset('reset')} 
+                  className="py-1 bg-brand-hover rounded text-brand-gray hover:text-brand-green text-center cursor-pointer border border-transparent active:border-brand-green/20 transition-all"
+                >
+                  Reset
+                </button>
+              </div>
+
+              {/* Sliders de Stems */}
+              <div className="flex flex-col gap-2.5 overflow-y-auto pr-0.5">
+                {[...currentTrack.Stems]
+                  .sort((a, b) => {
+                    const order = [
+                      'Voz',
+                      'Vocal',
+                      'Bateria',
+                      'Baixo',
+                      'Guitarra',
+                      'Guitarra Solo',
+                      'Guitarra Base',
+                      'Sopro',
+                      'Teclado',
+                      'Piano',
+                      'Cordas',
+                      'Outros',
+                      'Metrônomo'
+                    ];
+                    const indexA = order.indexOf(a.StemType);
+                    const indexB = order.indexOf(b.StemType);
+                    const valA = a.StemType === 'Vocais' ? 0 : (indexA === -1 ? 999 : indexA);
+                    const valB = b.StemType === 'Vocais' ? 0 : (indexB === -1 ? 999 : indexB);
+                    return valA - valB;
+                  })
+                  .map((stem) => {
+                    const stemName = stem.StemType;
+                    const volume = stemsVolume[stemName] ?? (stemName === 'Metrônomo' ? 0.0 : 1.0);
+                    const isMuted = stemsMute[stemName] ?? false;
+                    const isSoloed = stemsSolo[stemName] ?? false;
+                    const hasAnySolo = Object.values(stemsSolo).some(v => v);
+                    const isSilenced = hasAnySolo ? !isSoloed : isMuted;
+
+                    return (
+                      <div key={stem.StemId} className={`flex flex-col gap-1 transition-all duration-200 ${isSilenced ? 'opacity-40' : 'opacity-100'}`}>
+                        <div className="flex justify-between text-[11px] font-medium items-center">
+                          <span className="text-white flex items-center gap-1.5 capitalize font-semibold select-none">
+                            <span>{stemName}</span>
+                            <span className="flex items-center gap-1 shrink-0 ml-1">
+                              <button
+                                onClick={() => toggleStemMute(stemName)}
+                                className={`w-4 h-4 rounded-[3px] flex items-center justify-center text-[9px] font-black transition-all border cursor-pointer ${
+                                  isMuted
+                                    ? 'bg-red-500 text-white border-red-500 hover:bg-red-500'
+                                    : 'bg-brand-hover text-brand-gray border-transparent'
+                                }`}
+                              >
+                                M
+                              </button>
+                              <button
+                                onClick={() => toggleStemSolo(stemName)}
+                                className={`w-4 h-4 rounded-[3px] flex items-center justify-center text-[9px] font-black transition-all border cursor-pointer ${
+                                  isSoloed
+                                    ? 'bg-yellow-500 text-black border-yellow-500 hover:bg-yellow-500'
+                                    : 'bg-brand-hover text-brand-gray border-transparent'
+                                }`}
+                              >
+                                S
+                              </button>
+                            </span>
+                          </span>
+                          <span className="text-brand-gray font-mono">{Math.round(volume * 100)}%</span>
+                        </div>
+                        <input 
+                          type="range" 
+                          min="0" 
+                          max="1.5" 
+                          step="0.05"
+                          value={volume}
+                          onChange={(e) => setStemVolume(stemName, parseFloat(e.target.value))}
+                          className="w-full accent-brand-green bg-brand-hover h-1 rounded-lg appearance-none cursor-pointer"
+                        />
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </>
   );
 };
