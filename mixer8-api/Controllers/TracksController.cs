@@ -128,6 +128,59 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
     }
 
     [Authorize(Roles = "Admin,PaidUser")]
+    [HttpPost("UploadChunk")]
+    [DisableRequestSizeLimit]
+    public async Task<IActionResult> UploadChunk([FromForm] UploadChunkRequest request)
+    {
+        if (request.File == null || request.File.Length == 0)
+        {
+            return BadRequest(new { ErrorMessage = "CHUNK_REQUIRED" });
+        }
+
+        var tempDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "temp_uploads", request.UploadId);
+        if (!Directory.Exists(tempDir))
+        {
+            Directory.CreateDirectory(tempDir);
+        }
+
+        var chunkPath = Path.Combine(tempDir, $"{request.ChunkIndex}.tmp");
+        using (var fs = new FileStream(chunkPath, FileMode.Create, FileAccess.Write, FileShare.None))
+        {
+            await request.File.CopyToAsync(fs);
+        }
+
+        Console.WriteLine($"[CHUNK] Recebido chunk {request.ChunkIndex + 1}/{request.TotalChunks} para upload {request.UploadId} ({request.File.Length} bytes)");
+
+        var chunkFiles = Directory.GetFiles(tempDir, "*.tmp")
+            .Select(Path.GetFileNameWithoutExtension)
+            .Select(f => int.TryParse(f, out var parsed) ? parsed : -1)
+            .Where(idx => idx >= 0)
+            .ToList();
+
+        if (chunkFiles.Count == request.TotalChunks)
+        {
+            Console.WriteLine($"[CHUNK] Todos os {request.TotalChunks} chunks recebidos para {request.UploadId}. Iniciando montagem...");
+            var finalFilePath = Path.Combine(tempDir, request.FileName);
+            using (var finalFs = new FileStream(finalFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                for (int i = 0; i < request.TotalChunks; i++)
+                {
+                    var currentChunkPath = Path.Combine(tempDir, $"{i}.tmp");
+                    using (var chunkFs = new FileStream(currentChunkPath, FileMode.Open, FileAccess.Read, FileShare.None))
+                    {
+                        await chunkFs.CopyToAsync(finalFs);
+                    }
+                    System.IO.File.Delete(currentChunkPath);
+                }
+            }
+            Console.WriteLine($"[CHUNK] Arquivo montado com sucesso em {finalFilePath}");
+            return Ok(new { Completed = true, UploadId = request.UploadId });
+        }
+
+        return Ok(new { Completed = false });
+    }
+
+    [Authorize(Roles = "Admin,PaidUser")]
     [HttpPost("UploadDirect")]
     [DisableRequestSizeLimit]
     public async Task<IActionResult> UploadDirect([FromForm] UploadDirectRequest request)
@@ -138,14 +191,14 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             return Unauthorized(new { ErrorMessage = "INVALID_TOKEN_CLAIMS" });
         }
 
-        Console.WriteLine($"[API] Recebendo UploadDirect: TrackTitle='{request.TrackTitle}', ArtistName='{request.ArtistName}', FilesCount={request.Files?.Count ?? 0}");
+        Console.WriteLine($"[API] Recebendo UploadDirect: TrackTitle='{request.TrackTitle}', ArtistName='{request.ArtistName}', FilesCount={request.Files?.Count ?? 0}, UploadIds='{request.UploadIds}'");
 
         if (string.IsNullOrWhiteSpace(request.TrackTitle) || string.IsNullOrWhiteSpace(request.ArtistName))
         {
             return BadRequest(new { ErrorMessage = "METADATA_REQUIRED" });
         }
 
-        if (request.Files == null || request.Files.Count == 0)
+        if (string.IsNullOrEmpty(request.UploadIds) && (request.Files == null || request.Files.Count == 0))
         {
             return BadRequest(new { ErrorMessage = "FILES_REQUIRED" });
         }
@@ -178,49 +231,88 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             }
         }
 
-        // Pré-calculando se é faixa única
-        int validFileCount = 0;
-        foreach (var file in request.Files)
+        // Mapeia os arquivos a serem processados (sejam chunks temporários ou arquivos diretos)
+        var filesToProcess = new List<(string FilePath, string FileName, Stream Stream)>();
+        try
         {
-            if (file.Length == 0) continue;
-            var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-            if (ext == ".zip")
+            if (!string.IsNullOrEmpty(request.UploadIds))
             {
-                using var archiveStream = file.OpenReadStream();
-                using var archive = new ZipArchive(archiveStream, ZipArchiveMode.Read);
-                validFileCount += archive.Entries.Count(entry => 
-                    !string.IsNullOrEmpty(entry.Name) && 
-                    entry.Length > 0 && 
-                    AllowedMediaExtensions.Contains(Path.GetExtension(entry.Name).ToLowerInvariant()));
-            }
-            else if (AllowedMediaExtensions.Contains(ext))
-            {
-                validFileCount++;
-            }
-        }
-        bool isSingleTrack = validFileCount == 1;
-
-        var stemsList = new List<Stem>();
-
-        // Processamento das Stems (Arquivos de áudio diretos ou .zip compactado)
-        foreach (var file in request.Files)
-        {
-            if (file.Length == 0) continue;
-            var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-
-            if (ext == ".zip")
-            {
-                // Extração em memória segura e validação
-                using (var archiveStream = file.OpenReadStream())
+                var ids = request.UploadIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                foreach (var id in ids)
                 {
-                    using (var archive = new ZipArchive(archiveStream, ZipArchiveMode.Read))
+                    var idDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "temp_uploads", id);
+                    if (Directory.Exists(idDir))
+                    {
+                        var filePaths = Directory.GetFiles(idDir);
+                        foreach (var fp in filePaths)
+                        {
+                            if (fp.EndsWith(".tmp")) continue; // Pula chunks temporários residuais
+                            var fn = Path.GetFileName(fp);
+                            var fs = System.IO.File.OpenRead(fp);
+                            filesToProcess.Add((fp, fn, fs));
+                        }
+                    }
+                }
+            }
+            else if (request.Files != null)
+            {
+                foreach (var file in request.Files)
+                {
+                    if (file.Length == 0) continue;
+                    filesToProcess.Add(("", file.FileName, file.OpenReadStream()));
+                }
+            }
+
+            if (filesToProcess.Count == 0)
+            {
+                if (Directory.Exists(trackDir))
+                {
+                    Directory.Delete(trackDir, true);
+                }
+                return BadRequest(new { ErrorMessage = "NO_VALID_FILES_FOUND" });
+            }
+
+            // Pré-calculando se é faixa única
+            int validFileCount = 0;
+            foreach (var f in filesToProcess)
+            {
+                if (f.Stream.Length == 0) continue;
+                var ext = Path.GetExtension(f.FileName).ToLowerInvariant();
+                if (ext == ".zip")
+                {
+                    using var archive = new ZipArchive(f.Stream, ZipArchiveMode.Read, leaveOpen: true);
+                    validFileCount += archive.Entries.Count(entry => 
+                        !string.IsNullOrEmpty(entry.Name) && 
+                        entry.Length > 0 && 
+                        AllowedMediaExtensions.Contains(Path.GetExtension(entry.Name).ToLowerInvariant()));
+                }
+                else if (AllowedMediaExtensions.Contains(ext))
+                {
+                    validFileCount++;
+                }
+            }
+            bool isSingleTrack = validFileCount == 1;
+
+            var stemsList = new List<Stem>();
+
+            // Processamento das Stems (Arquivos de áudio diretos ou .zip compactado)
+            foreach (var f in filesToProcess)
+            {
+                if (f.Stream.Length == 0) continue;
+                var ext = Path.GetExtension(f.FileName).ToLowerInvariant();
+
+                if (ext == ".zip")
+                {
+                    // Reinicia a posição do stream caso tenha sido lido no pré-cálculo
+                    if (f.Stream.CanSeek) f.Stream.Position = 0;
+
+                    using (var archive = new ZipArchive(f.Stream, ZipArchiveMode.Read, leaveOpen: true))
                     {
                         foreach (var entry in archive.Entries)
                         {
                             if (string.IsNullOrEmpty(entry.Name) || entry.Length == 0) continue;
 
                             var entryExt = Path.GetExtension(entry.Name).ToLowerInvariant();
-                            // Validador de tipo estrito de áudio: Apenas áudios permitidos são persistidos!
                             if (!AllowedMediaExtensions.Contains(entryExt)) continue;
 
                             var stemType = MapFileNameToStemType(entry.Name);
@@ -235,7 +327,6 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                                 if (!success) continue;
                             }
 
-                            // Evita adicionar duplicatas na lista
                             var existing = stemsList.FirstOrDefault(s => s.StemType == stemType);
                             if (existing != null)
                             {
@@ -253,18 +344,17 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                         }
                     }
                 }
-            }
-            else if (AllowedMediaExtensions.Contains(ext))
-            {
-                var stemType = MapFileNameToStemType(file.FileName);
-                var stemFileName = $"{stemType}.opus";
-                var stemPath = Path.Combine(trackDir, stemFileName);
-
-                bool forceMono = ShouldForceMono(stemType, isSingleTrack);
-
-                using (var stream = file.OpenReadStream())
+                else if (AllowedMediaExtensions.Contains(ext))
                 {
-                    var success = await ConvertToOpusAsync(stream, stemPath, forceMono);
+                    if (f.Stream.CanSeek) f.Stream.Position = 0;
+
+                    var stemType = MapFileNameToStemType(f.FileName);
+                    var stemFileName = $"{stemType}.opus";
+                    var stemPath = Path.Combine(trackDir, stemFileName);
+
+                    bool forceMono = ShouldForceMono(stemType, isSingleTrack);
+
+                    var success = await ConvertToOpusAsync(f.Stream, stemPath, forceMono);
                     if (success)
                     {
                         var existing = stemsList.FirstOrDefault(s => s.StemType == stemType);
@@ -284,50 +374,79 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                     }
                 }
             }
-        }
 
-        if (stemsList.Count == 0)
-        {
-            // Se nenhuma stem válida foi encontrada, apaga a pasta criada e retorna erro
-            if (Directory.Exists(trackDir))
+            if (stemsList.Count == 0)
             {
-                Directory.Delete(trackDir, true);
-            }
-            return BadRequest(new { ErrorMessage = "NO_VALID_AUDIO_FILES" });
-        }
-
-        int maxDuration = 0;
-        foreach (var stem in stemsList)
-        {
-            var physicalPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", stem.AudioUrl.TrimStart('/'));
-            if (System.IO.File.Exists(physicalPath))
-            {
-                var durationDouble = await GetAudioDurationAsync(physicalPath);
-                var durationSecs = (int)Math.Round(durationDouble);
-                if (durationSecs > maxDuration)
+                if (Directory.Exists(trackDir))
                 {
-                    maxDuration = durationSecs;
+                    Directory.Delete(trackDir, true);
+                }
+                return BadRequest(new { ErrorMessage = "NO_VALID_AUDIO_FILES" });
+            }
+
+            int maxDuration = 0;
+            foreach (var stem in stemsList)
+            {
+                var physicalPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", stem.AudioUrl.TrimStart('/'));
+                if (System.IO.File.Exists(physicalPath))
+                {
+                    var durationDouble = await GetAudioDurationAsync(physicalPath);
+                    var durationSecs = (int)Math.Round(durationDouble);
+                    if (durationSecs > maxDuration)
+                    {
+                        maxDuration = durationSecs;
+                    }
+                }
+            }
+
+            var track = new Track
+            {
+                TrackId = trackId,
+                TrackTitle = request.TrackTitle.Trim(),
+                ArtistName = request.ArtistName.Trim(),
+                UploadedBy = userId,
+                ExtractionStatus = "Pronto",
+                CreatedAt = DateTime.UtcNow,
+                Stems = stemsList,
+                CoverUrl = coverUrl,
+                Duration = maxDuration
+            };
+
+            dbContext.Tracks.Add(track);
+            await dbContext.SaveChangesAsync();
+
+            return Ok(track);
+        }
+        finally
+        {
+            // Libera todos os streams físicos/arquivos abertos com segurança
+            foreach (var f in filesToProcess)
+            {
+                await f.Stream.DisposeAsync();
+            }
+
+            // Realiza a limpeza de todos os diretórios temporários dos chunks montados
+            if (!string.IsNullOrEmpty(request.UploadIds))
+            {
+                var ids = request.UploadIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                foreach (var id in ids)
+                {
+                    var idDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "temp_uploads", id);
+                    if (Directory.Exists(idDir))
+                    {
+                        try
+                        {
+                            Directory.Delete(idDir, true);
+                            Console.WriteLine($"[CLEANUP] Diretório temporário {id} excluído com sucesso.");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[CLEANUP ERROR] Falha ao excluir pasta temporária de upload {id}: {ex.Message}");
+                        }
+                    }
                 }
             }
         }
-
-        var track = new Track
-        {
-            TrackId = trackId,
-            TrackTitle = request.TrackTitle.Trim(),
-            ArtistName = request.ArtistName.Trim(),
-            UploadedBy = userId,
-            ExtractionStatus = "Pronto", // Salvo diretamente no status final
-            CreatedAt = DateTime.UtcNow,
-            Stems = stemsList,
-            CoverUrl = coverUrl,
-            Duration = maxDuration
-        };
-
-        dbContext.Tracks.Add(track);
-        await dbContext.SaveChangesAsync();
-
-        return Ok(track);
     }
 
     private static string MapFileNameToStemType(string fileName)
@@ -1052,7 +1171,17 @@ public class UploadDirectRequest
     public string TrackTitle { get; set; } = null!;
     public string ArtistName { get; set; } = null!;
     public IFormFile? CoverFile { get; set; }
-    public List<IFormFile> Files { get; set; } = new();
+    public List<IFormFile>? Files { get; set; } = new();
+    public string? UploadIds { get; set; }
+}
+
+public class UploadChunkRequest
+{
+    public IFormFile File { get; set; } = null!;
+    public string UploadId { get; set; } = null!;
+    public int ChunkIndex { get; set; }
+    public int TotalChunks { get; set; }
+    public string FileName { get; set; } = null!;
 }
 
 public class UpdateTrackRequest
