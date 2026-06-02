@@ -347,14 +347,61 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 await Task.Delay(Random.Shared.Next(1000, 2000), stoppingToken);
 
                 // 4. Aguarda retornar para a tela de upload/split (verificando pela presença da caixa de upload)
-                Console.WriteLine("[BOT-PASSO] Aguardando o carregamento da tela de Upload (localizando a caixa de upload)...");
-                var dropzoneSelector = ".select-local-file_dropzone__, [class*='select-local-file_dropzone'], input[type='file']";
-                await page.WaitForSelectorAsync(dropzoneSelector, new PageWaitForSelectorOptions { Timeout = 45000, State = WaitForSelectorState.Visible });
+                Console.WriteLine("[BOT-PASSO] Aguardando o carregamento da tela de Upload com loop de monitoramento ativo...");
                 
+                var dropzoneSelector = "div[class*='select-local-file_dropzone'], .select-local-file_dropzone__48wgh";
+                bool uploadTelaCarregada = false;
+                int maxUploadChecks = 25; // 25 * 2s = 50 segundos
+                
+                for (int i = 1; i <= maxUploadChecks; i++)
+                {
+                    Console.WriteLine($"[BOT-PASSO] [Checagem {i}/{maxUploadChecks}] Analisando a página. URL atual: {page.Url}");
+                    
+                    // Aceita cookies preventivamente se reaparecerem
+                    await AcceptCookiesIfVisibleAsync(page, stoppingToken);
+
+                    // Verifica se há alguma mensagem de erro de login visível
+                    try
+                    {
+                        var errorMsg = page.Locator("text=Combinação de e-mail e senha incorreta, text=incorrect, .error-message").First;
+                        if (await errorMsg.CountAsync() > 0 && await errorMsg.IsVisibleAsync())
+                        {
+                            var text = await errorMsg.TextContentAsync();
+                            Console.WriteLine($"[BOT-ERRO] Erro de autenticação detectado em tela: '{text?.Trim()}'");
+                            throw new UnauthorizedAccessException($"[WORKER ERROR] Falha no login automático: '{text?.Trim()}'");
+                        }
+                    }
+                    catch (UnauthorizedAccessException) { throw; }
+                    catch { }
+
+                    // Verifica se a caixa de upload (dropzone) está visível
+                    var dropzone = page.Locator(dropzoneSelector).First;
+                    if (await dropzone.CountAsync() > 0)
+                    {
+                        bool isVisible = await dropzone.IsVisibleAsync();
+                        Console.WriteLine($"[BOT-PASSO] Caixa de upload localizada! Visível: {isVisible}");
+                        if (isVisible)
+                        {
+                            uploadTelaCarregada = true;
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("[BOT-PASSO] Caixa de upload ainda não encontrada no DOM.");
+                    }
+
+                    await Task.Delay(2000, stoppingToken);
+                }
+
+                if (!uploadTelaCarregada)
+                {
+                    throw new TimeoutException("[WORKER ERROR] A tela de upload não foi carregada dentro do tempo limite.");
+                }
+
                 logger.LogInformation("[WORKER SUCCESS] PASSO: Login automático concluído!");
                 Console.WriteLine("[BOT-PASSO] Login automático efetuado com sucesso! Tela de Upload carregada.");
-                
-                await Task.Delay(2000, stoppingToken); // delay humano pós-login
+                await Task.Delay(2000, stoppingToken);
             }
             else
             {
