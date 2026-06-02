@@ -615,6 +615,24 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
     {
         try
         {
+            Console.WriteLine("[BOT-PASSO] Verificando existência de banner de consentimento de cookies (Osano)...");
+            
+            // Aguarda brevemente a renderização do banner se ele estiver carregando
+            var bannerSelector = ".osano-cm-window__dialog, .osano-cm-dialog, .osano-cm-accept";
+            try
+            {
+                var banner = await page.WaitForSelectorAsync(bannerSelector, new PageWaitForSelectorOptions { Timeout = 3000, State = WaitForSelectorState.Visible });
+                if (banner != null)
+                {
+                    Console.WriteLine("[BOT-PASSO] Banner de cookies detectado em tela.");
+                }
+            }
+            catch
+            {
+                // Se der timeout, assumimos que o banner já foi aceito anteriormente ou está ausente
+                Console.WriteLine("[BOT-PASSO] Sem banner de cookies visível por enquanto.");
+            }
+
             var cookieSelectors = new[] 
             { 
                 "button.osano-cm-accept", 
@@ -631,7 +649,9 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 if (await locator.CountAsync() > 0 && await locator.IsVisibleAsync())
                 {
                     logger.LogInformation($"[WORKER] Banner de consentimento detectado ({selector}). Clicando em Aceitar...");
+                    Console.WriteLine($"[BOT-PASSO] Clicando no botão Aceitar do banner ({selector})...");
                     await locator.ClickAsync(new LocatorClickOptions { Timeout = 5000 });
+                    Console.WriteLine("[BOT-PASSO] Sucesso: Botão Aceitar clicado com êxito!");
                     await Task.Delay(Random.Shared.Next(1000, 1500), stoppingToken);
                     break;
                 }
@@ -640,6 +660,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         catch (Exception ex)
         {
             logger.LogDebug($"[WORKER DEBUG] Erro ou banner de cookies ausente/já fechado: {ex.Message}");
+            Console.WriteLine($"[BOT-PASSO] Info: Verificação de cookies finalizada: {ex.Message}");
         }
     }
 }
