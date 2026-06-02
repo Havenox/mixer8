@@ -349,7 +349,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 // 4. Aguarda retornar para a tela de upload/split (verificando pela presença da caixa de upload)
                 Console.WriteLine("[BOT-PASSO] Aguardando o carregamento da tela de Upload com loop de monitoramento ativo...");
                 
-                var dropzoneSelector = "div[class*='select-local-file_dropzone'], .select-local-file_dropzone__48wgh";
+                var dropzoneSelector = "text=Solte ou selecione, text=Formatos suportados, div[class*='select-local-file_dropzone'], .select-local-file_dropzone__48wgh";
                 bool uploadTelaCarregada = false;
                 int maxUploadChecks = 25; // 25 * 2s = 50 segundos
                 
