@@ -222,9 +222,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                     "--disable-setuid-sandbox", 
                     "--disable-dev-shm-usage",
                     "--disable-web-security",
-                    "--disable-blink-features=AutomationControlled", // Anti-bot stealth
-                    "--use-gl=angle", 
-                    "--use-angle=swiftshader"
+                    "--disable-blink-features=AutomationControlled" // Anti-bot stealth
                 },
                 UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 ViewportSize = new ViewportSize { Width = 1280, Height = 800 },
