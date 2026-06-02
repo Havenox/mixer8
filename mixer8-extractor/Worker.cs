@@ -322,36 +322,22 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                     Console.WriteLine("[BOT-PASSO] Alerta: Botão de e-mail não clicado. Prosseguindo direto para inputs.");
                 }
 
-                // 1. Espera e preenche o e-mail de forma humana
+                // 1. Espera e preenche o e-mail limpando qualquer preenchimento automático anterior
                 var emailSelector = "input[placeholder*='e-mail'], input[placeholder*='E-mail'], input[placeholder*='Digite seu e-mail'], input.rt-TextFieldInput[type='text'], input[type='email']";
                 Console.WriteLine($"[BOT-PASSO] Aguardando a renderização do campo de e-mail ('{emailSelector}')...");
                 await page.WaitForSelectorAsync(emailSelector, new PageWaitForSelectorOptions { Timeout = 20000 });
-                Console.WriteLine("[BOT-PASSO] Campo de e-mail visível! Focando elemento...");
-                await page.FocusAsync(emailSelector);
+                Console.WriteLine("[BOT-PASSO] Campo de e-mail visível! Preenchendo login (limpando preenchimento anterior)...");
                 
-                logger.LogInformation("[WORKER] PASSO: Digitando login de forma cadenciada...");
-                Console.WriteLine("[BOT-PASSO] Digitando login caractere por caractere...");
-                foreach (var c in extractorLogin)
-                {
-                    await page.Keyboard.TypeAsync(c.ToString());
-                    await Task.Delay(Random.Shared.Next(40, 120), stoppingToken);
-                }
+                await page.Locator(emailSelector).FillAsync(extractorLogin);
                 Console.WriteLine("[BOT-PASSO] E-mail inserido com sucesso!");
 
-                // 2. Preenche a senha de forma humana
+                // 2. Preenche a senha limpando qualquer preenchimento automático anterior
                 var passwordSelector = "input[type='password'], input[placeholder='Senha'], input[placeholder='Password']";
                 Console.WriteLine($"[BOT-PASSO] Aguardando a renderização do campo de senha ('{passwordSelector}')...");
                 await page.WaitForSelectorAsync(passwordSelector, new PageWaitForSelectorOptions { Timeout = 10000 });
-                Console.WriteLine("[BOT-PASSO] Campo de senha visível! Focando elemento...");
-                await page.FocusAsync(passwordSelector);
+                Console.WriteLine("[BOT-PASSO] Campo de senha visível! Preenchendo senha (limpando preenchimento anterior)...");
 
-                logger.LogInformation("[WORKER] PASSO: Digitando senha...");
-                Console.WriteLine("[BOT-PASSO] Digitando senha caractere por caractere...");
-                foreach (var c in extractorPassword)
-                {
-                    await page.Keyboard.TypeAsync(c.ToString());
-                    await Task.Delay(Random.Shared.Next(40, 120), stoppingToken);
-                }
+                await page.Locator(passwordSelector).FillAsync(extractorPassword);
                 Console.WriteLine("[BOT-PASSO] Senha inserida com sucesso!");
 
                 // 3. Submete o formulário
