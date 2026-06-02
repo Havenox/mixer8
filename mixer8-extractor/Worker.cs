@@ -237,7 +237,8 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
 
             // 4. Acessa a página de Upload Split
             await UpdateTrackStatusAsync(track.TrackId, "Processando: Acessando a tela de Upload do Moises.ai", db, stoppingToken);
-            logger.LogInformation("[WORKER] Acessando a página de upload: https://studio.moises.ai/upload/split");
+            logger.LogInformation("[WORKER] PASSO: Acessando a página de upload: https://studio.moises.ai/upload/split");
+            Console.WriteLine("[BOT-PASSO] Acessando URL https://studio.moises.ai/upload/split...");
             
             await page.GotoAsync("https://studio.moises.ai/upload/split", new PageGotoOptions 
             { 
@@ -245,29 +246,36 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 WaitUntil = WaitUntilState.NetworkIdle 
             });
 
+            logger.LogInformation($"[WORKER] PASSO: URL carregada com sucesso. URL Atual no navegador: {page.Url}");
+            Console.WriteLine($"[BOT-PASSO] Página carregada! URL Atual: {page.Url}");
+
             // Pequeno delay anti-bot
             await Task.Delay(Random.Shared.Next(1000, 2000), stoppingToken);
 
             // Se redirecionou para o login, tenta efetuar o login automático com as credenciais do .env
             if (page.Url.Contains("/login") || page.Url.Contains("/auth/login") || page.Url.Contains("/auth/"))
             {
-                logger.LogInformation("[WORKER] Navegador abriu deslogado. Iniciando rotina de login automático...");
+                logger.LogInformation("[WORKER] PASSO: Navegador abriu deslogado. Iniciando rotina de login automático...");
+                Console.WriteLine("[BOT-PASSO] Tela de login detectada. Iniciando login automático...");
 
                 var extractorLogin = configuration["EXTRACTOR_LOGIN"];
                 var extractorPassword = configuration["EXTRACTOR_PASSWORD"];
 
                 if (string.IsNullOrWhiteSpace(extractorLogin) || string.IsNullOrWhiteSpace(extractorPassword) || extractorLogin.Contains("@exemplo.com"))
                 {
+                    Console.WriteLine("[BOT-ERRO] Credenciais EXTRACTOR_LOGIN/EXTRACTOR_PASSWORD não configuradas no .env.");
                     throw new UnauthorizedAccessException("[WORKER ERROR] A sessão expirou e as credenciais 'EXTRACTOR_LOGIN' e 'EXTRACTOR_PASSWORD' não estão configuradas no arquivo .env da raiz.");
                 }
 
                 await UpdateTrackStatusAsync(track.TrackId, "Processando: Efetuando login automático", db, stoppingToken);
 
                 // 0.1. Tenta aceitar os cookies para desobstruir a tela se o banner estiver visível
+                Console.WriteLine("[BOT-PASSO] Executando rotina preventiva de aceitação de cookies...");
                 await AcceptCookiesIfVisibleAsync(page, stoppingToken);
 
                 // 0.2. Clica no botão "Continuar com e-mail" para exibir os inputs
-                logger.LogInformation("[WORKER] Procurando o botão 'Continuar com e-mail'...");
+                logger.LogInformation("[WORKER] PASSO: Procurando o botão 'Continuar com e-mail'...");
+                Console.WriteLine("[BOT-PASSO] Procurando o botão 'Continuar com e-mail' na interface...");
                 var emailBtnSelectors = new[]
                 {
                     "button:has-text('Continuar com e-mail')",
@@ -281,83 +289,116 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 {
                     try
                     {
+                        Console.WriteLine($"[BOT-PASSO] Testando seletor do botão de e-mail: '{selector}'...");
                         var emailBtn = page.Locator(selector).First;
                         if (await emailBtn.CountAsync() > 0 && await emailBtn.IsVisibleAsync())
                         {
-                            logger.LogInformation($"[WORKER] Clicando no botão 'Continuar com e-mail' via seletor: {selector}");
+                            logger.LogInformation($"[WORKER] PASSO: Clicando no botão 'Continuar com e-mail' via seletor: {selector}");
+                            Console.WriteLine($"[BOT-PASSO] Botão encontrado com seletor '{selector}'! Efetuando clique...");
                             await emailBtn.ClickAsync(new LocatorClickOptions { Timeout = 10000 });
                             emailBtnClicked = true;
+                            Console.WriteLine("[BOT-PASSO] Clique realizado. Aguardando delay de carregamento...");
                             await Task.Delay(Random.Shared.Next(1500, 2500), stoppingToken);
                             break;
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[BOT-PASSO] Seletor '{selector}' não está visível ou não foi encontrado.");
                         }
                     }
                     catch (Exception ex)
                     {
                         logger.LogDebug($"[WORKER DEBUG] Tentativa com {selector} falhou: {ex.Message}");
+                        Console.WriteLine($"[BOT-PASSO] Falha temporária com '{selector}': {ex.Message}");
                     }
                 }
 
                 if (!emailBtnClicked)
                 {
                     logger.LogWarning("[WORKER WARNING] Não foi possível clicar no botão 'Continuar com e-mail' de forma explícita. Pode ser que já esteja na tela de credenciais.");
+                    Console.WriteLine("[BOT-PASSO] Alerta: Botão de e-mail não clicado. Prosseguindo direto para inputs.");
                 }
 
                 // 1. Espera e preenche o e-mail de forma humana
                 var emailSelector = "input[placeholder*='e-mail'], input[placeholder*='E-mail'], input[placeholder*='Digite seu e-mail'], input.rt-TextFieldInput[type='text'], input[type='email']";
+                Console.WriteLine($"[BOT-PASSO] Aguardando a renderização do campo de e-mail ('{emailSelector}')...");
                 await page.WaitForSelectorAsync(emailSelector, new PageWaitForSelectorOptions { Timeout = 20000 });
+                Console.WriteLine("[BOT-PASSO] Campo de e-mail visível! Focando elemento...");
                 await page.FocusAsync(emailSelector);
                 
-                logger.LogInformation("[WORKER] Digitando login de forma cadenciada...");
+                logger.LogInformation("[WORKER] PASSO: Digitando login de forma cadenciada...");
+                Console.WriteLine("[BOT-PASSO] Digitando login caractere por caractere...");
                 foreach (var c in extractorLogin)
                 {
                     await page.Keyboard.TypeAsync(c.ToString());
                     await Task.Delay(Random.Shared.Next(40, 120), stoppingToken);
                 }
+                Console.WriteLine("[BOT-PASSO] E-mail inserido com sucesso!");
 
                 // 2. Preenche a senha de forma humana
                 var passwordSelector = "input[type='password'], input[placeholder='Senha'], input[placeholder='Password']";
+                Console.WriteLine($"[BOT-PASSO] Aguardando a renderização do campo de senha ('{passwordSelector}')...");
                 await page.WaitForSelectorAsync(passwordSelector, new PageWaitForSelectorOptions { Timeout = 10000 });
+                Console.WriteLine("[BOT-PASSO] Campo de senha visível! Focando elemento...");
                 await page.FocusAsync(passwordSelector);
 
-                logger.LogInformation("[WORKER] Digitando senha...");
+                logger.LogInformation("[WORKER] PASSO: Digitando senha...");
+                Console.WriteLine("[BOT-PASSO] Digitando senha caractere por caractere...");
                 foreach (var c in extractorPassword)
                 {
                     await page.Keyboard.TypeAsync(c.ToString());
                     await Task.Delay(Random.Shared.Next(40, 120), stoppingToken);
                 }
+                Console.WriteLine("[BOT-PASSO] Senha inserida com sucesso!");
 
                 // 3. Submete o formulário
                 var submitBtnSelector = "button[class*='_submitButton_'], button[type='submit']:has-text('Entrar'), button:has-text('Entrar'), button[type='submit']";
+                Console.WriteLine($"[BOT-PASSO] Clicando no botão de submissão do formulário ('{submitBtnSelector}')...");
                 await page.ClickAsync(submitBtnSelector);
                 
-                logger.LogInformation("[WORKER] Submetendo credenciais...");
+                logger.LogInformation("[WORKER] PASSO: Submetendo credenciais...");
+                Console.WriteLine("[BOT-PASSO] Credenciais submetidas. Aguardando processamento inicial...");
                 await Task.Delay(Random.Shared.Next(1000, 2000), stoppingToken);
 
                 // 4. Aguarda retornar para a tela de upload/split
+                Console.WriteLine("[BOT-PASSO] Aguardando redirecionamento de volta para a tela de upload (/upload/split)...");
                 await page.WaitForURLAsync("**/upload/split**", new PageWaitForURLOptions { Timeout = 45000 });
-                logger.LogInformation("[WORKER SUCCESS] Login automático concluído! Perfil físico de usuário atualizado.");
+                logger.LogInformation("[WORKER SUCCESS] PASSO: Login automático concluído!");
+                Console.WriteLine("[BOT-PASSO] Login automático efetuado com sucesso! Redirecionado.");
                 
                 await Task.Delay(3000, stoppingToken); // delay humano pós-login
+            }
+            else
+            {
+                Console.WriteLine("[BOT-PASSO] Sessão já estava ativa (usuário logado). Pulando login.");
             }
 
             // 5. Upload do Arquivo no Dropzone do Moises
             await UpdateTrackStatusAsync(track.TrackId, "Processando: Enviando áudio original para o Moises.ai", db, stoppingToken);
-            logger.LogInformation($"[WORKER] Realizando upload do arquivo original para o Moises: {originalFile}");
+            logger.LogInformation($"[WORKER] PASSO: Realizando upload do arquivo original para o Moises: {originalFile}");
+            Console.WriteLine($"[BOT-PASSO] Iniciando upload do arquivo original: {originalFile}");
 
             // O Playwright seleciona e injeta o arquivo no input oculto de uploads
             var fileInputSelector = "input[type='file']";
+            Console.WriteLine($"[BOT-PASSO] Aguardando localizador de upload de arquivos ('{fileInputSelector}')...");
             await page.WaitForSelectorAsync(fileInputSelector, new PageWaitForSelectorOptions { Timeout = 20000 });
+            
             var fileInput = await page.QuerySelectorAsync(fileInputSelector);
             if (fileInput == null)
             {
+                Console.WriteLine("[BOT-ERRO] Input de arquivo não encontrado na página.");
                 throw new InvalidOperationException("[WORKER ERROR] Não foi possível localizar o input de arquivos do Moises.ai.");
             }
+            
+            Console.WriteLine("[BOT-PASSO] Injetando arquivo local no navegador...");
             await fileInput.SetInputFilesAsync(originalFile);
 
-            logger.LogInformation("[WORKER] Arquivo selecionado no input do navegador. Aguardando 2 segundos e preparando envio...");
+            logger.LogInformation("[WORKER] PASSO: Arquivo selecionado no navegador. Aguardando processamento da seleção...");
+            Console.WriteLine("[BOT-PASSO] Arquivo selecionado! Aguardando 2 segundos para o upload inicial...");
             await Task.Delay(Random.Shared.Next(2000, 3000), stoppingToken);
 
             // Garante que o banner de cookies está aceito
+            Console.WriteLine("[BOT-PASSO] Executando rotina preventiva de cookies antes do Envio...");
             await AcceptCookiesIfVisibleAsync(page, stoppingToken);
 
             // 6. Tela de Seleção de Stems
@@ -365,48 +406,61 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             await UpdateTrackStatusAsync(track.TrackId, "Processando: Configurando divisão de stems (Moises)", db, stoppingToken);
 
             var submitButtonSelector = "button#upload_submit_button, button:has-text('Enviar'), button:has-text('Submit')";
+            Console.WriteLine($"[BOT-PASSO] Aguardando a ativação do botão 'Enviar' ('{submitButtonSelector}')...");
             await page.WaitForSelectorAsync(submitButtonSelector, new PageWaitForSelectorOptions { Timeout = 60000 });
+            
+            Console.WriteLine("[BOT-PASSO] Botão 'Enviar' ativo! Aguardando delay anti-bot...");
             await Task.Delay(Random.Shared.Next(1500, 3000), stoppingToken); // delay humano anti-bot
             
-            logger.LogInformation("[WORKER] Clicando no botão 'Enviar' para iniciar a extração...");
+            logger.LogInformation("[WORKER] PASSO: Clicando no botão 'Enviar' para iniciar a extração...");
+            Console.WriteLine("[BOT-PASSO] Clicando no botão 'Enviar'...");
             await page.ClickAsync(submitButtonSelector);
 
             // 7. Retorno à Biblioteca
             await UpdateTrackStatusAsync(track.TrackId, "Processando: Aguardando retorno para a Biblioteca", db, stoppingToken);
-            logger.LogInformation("[WORKER] Aguardando redirecionamento para a biblioteca...");
+            logger.LogInformation("[WORKER] PASSO: Aguardando redirecionamento para a biblioteca...");
+            Console.WriteLine("[BOT-PASSO] Aguardando processamento/upload e redirecionamento para a biblioteca (/library)...");
             
             await page.WaitForURLAsync("**/library**", new PageWaitForURLOptions { Timeout = 120000 });
+            Console.WriteLine("[BOT-PASSO] Redirecionado com sucesso para a biblioteca!");
             await Task.Delay(Random.Shared.Next(3000, 5000), stoppingToken); // delay humano de carregamento
 
             // 8. Clicar no primeiro áudio da lista (mais recente)
             await UpdateTrackStatusAsync(track.TrackId, "Processando: Identificando a música na Biblioteca", db, stoppingToken);
-            logger.LogInformation("[WORKER] Localizando a música mais recente na lista...");
+            logger.LogInformation("[WORKER] PASSO: Localizando a música mais recente na lista...");
+            Console.WriteLine("[BOT-PASSO] Localizando a música mais recente no painel principal da biblioteca...");
 
             // Limpa cookies banner se reaparecer
+            Console.WriteLine("[BOT-PASSO] Executando rotina preventiva de cookies na biblioteca...");
             await AcceptCookiesIfVisibleAsync(page, stoppingToken);
 
             // Aguarda a tabela/grade/flex list de faixas carregar usando o seletor moderno Radix UI
             var firstRowSelector = "span[class*='_titleText_'], div[class*='_titleText_'], .track-row:first-child, tr:first-child td, .track-list-item:first-child, td a";
+            Console.WriteLine($"[BOT-PASSO] Aguardando a presença de itens na biblioteca ('{firstRowSelector}')...");
             await page.WaitForSelectorAsync(firstRowSelector, new PageWaitForSelectorOptions { Timeout = 45000 });
             
-            logger.LogInformation("[WORKER] Primeiro item da biblioteca localizado. Clicando...");
+            logger.LogInformation("[WORKER] PASSO: Primeiro item da biblioteca localizado. Clicando...");
+            Console.WriteLine("[BOT-PASSO] Primeiro item encontrado! Efetuando clique para abrir a DAW...");
             await page.ClickAsync(firstRowSelector);
+            Console.WriteLine("[BOT-PASSO] Clique realizado. Aguardando carregamento da DAW...");
             await Task.Delay(Random.Shared.Next(2000, 4000), stoppingToken);
 
             // 9. DAW (Player): Aguardar o processamento das faixas
             await UpdateTrackStatusAsync(track.TrackId, "Processando: Aguardando separação de stems na DAW", db, stoppingToken);
-            logger.LogInformation("[WORKER] DAW / Player carregado. Monitorando processamento das stems...");
+            logger.LogInformation("[WORKER] PASSO: DAW / Player carregado. Monitorando processamento das stems...");
+            Console.WriteLine("[BOT-PASSO] Carregou a DAW! Iniciando monitoramento do botão 'Exportar'...");
 
             // Monitoramos a presença e a ativação do botão "Exportar" que é habilitado quando pronto
             var exportButtonSelector = "button[class*='download-task_buttonExport__'], button:has-text('Exportar'), button:has-text('Export')";
             
-            logger.LogInformation("[WORKER] Monitorando o botão de Exportar na DAW. Limite de espera de 15 minutos...");
+            logger.LogInformation("[WORKER] PASSO: Monitorando o botão de Exportar na DAW. Limite de espera de 15 minutos...");
             
             bool dawPronto = false;
             int tentativasDAW = 90; // 90 * 10s = 15 minutos
             while (!dawPronto && tentativasDAW > 0)
             {
                 tentativasDAW--;
+                Console.WriteLine($"[BOT-PASSO] Verificando botão 'Exportar' (Tempo restante máximo: {tentativasDAW * 10}s)...");
                 await Task.Delay(10000, stoppingToken);
                 
                 var exportButton = page.Locator(exportButtonSelector).First;
@@ -416,26 +470,31 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                     if (isEnabled)
                     {
                         dawPronto = true;
-                        logger.LogInformation("[WORKER] Status: Áudio processado e botão 'Exportar' ativo!");
+                        logger.LogInformation("[WORKER] PASSO: Status: Áudio processado e botão 'Exportar' ativo!");
+                        Console.WriteLine("[BOT-PASSO] Sucesso: Botão 'Exportar' ficou ativo e habilitado!");
                     }
                     else
                     {
-                        logger.LogInformation($"[WORKER] Status: Faixas ainda em processamento na DAW... (Tentativas restantes: {tentativasDAW})");
+                        logger.LogInformation($"[WORKER] PASSO: Status: Faixas ainda em processamento na DAW... (Tentativas restantes: {tentativasDAW})");
+                        Console.WriteLine("[BOT-PASSO] Faixas continuam carregando/processando na DAW...");
                     }
                 }
                 else
                 {
-                    logger.LogInformation($"[WORKER] Status: DAW carregando interface... (Tentativas restantes: {tentativasDAW})");
+                    logger.LogInformation($"[WORKER] PASSO: Status: DAW carregando interface... (Tentativas restantes: {tentativasDAW})");
+                    Console.WriteLine("[BOT-PASSO] Interface da DAW ainda carregando elementos básicos...");
                 }
             }
 
             if (!dawPronto)
             {
+                Console.WriteLine("[BOT-ERRO] Limite de processamento excedido (15 min).");
                 throw new TimeoutException("[WORKER ERROR] O processamento das stems demorou mais que o esperado (limite de 15 min).");
             }
 
             // 10. Menu de Exportação e Download com Retry resiliente
             await UpdateTrackStatusAsync(track.TrackId, "Processando: Exportando stems selecionadas", db, stoppingToken);
+            Console.WriteLine("[BOT-PASSO] Iniciando processo de exportação...");
 
             var exportAllSelector = "a[class*='download-task-drop_button__'], button:has-text('Exportar todos os canais'), a:has-text('Exportar todos os canais'), text=Exportar todos os canais";
             IDownload? download = null;
@@ -445,7 +504,8 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             {
                 try
                 {
-                    logger.LogInformation($"[WORKER] [Tentativa {retry}/{maxExportRetries}] Clicando no botão 'Exportar'...");
+                    logger.LogInformation($"[WORKER] PASSO: [Tentativa {retry}/{maxExportRetries}] Clicando no botão 'Exportar'...");
+                    Console.WriteLine($"[BOT-PASSO] [Tentativa {retry}/{maxExportRetries}] Aguardando e clicando em 'Exportar'...");
                     
                     // Garante que o banner de cookies está aceito
                     await AcceptCookiesIfVisibleAsync(page, stoppingToken);
@@ -453,23 +513,29 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                     var exportButton = page.Locator(exportButtonSelector).First;
                     await exportButton.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 15000 });
                     await exportButton.ClickAsync();
+                    
+                    Console.WriteLine("[BOT-PASSO] Botão 'Exportar' clicado! Aguardando 2 segundos para o menu suspender...");
                     await Task.Delay(Random.Shared.Next(2000, 3000), stoppingToken);
 
-                    logger.LogInformation($"[WORKER] [Tentativa {retry}/{maxExportRetries}] Clicando em 'Exportar todos os canais' e aguardando download...");
+                    logger.LogInformation($"[WORKER] PASSO: [Tentativa {retry}/{maxExportRetries}] Clicando em 'Exportar todos os canais' e aguardando download...");
+                    Console.WriteLine($"[BOT-PASSO] [Tentativa {retry}/{maxExportRetries}] Localizando e clicando em 'Exportar todos os canais'...");
                     
                     var exportAllBtn = page.Locator(exportAllSelector).First;
                     await exportAllBtn.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 15000 });
                     
                     // Intercepta o download
+                    Console.WriteLine("[BOT-PASSO] Preparando escuta de download com limite de 120 segundos...");
                     var downloadTask = page.WaitForDownloadAsync(new PageWaitForDownloadOptions { Timeout = 120000 });
                     await exportAllBtn.ClickAsync();
                     
                     download = await downloadTask;
+                    Console.WriteLine("[BOT-PASSO] Sucesso: Download iniciado no navegador!");
                     break; // Download iniciado com sucesso! Sai do loop.
                 }
                 catch (Exception ex)
                 {
-                    logger.LogWarning($"[WORKER WARNING] [Tentativa {retry}/{maxExportRetries}] Falha ao exportar/iniciar download: {ex.Message}. Resetando...");
+                    logger.LogWarning($"[WORKER WARNING] PASSO: [Tentativa {retry}/{maxExportRetries}] Falha ao exportar/iniciar download: {ex.Message}. Resetando...");
+                    Console.WriteLine($"[BOT-PASSO] Falha na tentativa {retry} de download: {ex.Message}. Redefinindo visual...");
                     
                     // Se falhou, clica em um ponto neutro da tela para fechar eventuais dropdowns abertos e aguarda
                     try
@@ -483,14 +549,17 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
 
             if (download == null)
             {
+                Console.WriteLine("[BOT-ERRO] Não foi possível iniciar o download após as 3 tentativas.");
                 throw new TimeoutException("[WORKER ERROR] Falha ao iniciar o download das stems após várias retentativas na DAW.");
             }
 
             var zipPath = Path.Combine(downloadsDir, $"{track.TrackId}_stems.zip");
-            logger.LogInformation($"[WORKER] Download iniciado! Gravando arquivo ZIP em: {zipPath}");
+            logger.LogInformation($"[WORKER] PASSO: Download iniciado! Gravando arquivo ZIP em: {zipPath}");
+            Console.WriteLine($"[BOT-PASSO] Efetuando gravação do download do ZIP em: {zipPath}...");
             await download.SaveAsAsync(zipPath);
 
-            logger.LogInformation($"[WORKER SUCCESS] Download do ZIP de stems finalizado com sucesso: {zipPath}");
+            logger.LogInformation($"[WORKER SUCCESS] PASSO: Download do ZIP de stems finalizado com sucesso: {zipPath}");
+            Console.WriteLine($"[BOT-PASSO] Sucesso: ZIP gravado com êxito em disco!");
 
             // Fecha o contexto do navegador com segurança
             await context.DisposeAsync();
