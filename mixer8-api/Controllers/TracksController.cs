@@ -1151,6 +1151,37 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             AlbumIncremented = albumIncremented
         });
     }
+
+    [AllowAnonymous]
+    [HttpGet("{id}/original")]
+    public IActionResult GetOriginal(Guid id)
+    {
+        var downloadsDir = configuration["EXTRACTOR_DOWNLOADS_DIR"] ?? "./mixer8-extractor/downloads";
+        if (!Path.IsPathRooted(downloadsDir))
+        {
+            downloadsDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", downloadsDir));
+        }
+
+        var files = Directory.GetFiles(downloadsDir, $"{id}.*");
+        var filePath = files.FirstOrDefault();
+        if (string.IsNullOrEmpty(filePath) || !System.IO.File.Exists(filePath))
+        {
+            return NotFound(new { ErrorMessage = "ORIGINAL_FILE_NOT_FOUND" });
+        }
+
+        var ext = Path.GetExtension(filePath).ToLowerInvariant();
+        var contentType = ext switch
+        {
+            ".opus" => "audio/opus",
+            ".mp3" => "audio/mpeg",
+            ".wav" => "audio/wav",
+            ".flac" => "audio/flac",
+            ".m4a" => "audio/mp4",
+            _ => "application/octet-stream"
+        };
+
+        return PhysicalFile(filePath, contentType, enableRangeProcessing: true);
+    }
 }
 
 public class RecordPlayRequest
