@@ -248,10 +248,56 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             // Pequeno delay anti-bot
             await Task.Delay(Random.Shared.Next(1000, 2000), stoppingToken);
 
-            // Se redirecionou para o login, significa que os cookies expiraram
-            if (page.Url.Contains("/login") || page.Url.Contains("/auth/login"))
+            // Se redirecionou para o login, tenta efetuar o login automático com as credenciais do .env
+            if (page.Url.Contains("/login") || page.Url.Contains("/auth/login") || page.Url.Contains("/auth/"))
             {
-                throw new UnauthorizedAccessException("[WORKER ERROR] A sessão de cookies do Moises.ai expirou. É necessário reimportar a sessão no painel Admin.");
+                logger.LogInformation("[WORKER] Navegador abriu deslogado. Iniciando rotina de login automático...");
+
+                var extractorLogin = configuration["EXTRACTOR_LOGIN"];
+                var extractorPassword = configuration["EXTRACTOR_PASSWORD"];
+
+                if (string.IsNullOrWhiteSpace(extractorLogin) || string.IsNullOrWhiteSpace(extractorPassword) || extractorLogin.Contains("@exemplo.com"))
+                {
+                    throw new UnauthorizedAccessException("[WORKER ERROR] A sessão expirou e as credenciais 'EXTRACTOR_LOGIN' e 'EXTRACTOR_PASSWORD' não estão configuradas no arquivo .env da raiz.");
+                }
+
+                await UpdateTrackStatusAsync(track.TrackId, "Processando: Efetuando login automático", db, stoppingToken);
+
+                // 1. Espera e preenche o e-mail de forma humana
+                var emailSelector = "input[type='email'], input[name='email'], input[placeholder*='email'], input[placeholder*='E-mail']";
+                await page.WaitForSelectorAsync(emailSelector, new PageWaitForSelectorOptions { Timeout = 20000 });
+                await page.FocusAsync(emailSelector);
+                
+                logger.LogInformation("[WORKER] Digitando login de forma cadenciada...");
+                foreach (var c in extractorLogin)
+                {
+                    await page.Keyboard.TypeAsync(c.ToString());
+                    await Task.Delay(Random.Shared.Next(40, 120), stoppingToken);
+                }
+
+                // 2. Preenche a senha de forma humana
+                var passwordSelector = "input[type='password'], input[name='password']";
+                await page.FocusAsync(passwordSelector);
+
+                logger.LogInformation("[WORKER] Digitando senha...");
+                foreach (var c in extractorPassword)
+                {
+                    await page.Keyboard.TypeAsync(c.ToString());
+                    await Task.Delay(Random.Shared.Next(40, 120), stoppingToken);
+                }
+
+                // 3. Submete o formulário
+                var submitBtnSelector = "button[type='submit'], button:has-text('Entrar'), button:has-text('Log in'), button:has-text('Login')";
+                await page.ClickAsync(submitBtnSelector);
+                
+                logger.LogInformation("[WORKER] Submetendo credenciais...");
+                await Task.Delay(Random.Shared.Next(1000, 2000), stoppingToken);
+
+                // 4. Aguarda retornar para a tela de upload/split
+                await page.WaitForURLAsync("**/upload/split**", new PageWaitForURLOptions { Timeout = 45000 });
+                logger.LogInformation("[WORKER SUCCESS] Login automático concluído! Perfil físico de usuário atualizado.");
+                
+                await Task.Delay(3000, stoppingToken); // delay humano pós-login
             }
 
             // 5. Upload do Arquivo no Dropzone do Moises
