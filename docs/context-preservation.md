@@ -1,7 +1,7 @@
 # Context Preservation (Save State) - Mixer8 Ecosystem
 
-**Data da Última Atualização:** 01/06/2026  
-**Status do Projeto:** Purga de Mocks Concluída, Player Multi-Stems Ativo, Uploader Direto Implementado, Conteinerização/Conversão Opus Concluída, Recursos Premium/Shuffle/Repeat Dinâmicos e Barra de Progresso Premium Ativos.
+**Data da Última Atualização:** 02/06/2026  
+**Status do Projeto:** Purga de Mocks Concluída, Player Multi-Stems Ativo, Uploader Direto Implementado, Conteinerização/Conversão Opus Concluída, Recursos Premium/Shuffle/Repeat Dinâmicos, Barra de Progresso Premium e Extrator Headless E2E via Playwright Ativos.
 
 ---
 
@@ -12,7 +12,7 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
 ### Stacks & Módulos
 1. **Frontend (`mixer8-app`)**: React (LTS) + Vite + TailwindCSS + Lucide Icons + Web Audio API. Rodando na porta **`3000`** vinculada ao `.env`.
 2. **Backend API (`mixer8-api`)**: ASP.NET Core (.NET 10 / C# 13) rodando na porta **`5000`** e mapeado estritamente em **PascalCase**.
-3. **Background Worker (`mixer8-extractor`)**: Hosted Service C# (.NET 10) que realiza polling transacional na tabela `"Tracks"` (`FOR UPDATE SKIP LOCKED`) e orquestra a automação headless com cookies reais (`auth.json`).
+3. **Background Worker (`mixer8-extractor`)**: Hosted Service C# (.NET 10) que realiza polling transacional na tabela `"Tracks"` (`FOR UPDATE SKIP LOCKED`) e orquestra a automação headless com cookies reais e perfil de usuário persistente via ferramenta de automação.
 
 ---
 
@@ -21,7 +21,7 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
 1. **Geração Física de Migrations**: Criada e aplicada a primeira migração física `InitialCreate` mapeando a estrutura relacional real (`Users`, `Tracks`, `Stems`).
 2. **Autenticação RBAC e BCrypt**: Senhas criptografadas com hash adaptativo BCrypt. Usuários semente (`admin`, `moderator`, `paiduser`, `user`) registrados com a senha `mixer8` e claims injetados nos tokens JWT.
 3. **Importação e Validação de Cookies Headless**:
-   * O painel administrativo persistente grava fisicamente o JSONEditThisCookie no arquivo `/config/auth.json`.
+   * O painel administrativo persistente grava fisicamente o JSONEditThisCookie no banco de dados.
    * Criado o teste de conexão ativa que valida os cookies diretamente nos servidores da plataforma externa de IA de stems (`https://studio.external-stems-ai.com/`), retornando se a sessão está ativa ou expirada (evitando simulações no frontend).
 4. **Portas Dinâmicas**: Configuração unificada via `.env` na raiz do projeto.
 5. **Purga Completa de Mocks**:
@@ -41,7 +41,7 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
    * **Dockerfiles Multi-Stage**: Criados Dockerfiles para a API do backend (com instalação do `ffmpeg` com `libopus`), Worker de background e Frontend (com servidor Nginx Alpine otimizado).
    * **Orquestração Geral**: `docker-compose.yml` ajustado e ativado para subir todos os containers integrados sob volumes compartilhados de download e comunicação interna de rede.
    * **Conversão Opus**: Toda stem recebida (seja via upload direto ou extração do Worker) é transcodificada in-memory via pipes do FFmpeg para `.opus` (mono a 64k VBR para canais como Voz/Baixo, e estéreo a 96k VBR para os demais), reduzindo drasticamente o consumo de armazenamento sem perda perceptível de qualidade.
-   * **Worker Realista com Playwright**: O `Worker.cs` faz a extração real de stems na plataforma externa de stems de ponta a ponta simulando cliques e uploads com anti-detecção headless ou visual (baremetal local) via Playwright, fazendo download do ZIP real e invocando a API via `/api/Tracks/{id}/ProcessStemsZip` para realizar a conversão centralizada.
+   * **Worker Realista com Automação de Navegador**: O `Worker.cs` faz a extração real de stems na plataforma externa de stems de ponta a ponta simulando cliques e uploads locais de forma emulada via Playwright. Utiliza perfis de usuário persistentes (`user_profile`), varredura dinâmica de IFrames, seleção explícita de MP3 no player e um portão de tempo dinâmico (2 a 4 minutos) baseado no tamanho do arquivo original para evitar downloads prematuros, invocando a API via `/api/Tracks/{id}/ProcessStemsZip` para conversão.
 9. **Otimização de Transmissão (HTTP Range 206) e Sliders Premium**:
    * **Carregamento Otimizado**: Alterado o pré-carregamento das stems para `preload = 'metadata'`, evitando o download automático de arquivos inteiros de áudio e economizando banda.
    * **Streaming Parcial (HTTP 206)**: Servidor estático configurado com cabeçalhos de `Cache-Control` (30 dias) e suporte nativo a HTTP Range Requests, transmitindo bytes progressivamente em chunks.
