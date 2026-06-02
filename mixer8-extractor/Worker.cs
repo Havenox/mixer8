@@ -197,7 +197,6 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                     "--no-sandbox", 
                     "--disable-setuid-sandbox", 
                     "--disable-dev-shm-usage",
-                    "--disable-web-security",
                     "--disable-blink-features=AutomationControlled" // Anti-bot stealth
                 }
             };
