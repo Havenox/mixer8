@@ -234,17 +234,50 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             // Pequeno delay anti-bot
             await Task.Delay(Random.Shared.Next(1000, 2000), stoppingToken);
 
-            // Se redirecionou para o login, tenta efetuar o login automático com as credenciais do .env
-            if (page.Url.Contains("/login") || page.Url.Contains("/auth/login") || page.Url.Contains("/auth/"))
+            // 0.1. Tenta aceitar os cookies para desobstruir a tela se o banner estiver visível logo no início
+            Console.WriteLine("[BOT-PASSO] Verificando termos da LGPD e cookies preventivamente...");
+            await AcceptCookiesIfVisibleAsync(page, stoppingToken);
+
+            // Verifica se precisamos logar analisando a presença do botão de e-mail ou campos de login
+            Console.WriteLine("[BOT-PASSO] Analisando elementos da página para verificar estado de autenticação...");
+            var emailBtnSelectors = new[]
+            {
+                "button:has-text('Continuar com e-mail')",
+                "button:has-text('Continue with email')",
+                "button[class*='emailButton']",
+                "button[class*='_emailButton_']"
+            };
+
+            bool precisaLogar = false;
+            foreach (var selector in emailBtnSelectors)
+            {
+                var locator = page.Locator(selector).First;
+                if (await locator.CountAsync() > 0 && await locator.IsVisibleAsync())
+                {
+                    precisaLogar = true;
+                    Console.WriteLine($"[BOT-PASSO] Botão de autenticação localizado com seletor '{selector}'. Precisamos logar!");
+                    break;
+                }
+            }
+
+            if (!precisaLogar)
+            {
+                var emailSelector = "input[placeholder*='e-mail'], input[placeholder*='E-mail'], input[placeholder*='Digite seu e-mail'], input.rt-TextFieldInput[type='text'], input[type='email']";
+                var emailInput = page.Locator(emailSelector).First;
+                if (await emailInput.CountAsync() > 0 && await emailInput.IsVisibleAsync())
+                {
+                    precisaLogar = true;
+                    Console.WriteLine("[BOT-PASSO] Campos de login já renderizados em tela. Precisamos logar!");
+                }
+            }
+
+            if (precisaLogar)
             {
                 logger.LogInformation("[WORKER] PASSO: Navegador abriu deslogado. Iniciando rotina de login automático...");
-                Console.WriteLine("[BOT-PASSO] Tela de login detectada. Iniciando login automático...");
+                Console.WriteLine("[BOT-PASSO] Estado deslogado confirmado. Iniciando login automático...");
 
                 var extractorLogin = configuration["EXTRACTOR_LOGIN"]?.Trim('\r', '\n', ' ');
                 var extractorPassword = configuration["EXTRACTOR_PASSWORD"]?.Trim('\r', '\n', ' ');
-
-                logger.LogInformation($"[WORKER] PASSO: Login carregado (tamanho: {extractorLogin?.Length}), Senha carregada (tamanho: {extractorPassword?.Length})");
-                Console.WriteLine($"[BOT-PASSO] Credenciais obtidas do ambiente. Tamanho Login: {extractorLogin?.Length}, Tamanho Senha: {extractorPassword?.Length}");
 
                 if (string.IsNullOrWhiteSpace(extractorLogin) || string.IsNullOrWhiteSpace(extractorPassword) || extractorLogin.Contains("@exemplo.com"))
                 {
@@ -254,27 +287,15 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
 
                 await UpdateTrackStatusAsync(track.TrackId, "Processando: Efetuando login automático", db, stoppingToken);
 
-                // 0.1. Tenta aceitar os cookies para desobstruir a tela se o banner estiver visível
-                Console.WriteLine("[BOT-PASSO] Executando rotina preventiva de aceitação de cookies...");
-                await AcceptCookiesIfVisibleAsync(page, stoppingToken);
-
-                // 0.2. Clica no botão "Continuar com e-mail" para exibir os inputs
+                // Clica no botão "Continuar com e-mail" para exibir os inputs se ele estiver visível
                 logger.LogInformation("[WORKER] PASSO: Procurando o botão 'Continuar com e-mail'...");
                 Console.WriteLine("[BOT-PASSO] Procurando o botão 'Continuar com e-mail' na interface...");
-                var emailBtnSelectors = new[]
-                {
-                    "button:has-text('Continuar com e-mail')",
-                    "button:has-text('Continue with email')",
-                    "button[class*='emailButton']",
-                    "button[class*='_emailButton_']"
-                };
 
                 bool emailBtnClicked = false;
                 foreach (var selector in emailBtnSelectors)
                 {
                     try
                     {
-                        Console.WriteLine($"[BOT-PASSO] Testando seletor do botão de e-mail: '{selector}'...");
                         var emailBtn = page.Locator(selector).First;
                         if (await emailBtn.CountAsync() > 0 && await emailBtn.IsVisibleAsync())
                         {
@@ -286,15 +307,10 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                             await Task.Delay(Random.Shared.Next(1500, 2500), stoppingToken);
                             break;
                         }
-                        else
-                        {
-                            Console.WriteLine($"[BOT-PASSO] Seletor '{selector}' não está visível ou não foi encontrado.");
-                        }
                     }
                     catch (Exception ex)
                     {
                         logger.LogDebug($"[WORKER DEBUG] Tentativa com {selector} falhou: {ex.Message}");
-                        Console.WriteLine($"[BOT-PASSO] Falha temporária com '{selector}': {ex.Message}");
                     }
                 }
 
