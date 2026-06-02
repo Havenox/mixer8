@@ -333,7 +333,7 @@ export const UploadDireto: React.FC = () => {
           <h1 className="text-3xl font-black tracking-tight m-0 text-white flex items-center gap-2">
             <Layers className="w-8 h-8 text-brand-green" /> Upload Direto de Stems (ZIP/MP3)
           </h1>
-          <p className="text-sm text-brand-gray">Envie suas faixas extraídas diretamente do Moises ou de sua DAW. Arquivos prontos pulam a fila do extrator.</p>
+          <p className="text-sm text-brand-gray">Envie suas faixas extraídas diretamente de plataformas de IA ou de sua DAW. Arquivos prontos pulam a fila do extrator.</p>
         </div>
       </div>
 
@@ -458,7 +458,7 @@ export const UploadDireto: React.FC = () => {
                 <div className="flex flex-col items-center gap-1">
                   <span className="text-xs font-bold text-white text-center">Arraste seus áudios ou clique para carregar</span>
                   <span className="text-[10px] text-brand-gray text-center max-w-[350px]">
-                    Envie um arquivo <strong className="text-white">.zip</strong> com os arquivos extraídos do Moises, ou selecione múltiplos arquivos <strong className="text-white">.mp3</strong> correspondentes de forma individual.
+                    Envie um arquivo <strong className="text-white">.zip</strong> com os arquivos extraídos de plataformas de processamento parceiras, ou selecione múltiplos arquivos <strong className="text-white">.mp3</strong> correspondentes de forma individual.
                   </span>
                 </div>
                 <input 
