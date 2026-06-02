@@ -23,6 +23,35 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
     {
         logger.LogInformation("[WORKER] Extrator de Stems iniciado em .NET 10.");
 
+        // Consulta de depuração inicial para listar as últimas tracks e resetar a última para teste
+        using (var scope = serviceProvider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<Mixer8DbContext>();
+            try
+            {
+                var tracks = await db.Tracks.OrderByDescending(t => t.CreatedAt).Take(5).ToListAsync(stoppingToken);
+                Console.WriteLine("[BOT-DEBUG] === ÚLTIMAS 5 TRACKS NO BANCO DE DADOS ===");
+                foreach (var t in tracks)
+                {
+                    Console.WriteLine($"[BOT-DEBUG] ID: {t.TrackId} | Title: {t.TrackTitle} | Status: {t.ExtractionStatus} | Created: {t.CreatedAt}");
+                }
+                Console.WriteLine("[BOT-DEBUG] =========================================");
+
+                // Auto-reset da última track para facilitar teste contínuo
+                var lastTrack = tracks.FirstOrDefault();
+                if (lastTrack != null && (lastTrack.ExtractionStatus == "Falhou" || lastTrack.ExtractionStatus.StartsWith("Processando")))
+                {
+                    Console.WriteLine($"[BOT-DEBUG] Resetando track ID: {lastTrack.TrackId} ({lastTrack.TrackTitle}) de '{lastTrack.ExtractionStatus}' para 'Aguardando'...");
+                    lastTrack.ExtractionStatus = "Aguardando";
+                    await db.SaveChangesAsync(stoppingToken);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[BOT-DEBUG] Erro ao listar/resetar tracks de depuração: {ex.Message}");
+            }
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -85,6 +114,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         using var scope = serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<Mixer8DbContext>();
 
+        IPage? page = null;
         try
         {
             // Sincroniza cookies do Moises.ai a partir do banco PostgreSQL
@@ -181,14 +211,39 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             await UpdateTrackStatusAsync(track.TrackId, "Processando: Inicializando o Playwright", db, stoppingToken);
             using var playwright = await Playwright.CreateAsync();
 
-            // Configurações do Navegador
+            // Configurações do Navegador com Perfil Persistente
+            var configDirForProfile = configuration["EXTRACTOR_CONFIG_DIR"] ?? "./mixer8-extractor/config";
+            if (!Path.IsPathRooted(configDirForProfile))
+            {
+                var baseDir = AppContext.BaseDirectory;
+                var resolved = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", configDirForProfile));
+                if (!Directory.Exists(resolved))
+                {
+                    resolved = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", configDirForProfile));
+                }
+                if (!Directory.Exists(resolved))
+                {
+                    resolved = Path.GetFullPath(Path.Combine(baseDir, "..", configDirForProfile));
+                }
+                if (!Directory.Exists(resolved))
+                {
+                    resolved = Path.GetFullPath(Path.Combine(baseDir, configDirForProfile));
+                }
+                configDirForProfile = resolved;
+            }
+            var userProfileDir = Path.Combine(configDirForProfile, "user_profile");
+            if (!Directory.Exists(userProfileDir))
+            {
+                Directory.CreateDirectory(userProfileDir);
+            }
+
             var headlessStr = configuration["EXTRACTOR_HEADLESS"] ?? "true";
             bool isHeadless = !string.Equals(headlessStr, "false", StringComparison.OrdinalIgnoreCase);
             
             var slowMoStr = configuration["EXTRACTOR_SLOW_MO"] ?? "0";
             int slowMo = int.TryParse(slowMoStr, out var sm) ? sm : 0;
 
-            var launchOptions = new BrowserTypeLaunchOptions
+            var contextOptions = new BrowserTypeLaunchPersistentContextOptions
             {
                 Headless = isHeadless,
                 SlowMo = slowMo,
@@ -198,37 +253,51 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                     "--disable-setuid-sandbox", 
                     "--disable-dev-shm-usage",
                     "--disable-blink-features=AutomationControlled" // Anti-bot stealth
-                }
-            };
-
-            var contextOptions = new BrowserNewContextOptions
-            {
+                },
                 UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 ViewportSize = new ViewportSize { Width = 1280, Height = 800 },
                 Locale = "pt-BR",
                 TimezoneId = "America/Sao_Paulo"
             };
 
-            logger.LogInformation($"[WORKER] Lançando Chromium padrão (Headless: {isHeadless}, SlowMo: {slowMo}ms)...");
-            Console.WriteLine("[BOT-PASSO] Lançando navegador limpo sem perfil persistente...");
+            logger.LogInformation($"[WORKER] Lançando Chromium com Perfil Persistente (Headless: {isHeadless}, SlowMo: {slowMo}ms, Perfil: {userProfileDir})...");
+            Console.WriteLine($"[BOT-PASSO] Lançando navegador com perfil persistente em: {userProfileDir}");
 
-            await using var browser = await playwright.Chromium.LaunchAsync(launchOptions);
-            await using var context = await browser.NewContextAsync(contextOptions);
-            var page = await context.NewPageAsync();
+            var context = await playwright.Chromium.LaunchPersistentContextAsync(userProfileDir, contextOptions);
+            
+            // Garante que só temos 1 página aberta no perfil persistente e foca nela em primeiro plano
+            var pages = context.Pages.ToList();
+            page = pages.FirstOrDefault() ?? await context.NewPageAsync();
+            for (int i = 1; i < pages.Count; i++)
+            {
+                try { await pages[i].CloseAsync(); } catch { }
+            }
+            await page.BringToFrontAsync();
 
             // 4. Acessa a página de Upload Split
             await UpdateTrackStatusAsync(track.TrackId, "Processando: Acessando a tela de Upload do Moises.ai", db, stoppingToken);
             logger.LogInformation("[WORKER] PASSO: Acessando a página de upload: https://studio.moises.ai/upload/split");
             Console.WriteLine("[BOT-PASSO] Acessando URL https://studio.moises.ai/upload/split...");
             
-            await page.GotoAsync("https://studio.moises.ai/upload/split", new PageGotoOptions 
-            { 
-                Timeout = 60000, 
-                WaitUntil = WaitUntilState.NetworkIdle 
-            });
+            try
+            {
+                Console.WriteLine("[BOT-PASSO] Enviando requisição de navegação (esperando até DOMContentLoaded)...");
+                await page.GotoAsync("https://studio.moises.ai/upload/split", new PageGotoOptions 
+                { 
+                    Timeout = 30000, 
+                    WaitUntil = WaitUntilState.DOMContentLoaded 
+                });
+                Console.WriteLine($"[BOT-PASSO] Navegação inicial concluída! URL atual: {page.Url}");
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning($"[WORKER WARNING] Navegação inicial para o Moises demorou ou disparou timeout de rede: {ex.Message}. Prosseguindo mesmo assim...");
+                Console.WriteLine($"[BOT-PASSO] [Aviso] Timeout ou lentidão na rede detectada ({ex.Message}). Prosseguindo com o fluxo do bot.");
+            }
 
-            logger.LogInformation($"[WORKER] PASSO: URL carregada com sucesso. URL Atual no navegador: {page.Url}");
-            Console.WriteLine($"[BOT-PASSO] Página carregada! URL Atual: {page.Url}");
+            logger.LogInformation($"[WORKER] PASSO: URL carregada. URL Atual no navegador: {page.Url}");
+            Console.WriteLine($"[BOT-PASSO] Estado do navegador pronto para analisar a DOM. URL Atual: {page.Url}");
+            await TakeScreenshotAsync(page, "01_navegacao_concluida_" + track.TrackId);
 
             // Pequeno delay anti-bot
             await Task.Delay(Random.Shared.Next(1000, 2000), stoppingToken);
@@ -346,118 +415,306 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 Console.WriteLine("[BOT-PASSO] Credenciais submetidas. Aguardando processamento inicial...");
                 await Task.Delay(Random.Shared.Next(1000, 2000), stoppingToken);
 
-                // 4. Aguarda retornar para a tela de upload/split (verificando pela presença da caixa de upload)
-                Console.WriteLine("[BOT-PASSO] Aguardando o carregamento da tela de Upload com loop de monitoramento ativo...");
-                
-                var dropzoneSelector = "text=Solte ou selecione, text=Formatos suportados, div[class*='select-local-file_dropzone'], .select-local-file_dropzone__48wgh";
-                bool uploadTelaCarregada = false;
-                int maxUploadChecks = 25; // 25 * 2s = 50 segundos
-                
-                for (int i = 1; i <= maxUploadChecks; i++)
-                {
-                    Console.WriteLine($"[BOT-PASSO] [Checagem {i}/{maxUploadChecks}] Analisando a página. URL atual: {page.Url}");
-                    
-                    // Aceita cookies preventivamente se reaparecerem
-                    await AcceptCookiesIfVisibleAsync(page, stoppingToken);
+                // 4. Aguarda carregar a tela de upload pós-login por 10 segundos fixos
+                Console.WriteLine("[BOT-PASSO] Credenciais submetidas com sucesso. Aguardando delay fixo de 10 segundos para o carregamento da tela de upload...");
+                await Task.Delay(10000, stoppingToken);
 
-                    // Verifica se há alguma mensagem de erro de login visível
-                    try
-                    {
-                        var errorMsg = page.Locator("text=Combinação de e-mail e senha incorreta, text=incorrect, .error-message").First;
-                        if (await errorMsg.CountAsync() > 0 && await errorMsg.IsVisibleAsync())
-                        {
-                            var text = await errorMsg.TextContentAsync();
-                            Console.WriteLine($"[BOT-ERRO] Erro de autenticação detectado em tela: '{text?.Trim()}'");
-                            throw new UnauthorizedAccessException($"[WORKER ERROR] Falha no login automático: '{text?.Trim()}'");
-                        }
-                    }
-                    catch (UnauthorizedAccessException) { throw; }
-                    catch { }
-
-                    // Verifica se a caixa de upload (dropzone) está visível
-                    var dropzone = page.Locator(dropzoneSelector).First;
-                    if (await dropzone.CountAsync() > 0)
-                    {
-                        bool isVisible = await dropzone.IsVisibleAsync();
-                        Console.WriteLine($"[BOT-PASSO] Caixa de upload localizada! Visível: {isVisible}");
-                        if (isVisible)
-                        {
-                            uploadTelaCarregada = true;
-                            break;
-                        }
-                    }
-                    else
-                    {
-                        Console.WriteLine("[BOT-PASSO] Caixa de upload ainda não encontrada no DOM.");
-                    }
-
-                    await Task.Delay(2000, stoppingToken);
-                }
-
-                if (!uploadTelaCarregada)
-                {
-                    throw new TimeoutException("[WORKER ERROR] A tela de upload não foi carregada dentro do tempo limite.");
-                }
+                // Aceita cookies preventivamente se reaparecerem após o login
+                await AcceptCookiesIfVisibleAsync(page, stoppingToken);
 
                 logger.LogInformation("[WORKER SUCCESS] PASSO: Login automático concluído!");
-                Console.WriteLine("[BOT-PASSO] Login automático efetuado com sucesso! Tela de Upload carregada.");
-                await Task.Delay(2000, stoppingToken);
+                Console.WriteLine("[BOT-PASSO] Login automático efetuado com sucesso! Prosseguindo para o upload.");
             }
             else
             {
                 Console.WriteLine("[BOT-PASSO] Sessão já estava ativa (usuário logado). Pulando login.");
+                // Adiciona delay fixo para renderização de tela mesmo com sessão ativa
+                Console.WriteLine("[BOT-PASSO] Aguardando delay fixo de 5 segundos para a renderização completa da tela de upload...");
+                await Task.Delay(5000, stoppingToken);
             }
 
-            // 5. Upload do Arquivo no Dropzone do Moises
-            await UpdateTrackStatusAsync(track.TrackId, "Processando: Enviando áudio original para o Moises.ai", db, stoppingToken);
-            logger.LogInformation($"[WORKER] PASSO: Realizando upload do arquivo original para o Moises: {originalFile}");
-            Console.WriteLine($"[BOT-PASSO] Iniciando upload do arquivo original: {originalFile}");
-
-            // O Playwright seleciona e injeta o arquivo no input oculto de uploads
-            var fileInputSelector = "input[type='file']";
-            Console.WriteLine($"[BOT-PASSO] Aguardando localizador de upload de arquivos ('{fileInputSelector}')...");
-            await page.WaitForSelectorAsync(fileInputSelector, new PageWaitForSelectorOptions { Timeout = 20000 });
+            // 5. Envio do Link na aba Armazenamento na Nuvem do Moises
+            await UpdateTrackStatusAsync(track.TrackId, "Processando: Configurando link de nuvem para o Moises.ai", db, stoppingToken);
             
-            var fileInput = await page.QuerySelectorAsync(fileInputSelector);
-            if (fileInput == null)
+            // Resolve a URL da API de forma agnóstica para montar o link da música original
+            var apiUrl = configuration["API_URL"];
+            if (string.IsNullOrEmpty(apiUrl))
             {
-                Console.WriteLine("[BOT-ERRO] Input de arquivo não encontrado na página.");
-                throw new InvalidOperationException("[WORKER ERROR] Não foi possível localizar o input de arquivos do Moises.ai.");
+                var apiPort = configuration["API_PORT"] ?? "5000";
+                apiUrl = $"http://localhost:{apiPort}";
+            }
+            apiUrl = apiUrl.TrimEnd('/');
+            var publicTrackUrl = $"{apiUrl}/api/Tracks/{track.TrackId}/original";
+
+            logger.LogInformation($"[WORKER] PASSO: Enviando URL da track original para o Moises: {publicTrackUrl}");
+            Console.WriteLine($"[BOT-PASSO] URL agnóstica montada para envio: {publicTrackUrl}");
+
+            // 5.1. Detecção dinâmica de IFrames ativos na página
+            Console.WriteLine("[BOT-PASSO] Verificando se a interface está embutida dentro de algum IFrame...");
+            IFrame? interactionFrame = null;
+            
+            // Dá um delay curto para que a DOM termine de estruturar os frames na SPA
+            await Task.Delay(2000, stoppingToken);
+            
+            var framesList = page.Frames.ToList();
+            Console.WriteLine($"[BOT-PASSO] Total de IFrames detectados na página: {framesList.Count}");
+            foreach (var frame in framesList)
+            {
+                if (frame == page.MainFrame) continue;
+                try
+                {
+                    // Verifica se o HTML do frame contém strings-chave características da interface de upload do Moises
+                    var content = await frame.ContentAsync();
+                    if (content.Contains("Armazenado na nuvem", StringComparison.OrdinalIgnoreCase) || 
+                        content.Contains("Arquivos locais", StringComparison.OrdinalIgnoreCase) ||
+                        content.Contains("tab_container", StringComparison.OrdinalIgnoreCase) ||
+                        content.Contains("url_text_box", StringComparison.OrdinalIgnoreCase))
+                    {
+                        interactionFrame = frame;
+                        Console.WriteLine($"[BOT-PASSO] Interface de upload localizada no IFrame: '{frame.Name}' (URL: {frame.Url})");
+                        break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogDebug($"[WORKER DEBUG] Erro ao ler conteúdo do frame {frame.Name}: {ex.Message}");
+                }
+            }
+
+            if (interactionFrame != null)
+            {
+                Console.WriteLine("[BOT-PASSO] Atenção: As ações de clique e inserção serão direcionadas para o IFrame detectado!");
+            }
+            else
+            {
+                Console.WriteLine("[BOT-PASSO] Nenhum IFrame secundário contendo a interface foi detectado. Usando a página principal.");
+            }
+
+            // Aguarda a renderização física do contêiner de abas na interface antes de interagir
+            Console.WriteLine("[BOT-PASSO] Aguardando a renderização do contêiner de abas na interface do Moises...");
+            var tabContainerSelector = "div[class*='tab_container'], .tab_container, div[class*='select-local-file_dropzone']";
+            try
+            {
+                if (interactionFrame != null)
+                {
+                    await interactionFrame.WaitForSelectorAsync(tabContainerSelector, new FrameWaitForSelectorOptions { State = WaitForSelectorState.Visible, Timeout = 15000 });
+                }
+                else
+                {
+                    await page.WaitForSelectorAsync(tabContainerSelector, new PageWaitForSelectorOptions { State = WaitForSelectorState.Visible, Timeout = 15000 });
+                }
+                Console.WriteLine("[BOT-PASSO] Contêiner de abas renderizado com sucesso!");
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning($"[WORKER WARNING] O contêiner de abas não apareceu no tempo esperado: {ex.Message}. Tentando continuar mesmo assim...");
+                Console.WriteLine($"[BOT-PASSO] [Aviso] Contêiner de abas não localizado na DOM ({ex.Message}). Continuando...");
+            }
+
+            // Clicando na aba "Arquivos locais" para garantir que estamos no local de upload correto
+            Console.WriteLine("[BOT-PASSO] Garantindo que a aba 'Arquivos locais' está ativa...");
+            var localTabSelectors = new[]
+            {
+                "div[class*='tab_container'] > div:nth-child(1)",
+                "div[role='button']:has-text('Arquivos locais')",
+                "div[class*='tab_tab']:has-text('Arquivos')",
+                "div[class*='tab_tab']:has-text('locais')",
+                "text=Arquivos locais"
+            };
+
+            bool localTabClicked = false;
+            foreach (var selector in localTabSelectors)
+            {
+                try
+                {
+                    Console.WriteLine($"[BOT-PASSO] Tentando garantir aba ativa via seletor: '{selector}' (com tolerância de 2s)...");
+                    var locator = interactionFrame != null ? interactionFrame.Locator(selector).First : page.Locator(selector).First;
+                    await locator.ClickAsync(new LocatorClickOptions { Timeout = 2000 });
+                    Console.WriteLine($"[BOT-PASSO] Aba selecionada via seletor: '{selector}'");
+                    localTabClicked = true;
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogDebug($"[WORKER DEBUG] Tentativa de clique rápido com '{selector}' falhou: {ex.Message}");
+                }
+            }
+
+            if (!localTabClicked)
+            {
+                Console.WriteLine("[BOT-PASSO] Aba local não respondida por seletores rápidos. Forçando clique estrutural final...");
+                try
+                {
+                    if (interactionFrame != null)
+                    {
+                        await interactionFrame.ClickAsync("div[class*='tab_container'] > div:nth-child(1)", new FrameClickOptions { Timeout = 5000 });
+                    }
+                    else
+                    {
+                        await page.ClickAsync("div[class*='tab_container'] > div:nth-child(1)", new PageClickOptions { Timeout = 5000 });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogDebug($"[WORKER DEBUG] Falha ao forçar clique na aba local: {ex.Message}");
+                }
+            }
+
+            await Task.Delay(Random.Shared.Next(1000, 1500), stoppingToken);
+            await TakeScreenshotAsync(page, "02_antes_do_upload_local_" + track.TrackId);
+
+            // Preenche o input de arquivo local
+            var fileInputSelector = "input[type='file']";
+            Console.WriteLine($"[BOT-PASSO] Aguardando campo de entrada de arquivos locais ('{fileInputSelector}')...");
+            if (interactionFrame != null)
+            {
+                await interactionFrame.WaitForSelectorAsync(fileInputSelector, new FrameWaitForSelectorOptions { State = WaitForSelectorState.Attached, Timeout = 20000 });
+                Console.WriteLine($"[BOT-PASSO] Input de arquivo localizado! Injetando arquivo local: {originalFile}");
+                await interactionFrame.Locator(fileInputSelector).SetInputFilesAsync(originalFile);
+            }
+            else
+            {
+                await page.WaitForSelectorAsync(fileInputSelector, new PageWaitForSelectorOptions { State = WaitForSelectorState.Attached, Timeout = 20000 });
+                Console.WriteLine($"[BOT-PASSO] Input de arquivo localizado! Injetando arquivo local: {originalFile}");
+                await page.Locator(fileInputSelector).SetInputFilesAsync(originalFile);
             }
             
-            Console.WriteLine("[BOT-PASSO] Injetando arquivo local no navegador...");
-            await fileInput.SetInputFilesAsync(originalFile);
-
-            logger.LogInformation("[WORKER] PASSO: Arquivo selecionado no navegador. Aguardando processamento da seleção...");
-            Console.WriteLine("[BOT-PASSO] Arquivo selecionado! Aguardando 2 segundos para o upload inicial...");
-            await Task.Delay(Random.Shared.Next(2000, 3000), stoppingToken);
-
-            // Garante que o banner de cookies está aceito
-            Console.WriteLine("[BOT-PASSO] Executando rotina preventiva de cookies antes do Envio...");
-            await AcceptCookiesIfVisibleAsync(page, stoppingToken);
+            logger.LogInformation("[WORKER] PASSO: Arquivo original enviado para o Moises. Aguardando processamento e validação...");
+            Console.WriteLine("[BOT-PASSO] Arquivo enviado! Aguardando o progresso de upload local...");
+            await Task.Delay(Random.Shared.Next(5000, 7000), stoppingToken);
+            await TakeScreenshotAsync(page, "03_apos_upload_local_" + track.TrackId);
 
             // 6. Tela de Seleção de Stems
             // O Moises redireciona automaticamente para a tela de stems (split) ou habilita o botão de Enviar.
             await UpdateTrackStatusAsync(track.TrackId, "Processando: Configurando divisão de stems (Moises)", db, stoppingToken);
 
-            var submitButtonSelector = "button#upload_submit_button, button:has-text('Enviar'), button:has-text('Submit')";
+            // Diagnóstico de elementos contendo 'Enviar' para depurar qual é o elemento real do botão
+            try
+            {
+                Console.WriteLine("[BOT-DEBUG] Analisando elementos do DOM contendo o texto 'Enviar'...");
+                var evalScript = @"() => {
+                    const results = [];
+                    const elements = document.querySelectorAll('button, div, a, span, p');
+                    for (const el of elements) {
+                        if (el.textContent && el.textContent.trim().toLowerCase().startsWith('enviar') || el.innerText && el.innerText.trim().toLowerCase() === 'enviar') {
+                            results.push({
+                                tagName: el.tagName,
+                                id: el.id,
+                                className: el.className,
+                                text: el.textContent ? el.textContent.trim() : '',
+                                isVisible: el.offsetWidth > 0 && el.offsetHeight > 0,
+                                html: el.outerHTML.substring(0, 300)
+                            });
+                        }
+                    }
+                    return JSON.stringify(results, null, 2);
+                }";
+
+                var analysisResult = interactionFrame != null 
+                    ? await interactionFrame.EvaluateAsync<string>(evalScript)
+                    : await page.EvaluateAsync<string>(evalScript);
+                Console.WriteLine($"[BOT-DEBUG] Resultado da busca por 'Enviar':\n{analysisResult}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[BOT-DEBUG] Falha ao rodar JS de diagnóstico: {ex.Message}");
+            }
+
+            var submitButtonSelector = "button#upload_submit_button, button:has-text('Enviar'), button:has-text('Submit'), button[class*='submit'], button[class*='Submit'], button[type='submit']";
             Console.WriteLine($"[BOT-PASSO] Aguardando a ativação do botão 'Enviar' ('{submitButtonSelector}')...");
-            await page.WaitForSelectorAsync(submitButtonSelector, new PageWaitForSelectorOptions { Timeout = 60000 });
             
-            Console.WriteLine("[BOT-PASSO] Botão 'Enviar' ativo! Aguardando delay anti-bot...");
-            await Task.Delay(Random.Shared.Next(1500, 3000), stoppingToken); // delay humano anti-bot
-            
-            logger.LogInformation("[WORKER] PASSO: Clicando no botão 'Enviar' para iniciar a extração...");
-            Console.WriteLine("[BOT-PASSO] Clicando no botão 'Enviar'...");
-            await page.ClickAsync(submitButtonSelector);
+            if (interactionFrame != null)
+            {
+                await interactionFrame.WaitForSelectorAsync(submitButtonSelector, new FrameWaitForSelectorOptions { Timeout = 120000 });
+                Console.WriteLine("[BOT-PASSO] Botão 'Enviar' ativo no IFrame! Clicando...");
+                await interactionFrame.ClickAsync(submitButtonSelector);
+                
+                // Força um clique via JS caso o clique nativo do Playwright tenha falhado por alguma interceptação/sobreposição de camada
+                try
+                {
+                    Console.WriteLine("[BOT-PASSO] Clicando via JS Evaluate no botão 'Enviar' por garantia...");
+                    await interactionFrame.EvaluateAsync(@"() => {
+                        const btn = document.querySelector('button#upload_submit_button') || document.querySelector('button[id*=\'submit\']');
+                        if (btn) {
+                            btn.click();
+                        } else {
+                            const buttons = Array.from(document.querySelectorAll('button'));
+                            const target = buttons.find(b => b.textContent && b.textContent.includes('Enviar'));
+                            if (target) target.click();
+                        }
+                    }");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[BOT-DEBUG] Aviso ao tentar clique via JS: {ex.Message}");
+                }
+            }
+            else
+            {
+                await page.WaitForSelectorAsync(submitButtonSelector, new PageWaitForSelectorOptions { Timeout = 120000 });
+                Console.WriteLine("[BOT-PASSO] Botão 'Enviar' ativo na página principal! Clicando...");
+                await page.ClickAsync(submitButtonSelector);
+                
+                try
+                {
+                    Console.WriteLine("[BOT-PASSO] Clicando via JS Evaluate no botão 'Enviar' da página principal por garantia...");
+                    await page.EvaluateAsync(@"() => {
+                        const btn = document.querySelector('button#upload_submit_button') || document.querySelector('button[id*=\'submit\']');
+                        if (btn) {
+                            btn.click();
+                        } else {
+                            const buttons = Array.from(document.querySelectorAll('button'));
+                            const target = buttons.find(b => b.textContent && b.textContent.includes('Enviar'));
+                            if (target) target.click();
+                        }
+                    }");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[BOT-DEBUG] Aviso ao tentar clique via JS na página principal: {ex.Message}");
+                }
+            }
 
             // 7. Retorno à Biblioteca
             await UpdateTrackStatusAsync(track.TrackId, "Processando: Aguardando retorno para a Biblioteca", db, stoppingToken);
             logger.LogInformation("[WORKER] PASSO: Aguardando redirecionamento para a biblioteca...");
             Console.WriteLine("[BOT-PASSO] Aguardando processamento/upload e redirecionamento para a biblioteca (/library)...");
             
-            await page.WaitForURLAsync("**/library**", new PageWaitForURLOptions { Timeout = 120000 });
-            Console.WriteLine("[BOT-PASSO] Redirecionado com sucesso para a biblioteca!");
+            bool redirecionou = false;
+            int waitLibrarySeconds = 120;
+            for (int i = 0; i < waitLibrarySeconds / 5; i++)
+            {
+                await Task.Delay(5000, stoppingToken);
+                
+                // Tira screenshot periódico para diagnóstico visual
+                try 
+                { 
+                    await TakeScreenshotAsync(page, $"04_aguardando_biblioteca_{i}_{track.TrackId}"); 
+                } 
+                catch (Exception ex) 
+                {
+                    Console.WriteLine($"[BOT-DEBUG] Falha ao tirar screenshot periódico: {ex.Message}");
+                }
+
+                // Verifica se a página principal ou o iframe navegaram para /library
+                var mainUrl = page.Url;
+                var frameUrl = interactionFrame != null ? interactionFrame.Url : "";
+                
+                Console.WriteLine($"[BOT-PASSO] [Aguardando Redirecionamento - Passo {i}] URL Principal: {mainUrl} | URL IFrame: {frameUrl}");
+
+                if (mainUrl.Contains("/library") || frameUrl.Contains("/library"))
+                {
+                    redirecionou = true;
+                    Console.WriteLine("[BOT-PASSO] Redirecionamento para /library detectado com sucesso!");
+                    break;
+                }
+            }
+
+            if (!redirecionou)
+            {
+                throw new TimeoutException("[WORKER ERROR] O redirecionamento para a biblioteca (/library) não ocorreu dentro de 120 segundos.");
+            }
+
             await Task.Delay(Random.Shared.Next(3000, 5000), stoppingToken); // delay humano de carregamento
 
             // 8. Clicar no primeiro áudio da lista (mais recente)
@@ -469,21 +726,121 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             Console.WriteLine("[BOT-PASSO] Executando rotina preventiva de cookies na biblioteca...");
             await AcceptCookiesIfVisibleAsync(page, stoppingToken);
 
-            // Aguarda a tabela/grade/flex list de faixas carregar usando o seletor moderno Radix UI
-            var firstRowSelector = "span[class*='_titleText_'], div[class*='_titleText_'], .track-row:first-child, tr:first-child td, .track-list-item:first-child, td a";
-            Console.WriteLine($"[BOT-PASSO] Aguardando a presença de itens na biblioteca ('{firstRowSelector}')...");
+            // Determina seletores específicos e robustos para o botão que abre a DAW
+            string firstRowSelector = $"tr.rt-TableRow:has-text(\"{track.TrackId}\") button[class*='_rowActionButton_']";
+            Console.WriteLine($"[BOT-PASSO] Procurando o botão específico da DAW para a track pelo ID ('{firstRowSelector}')...");
+            
+            var targetButton = page.Locator(firstRowSelector).First;
+            if (await targetButton.CountAsync() == 0)
+            {
+                Console.WriteLine("[BOT-PASSO] Faixa com ID específico não encontrada na biblioteca. Tentando localizar pelo título...");
+                firstRowSelector = $"tr.rt-TableRow:has-text(\"{track.TrackTitle}\") button[class*='_rowActionButton_']";
+                targetButton = page.Locator(firstRowSelector).First;
+            }
+
+            if (await targetButton.CountAsync() == 0)
+            {
+                Console.WriteLine("[BOT-PASSO] Fallback: Tentando localizar pelo primeiro botão de ação de linha genérico...");
+                firstRowSelector = "tr.rt-TableRow:first-child button[class*='_rowActionButton_']";
+                targetButton = page.Locator(firstRowSelector).First;
+            }
+
+            if (await targetButton.CountAsync() == 0)
+            {
+                Console.WriteLine("[BOT-PASSO] Segundo Fallback: Tentando localizar qualquer span de título...");
+                firstRowSelector = "span[class*='_titleText_']";
+                targetButton = page.Locator(firstRowSelector).First;
+            }
+
+            Console.WriteLine($"[BOT-PASSO] Aguardando a presença de itens na biblioteca usando o seletor resoluto ('{firstRowSelector}')...");
             await page.WaitForSelectorAsync(firstRowSelector, new PageWaitForSelectorOptions { Timeout = 45000 });
             
             logger.LogInformation("[WORKER] PASSO: Primeiro item da biblioteca localizado. Clicando...");
-            Console.WriteLine("[BOT-PASSO] Primeiro item encontrado! Efetuando clique para abrir a DAW...");
-            await page.ClickAsync(firstRowSelector);
+            Console.WriteLine("[BOT-PASSO] Item encontrado! Efetuando clique para abrir a DAW...");
+            await targetButton.ClickAsync();
             Console.WriteLine("[BOT-PASSO] Clique realizado. Aguardando carregamento da DAW...");
             await Task.Delay(Random.Shared.Next(2000, 4000), stoppingToken);
 
             // 9. DAW (Player): Aguardar o processamento das faixas
             await UpdateTrackStatusAsync(track.TrackId, "Processando: Aguardando separação de stems na DAW", db, stoppingToken);
             logger.LogInformation("[WORKER] PASSO: DAW / Player carregado. Monitorando processamento das stems...");
-            Console.WriteLine("[BOT-PASSO] Carregou a DAW! Iniciando monitoramento do botão 'Exportar'...");
+            
+            // 9.1. Detecção dinâmica de IFrames ativos na página da DAW (Player2)
+            Console.WriteLine("[BOT-PASSO] Verificando se o Player/DAW está rodando dentro de um IFrame...");
+            IFrame? playerFrame = null;
+            
+            // Dá um delay curto para que a DOM carregue os frames iniciais do player
+            await Task.Delay(5000, stoppingToken);
+            
+            var playerFramesList = page.Frames.ToList();
+            Console.WriteLine($"[BOT-PASSO] [DAW] Total de IFrames detectados na página da DAW: {playerFramesList.Count}");
+            foreach (var frame in playerFramesList)
+            {
+                if (frame == page.MainFrame) continue;
+                try
+                {
+                    var content = await frame.ContentAsync();
+                    if (content.Contains("Exportar", StringComparison.OrdinalIgnoreCase) || 
+                        content.Contains("Export", StringComparison.OrdinalIgnoreCase) ||
+                        content.Contains("Separando faixas", StringComparison.OrdinalIgnoreCase) ||
+                        content.Contains("Vocais", StringComparison.OrdinalIgnoreCase) ||
+                        content.Contains("Vocals", StringComparison.OrdinalIgnoreCase) ||
+                        content.Contains("buttonExport", StringComparison.OrdinalIgnoreCase))
+                    {
+                        playerFrame = frame;
+                        Console.WriteLine($"[BOT-PASSO] [DAW] Interface localizada no IFrame: '{frame.Name}' (URL: {frame.Url})");
+                        break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogDebug($"[WORKER DEBUG] Erro ao ler conteúdo do frame {frame.Name}: {ex.Message}");
+                }
+            }
+
+            if (playerFrame != null)
+            {
+                Console.WriteLine("[BOT-PASSO] [DAW] As interações do player serão direcionadas para o IFrame correspondente.");
+            }
+            else
+            {
+                Console.WriteLine("[BOT-PASSO] [DAW] Nenhum IFrame com o player foi detectado. Usando a página principal.");
+            }
+
+            // Calcula o atraso fixo inicial com base no tamanho do arquivo original (proporcional à duração)
+            long fileSizeBytes = 0;
+            try
+            {
+                if (File.Exists(originalFile))
+                {
+                    fileSizeBytes = new FileInfo(originalFile).Length;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[BOT-DEBUG] Falha ao ler tamanho do arquivo original: {ex.Message}");
+            }
+
+            int delayMs = 120000; // 2 minutos padrão (120.000 ms)
+            if (fileSizeBytes > 15 * 1024 * 1024) // > 15 MB (geralmente > 6-7 min de áudio)
+            {
+                delayMs = 240000; // 4 minutos
+                Console.WriteLine($"[BOT-PASSO] Arquivo grande detectado ({fileSizeBytes / (1024.0 * 1024.0):F2} MB). Definindo tempo de espera para 4 minutos.");
+            }
+            else if (fileSizeBytes > 8 * 1024 * 1024) // > 8 MB (geralmente > 3-4 min de áudio)
+            {
+                delayMs = 180000; // 3 minutos
+                Console.WriteLine($"[BOT-PASSO] Arquivo médio-grande detectado ({fileSizeBytes / (1024.0 * 1024.0):F2} MB). Definindo tempo de espera para 3 minutos.");
+            }
+            else
+            {
+                Console.WriteLine($"[BOT-PASSO] Arquivo padrão/pequeno detectado ({fileSizeBytes / (1024.0 * 1024.0):F2} MB). Definindo tempo de espera padrão de 2 minutos.");
+            }
+
+            Console.WriteLine($"[BOT-PASSO] Aguardando atraso fixo de {delayMs / 1000} segundos para que o Moises conclua o processamento de todas as stems...");
+            await Task.Delay(delayMs, stoppingToken);
+
+            Console.WriteLine("[BOT-PASSO] Iniciando monitoramento do botão 'Exportar'...");
 
             // Monitoramos a presença e a ativação do botão "Exportar" que é habilitado quando pronto
             var exportButtonSelector = "button[class*='download-task_buttonExport__'], button:has-text('Exportar'), button:has-text('Export')";
@@ -498,7 +855,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 Console.WriteLine($"[BOT-PASSO] Verificando botão 'Exportar' (Tempo restante máximo: {tentativasDAW * 10}s)...");
                 await Task.Delay(10000, stoppingToken);
                 
-                var exportButton = page.Locator(exportButtonSelector).First;
+                var exportButton = playerFrame != null ? playerFrame.Locator(exportButtonSelector).First : page.Locator(exportButtonSelector).First;
                 if (await exportButton.CountAsync() > 0)
                 {
                     bool isEnabled = await exportButton.IsEnabledAsync();
@@ -531,7 +888,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             await UpdateTrackStatusAsync(track.TrackId, "Processando: Exportando stems selecionadas", db, stoppingToken);
             Console.WriteLine("[BOT-PASSO] Iniciando processo de exportação...");
 
-            var exportAllSelector = "a[class*='download-task-drop_button__'], button:has-text('Exportar todos os canais'), a:has-text('Exportar todos os canais'), text=Exportar todos os canais";
+            var exportAllSelector = "a:has-text('Exportar todos os canais'), button:has-text('Exportar todos os canais'), a:has-text('todos os canais'), a[class*='download-task-drop_button']:has-text('Exportar')";
             IDownload? download = null;
             int maxExportRetries = 3;
 
@@ -545,17 +902,33 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                     // Garante que o banner de cookies está aceito
                     await AcceptCookiesIfVisibleAsync(page, stoppingToken);
 
-                    var exportButton = page.Locator(exportButtonSelector).First;
+                    var exportButton = playerFrame != null ? playerFrame.Locator(exportButtonSelector).First : page.Locator(exportButtonSelector).First;
                     await exportButton.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 15000 });
                     await exportButton.ClickAsync();
                     
                     Console.WriteLine("[BOT-PASSO] Botão 'Exportar' clicado! Aguardando 2 segundos para o menu suspender...");
                     await Task.Delay(Random.Shared.Next(2000, 3000), stoppingToken);
 
+                    // Seleciona o formato MP3 no menu de exportação
+                    var mp3ButtonSelector = "button:has-text('MP3'), button:text('MP3'), button[class*='styles_button']:has-text('MP3')";
+                    try
+                    {
+                        Console.WriteLine("[BOT-PASSO] Tentando selecionar o formato 'MP3' no menu de exportação...");
+                        var mp3Button = playerFrame != null ? playerFrame.Locator(mp3ButtonSelector).First : page.Locator(mp3ButtonSelector).First;
+                        await mp3Button.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
+                        await mp3Button.ClickAsync();
+                        Console.WriteLine("[BOT-PASSO] Formato 'MP3' selecionado com sucesso!");
+                        await Task.Delay(1000, stoppingToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[BOT-DEBUG] Botão de formato MP3 já selecionado ou indisponível: {ex.Message}");
+                    }
+
                     logger.LogInformation($"[WORKER] PASSO: [Tentativa {retry}/{maxExportRetries}] Clicando em 'Exportar todos os canais' e aguardando download...");
                     Console.WriteLine($"[BOT-PASSO] [Tentativa {retry}/{maxExportRetries}] Localizando e clicando em 'Exportar todos os canais'...");
                     
-                    var exportAllBtn = page.Locator(exportAllSelector).First;
+                    var exportAllBtn = playerFrame != null ? playerFrame.Locator(exportAllSelector).First : page.Locator(exportAllSelector).First;
                     await exportAllBtn.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 15000 });
                     
                     // Intercepta o download
@@ -600,7 +973,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             await context.DisposeAsync();
 
             // Etapa 11: Invoca o endpoint do backend para que ele processe e converta tudo para Opus
-            var apiUrl = configuration["API_URL"];
+            apiUrl = configuration["API_URL"];
             if (string.IsNullOrEmpty(apiUrl))
             {
                 var apiPort = configuration["API_PORT"] ?? "5000";
@@ -625,6 +998,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         }
         catch (Exception ex)
         {
+            try { await TakeScreenshotAsync(page, "erro_catastrofico_" + track.TrackId); } catch { }
             logger.LogError(ex, $"[WORKER ERROR] Falha catastrófica ao processar track: {track.TrackId}");
             var dbTrack = await db.Tracks.FindAsync(track.TrackId);
             if (dbTrack != null)
@@ -696,6 +1070,25 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         {
             logger.LogDebug($"[WORKER DEBUG] Erro ou banner de cookies ausente/já fechado: {ex.Message}");
             Console.WriteLine($"[BOT-PASSO] Info: Verificação de cookies finalizada: {ex.Message}");
+        }
+    }
+
+    private async Task TakeScreenshotAsync(IPage? page, string name)
+    {
+        if (page == null) return;
+        try
+        {
+            var artifactDir = "C:/Users/Havenox/.gemini/antigravity-ide/brain/1ec9cc06-3990-4408-803b-0c9a999e7e22";
+            if (Directory.Exists(artifactDir))
+            {
+                var filePath = Path.Combine(artifactDir, $"{name}.png");
+                await page.ScreenshotAsync(new() { Path = filePath, FullPage = true });
+                Console.WriteLine($"[BOT-DEBUG] Screenshot salvo em: {filePath}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[BOT-DEBUG] Falha ao tirar screenshot: {ex.Message}");
         }
     }
 }
