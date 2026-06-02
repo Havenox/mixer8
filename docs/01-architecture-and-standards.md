@@ -69,7 +69,7 @@ O controle de acessos da API do Mixer8 garante a proteção dos recursos intelec
   Existem quatro níveis claros de permissão (Roles) injetados nos Claims do Token JWT:
   1. `Admin`: Acesso total e irrestrito ao sistema, configurações do Docker, logs e gerenciamento de usuários.
   2. `Moderator`: Permissão para editar metadados de tracks globais, gerenciar playlists públicas e aprovar novos uploads.
-  3. `PaidUser`: Permissão total para utilizar a DAW web de mixagem de stems e acionar o microserviço `moises-extractor` para novos uploads.
+  3. `PaidUser`: Permissão total para utilizar a DAW web de mixagem de stems e acionar o microserviço `mixer8-extractor` para novos uploads.
   4. `User`: Acesso básico de escuta do catálogo, criação de playlists pessoais de mixagens estáticas.
 * **Rotas Públicas vs Privadas**:
   * Rotas de autenticação, registro e catálogo público básico de áudio são livres.
