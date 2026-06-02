@@ -1,30 +1,30 @@
-# Estudo de Viabilidade Técnica: Bot Extrator Headless Moises.ai (.NET 10 + Docker)
+# Estudo de Viabilidade Técnica: Bot Extrator Headless de Stems (.NET 10 + Docker)
 
-Este documento foi atualizado para focar **exclusivamente no desenvolvimento de um Bot de Simulação de Usuário Real** rodando de forma headless em **.NET 10** e **Docker (Linux VPS)**. A opção de API oficial foi totalmente descartada, priorizando o comportamento emulador sobre a interface Web da plataforma [Moises.ai](https://moises.ai).
+Este documento foi atualizado para focar **exclusivamente no desenvolvimento de um Bot de Simulação de Usuário Real** rodando de forma headless em **.NET 10** e **Docker (Linux VPS)**. A opção de API oficial foi totalmente descartada, priorizando o comportamento emulador sobre a interface Web da plataforma parceira de inteligência artificial de stems.
 
 ---
 
 ## 1. Visão Geral do Bot
 
-O objetivo é criar uma aplicação C# autônoma (Worker Service) que se comporta exatamente como um produtor musical operando o Moises.ai em um navegador convencional. O bot receberá um arquivo de áudio local, fará o upload dele, esperará o processamento visualmente na biblioteca e, por fim, fará o download do pacote ZIP de stems da mesma forma que um humano faria na DAW online.
+O objetivo é criar uma aplicação C# autônoma (Worker Service) que se comporta exatamente como um produtor musical operando a plataforma externa de processamento de áudio em um navegador convencional. O bot receberá um arquivo de áudio local, fará o upload dele, esperará o processamento visualmente na biblioteca e, por fim, fará o download do pacote ZIP de stems da mesma forma que um humano faria na DAW online.
 
 ```
 [Áudio Local] ──> ( Fila C# ) ──> [ Playwright (.NET 10) ]
                                           │  (Simula cliques, esperas e uploads)
                                           ▼
-                                   [ Moises.ai Web ] ──> [ ZIP Baixado ]
+                                   [ Interface Web Externa ] ──> [ ZIP Baixado ]
 ```
 
 ---
 
 ## 2. Princípios de Simulação de Usuário Real (Anti-Detecção)
 
-Para evitar que o Moises.ai identifique o bot como automação (o que levaria ao bloqueio da conta ou à ativação de CAPTCHAs intransponíveis), a aplicação implementará **quatro pilares de simulação humana**:
+Para evitar que a plataforma externa de processamento identifique o bot como automação (o que levaria ao bloqueio da conta ou à ativação de CAPTCHAs de proteção), a aplicação implementará **quatro pilares de simulação humana**:
 
 ### A. Persistência e Exportação de Sessão (Zero Logins na VPS)
-* **O Risco:** Digitar usuário e senha repetidamente a partir de um IP de VPS Linux (ex: DigitalOcean, AWS, Hetzner) ativará imediatamente o sistema antifraude e os desafios do Cloudflare.
+* **O Risco:** Digitar usuário e senha repetidamente a partir de um IP de VPS Linux (ex: DigitalOcean, AWS, Hetzner) ativará imediatamente o sistema antifraude e os desafios do Cloudflare de proteção.
 * **A Solução:** O login inicial será feito de forma manual em seu computador pessoal (IP residencial confiável) em uma janela visível (`Headless = false`). O Playwright extrairá os cookies, tokens JWT e estados de `localStorage` em um arquivo `auth.json`. 
-* **O Bot:** Na VPS, o bot inicializa o navegador diretamente carregando o `auth.json`. O site moises.ai abrirá **instantaneamente logado**, sem passar pela tela de login nem disparar alertas de "novo acesso suspeito".
+* **O Bot:** Na VPS, o bot inicializa o navegador diretamente carregando o `auth.json`. O site de processamento externo abrirá **instantaneamente logado**, sem passar pela tela de login nem disparar alertas de "novo acesso suspeito".
 
 ### B. Ocultação de Sinais de Automação (Stealth)
 O Playwright padrão injeta algumas variáveis no Javascript do navegador que o denunciam como robô (ex: `navigator.webdriver = true`). Modificaremos as propriedades de lançamento do Chromium no C# para omitir estes sinais:
@@ -41,13 +41,13 @@ O Playwright padrão injeta algumas variáveis no Javascript do navegador que o 
 
 ## 3. O Fluxo de Navegação Automatizado (Passo a Passo)
 
-Abaixo está o mapeamento exato de como o robô interagirá com a interface do Moises:
+Abaixo está o mapeamento exato de como o robô interagirá com a interface externa:
 
 ```mermaid
 sequenceDiagram
     participant Bot as Worker (.NET 10 + Playwright)
-    participant Web as Moises.ai Library
-    participant DAW as Moises.ai DAW (Player)
+    participant Web as Painel da Biblioteca Externa
+    participant DAW as DAW Externa (Player)
     
     Note over Bot, Web: Início com Cookies persistentes
     Bot->>Web: Carrega /library com auth.json
@@ -79,7 +79,7 @@ sequenceDiagram
 
 Para manter o serviço 100% resiliente a falhas temporárias na rede ou travamentos do navegador, estruturaremos a automação com tratamento rígido de exceções e reinicialização automática do contexto do navegador.
 
-### Script do Bot Simulador (`MoisesBotService.cs`)
+### Script do Bot Simulador (`ExtractorBotService.cs`)
 
 ```csharp
 using Microsoft.Playwright;
@@ -88,9 +88,9 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace MoisesExtractor.Bot;
+namespace Mixer8Extractor.Bot;
 
-public class MoisesBotService
+public class ExtractorBotService
 {
     private readonly string _storageStatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config", "auth.json");
     private readonly string _downloadDirectory = "/app/downloads";
@@ -139,9 +139,9 @@ public class MoisesBotService
         var context = await browser.NewContextAsync(contextOptions);
         var page = await context.NewPageAsync();
 
-        // 3. Acessar Biblioteca do Moises
-        Console.WriteLine("[BOT] Acessando biblioteca do Moises.ai...");
-        await page.GotoAsync("https://moises.ai/library", new PageGotoOptions { Timeout = 60000 });
+        // 3. Acessar Biblioteca Externa
+        Console.WriteLine("[BOT] Acessando biblioteca da plataforma externa...");
+        await page.GotoAsync("https://studio.external-stems-ai.com/library", new PageGotoOptions { Timeout = 60000 });
         
         // Pequena espera humana
         await Task.Delay(Random.Shared.Next(1500, 3000), cancellationToken);
@@ -275,11 +275,11 @@ O bot rodará em uma VPS Linux comum empacotado em um container Docker. Para que
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-COPY ["MoisesExtractor.csproj", "./"]
-RUN dotnet restore "./MoisesExtractor.csproj"
+COPY ["Mixer8.Extractor.csproj", "./"]
+RUN dotnet restore "./Mixer8.Extractor.csproj"
 
 COPY . .
-RUN dotnet publish "MoisesExtractor.csproj" -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "Mixer8.Extractor.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
 # ==========================================
 # Fase 2: Execução (.NET 10 Runtime + Chromium)
@@ -321,7 +321,7 @@ RUN playwright install chromium
 # Configuração de volumes para manter os cookies (config) e salvar os arquivos baixados (downloads)
 VOLUME [ "/app/config", "/app/downloads" ]
 
-ENTRYPOINT ["dotnet", "MoisesExtractor.dll"]
+ENTRYPOINT ["dotnet", "Mixer8.Extractor.dll"]
 ```
 
 ### 5.2. Docker Compose (`docker-compose.yml`)
@@ -332,12 +332,12 @@ O Docker Compose garante que o container tenha acesso aos diretórios locais do 
 version: '3.8'
 
 services:
-  moises-bot:
-    image: moises-extractor-bot:latest
+  mixer8-extractor:
+    image: mixer8-extractor:latest
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: moises_extractor_bot
+    container_name: mixer8_extractor
     restart: unless-stopped
     volumes:
       # Pasta local na VPS onde os arquivos baixados serão disponibilizados
@@ -352,14 +352,14 @@ services:
 
 ## 6. Desafios do Modelo "Simulação de Usuário" e Como Superá-los
 
-Rodar um robô simulado no Moises.ai exige atenção a cenários do "mundo real":
+Rodar um robô simulado em plataforma de terceiros exige atenção a cenários do "mundo real":
 
 ### 1. Expiração do arquivo `auth.json` (Cookies)
-* **Comportamento:** Eventualmente (geralmente entre 30 e 90 dias), a sessão do Moises expira por segurança. O bot tentará acessar a biblioteca, será redirecionado para a tela de login e falhará.
+* **Comportamento:** Eventualmente (geralmente entre 30 e 90 dias), a sessão na plataforma parceira expira por segurança. O bot tentará acessar a biblioteca, será redirecionado para a tela de login e falhará.
 * **Superação:** O bot deve monitorar se foi jogado para a rota `/login`. Caso ocorra, ele deve parar o processamento atual e disparar um alerta visual ou notificação (via bot do Telegram/Discord ou log chamativo) para que você execute um script utilitário local (`dotnet run --mode=login`), faça o login na interface visual na sua máquina e o app salve o novo `auth.json` atualizado na VPS.
 
 ### 2. Mudança de Design do Site (DOM Selectors)
-* **Comportamento:** Como é uma plataforma moderna, o layout do Moises.ai muda com o tempo. Um botão de "Exportar" que hoje tem um texto pode passar a ser um ícone.
+* **Comportamento:** Como é uma plataforma moderna, o layout externo muda com o tempo. Um botão de "Exportar" que hoje tem um texto pode passar a ser um ícone.
 * **Superação:** O projeto deve utilizar seletores altamente semânticos (ex: localizar elementos por seu papel de acessibilidade, tags ARIA ou texto exato ao invés de classes CSS geradas dinamicamente). Adicionalmente, o código deve ser extremamente modularizado para que, se um botão mudar, apenas uma linha de seletor precise ser alterada no arquivo de configuração do robô.
 
 ---
