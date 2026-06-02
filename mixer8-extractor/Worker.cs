@@ -297,7 +297,6 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
 
             logger.LogInformation($"[WORKER] PASSO: URL carregada. URL Atual no navegador: {page.Url}");
             Console.WriteLine($"[BOT-PASSO] Estado do navegador pronto para analisar a DOM. URL Atual: {page.Url}");
-            await TakeScreenshotAsync(page, "01_navegacao_concluida_" + track.TrackId);
 
             // Pequeno delay anti-bot
             await Task.Delay(Random.Shared.Next(1000, 2000), stoppingToken);
@@ -561,7 +560,6 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             }
 
             await Task.Delay(Random.Shared.Next(1000, 1500), stoppingToken);
-            await TakeScreenshotAsync(page, "02_antes_do_upload_local_" + track.TrackId);
 
             // Preenche o input de arquivo local
             var fileInputSelector = "input[type='file']";
@@ -582,7 +580,6 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             logger.LogInformation("[WORKER] PASSO: Arquivo original enviado para o Moises. Aguardando processamento e validação...");
             Console.WriteLine("[BOT-PASSO] Arquivo enviado! Aguardando o progresso de upload local...");
             await Task.Delay(Random.Shared.Next(5000, 7000), stoppingToken);
-            await TakeScreenshotAsync(page, "03_apos_upload_local_" + track.TrackId);
 
             // 6. Tela de Seleção de Stems
             // O Moises redireciona automaticamente para a tela de stems (split) ou habilita o botão de Enviar.
@@ -685,16 +682,6 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             for (int i = 0; i < waitLibrarySeconds / 5; i++)
             {
                 await Task.Delay(5000, stoppingToken);
-                
-                // Tira screenshot periódico para diagnóstico visual
-                try 
-                { 
-                    await TakeScreenshotAsync(page, $"04_aguardando_biblioteca_{i}_{track.TrackId}"); 
-                } 
-                catch (Exception ex) 
-                {
-                    Console.WriteLine($"[BOT-DEBUG] Falha ao tirar screenshot periódico: {ex.Message}");
-                }
 
                 // Verifica se a página principal ou o iframe navegaram para /library
                 var mainUrl = page.Url;
@@ -998,7 +985,6 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         }
         catch (Exception ex)
         {
-            try { await TakeScreenshotAsync(page, "erro_catastrofico_" + track.TrackId); } catch { }
             logger.LogError(ex, $"[WORKER ERROR] Falha catastrófica ao processar track: {track.TrackId}");
             var dbTrack = await db.Tracks.FindAsync(track.TrackId);
             if (dbTrack != null)
@@ -1073,23 +1059,5 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         }
     }
 
-    private async Task TakeScreenshotAsync(IPage? page, string name)
-    {
-        if (page == null) return;
-        try
-        {
-            var artifactDir = "C:/Users/Havenox/.gemini/antigravity-ide/brain/1ec9cc06-3990-4408-803b-0c9a999e7e22";
-            if (Directory.Exists(artifactDir))
-            {
-                var filePath = Path.Combine(artifactDir, $"{name}.png");
-                await page.ScreenshotAsync(new() { Path = filePath, FullPage = true });
-                Console.WriteLine($"[BOT-DEBUG] Screenshot salvo em: {filePath}");
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[BOT-DEBUG] Falha ao tirar screenshot: {ex.Message}");
-        }
-    }
 }
 
