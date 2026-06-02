@@ -99,7 +99,7 @@ erDiagram
 Para evitar problemas de concorrência ou corrupção de dados ao lidar com uploads simultâneos e processamentos de bots headless, implementamos as seguintes proteções na camada de persistência:
 
 ### A. Bloqueio Transacional de Fila de Extração
-Quando o microserviço `moises-extractor` solicita à `mixer8-api` a próxima faixa pendente para conversão, o banco de dados realiza uma transação com isolamento estrito para evitar que múltiplas instâncias do bot processem a mesma música simultaneamente:
+Quando o microserviço `mixer8-extractor` solicita à `mixer8-api` a próxima faixa pendente para conversão, o banco de dados realiza uma transação com isolamento estrito para evitar que múltiplas instâncias do bot processem a mesma música simultaneamente:
 
 ```sql
 -- Exemplo de query atômica com bloqueio de linha no PostgreSQL
