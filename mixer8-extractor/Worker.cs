@@ -258,8 +258,11 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 logger.LogInformation("[WORKER] PASSO: Navegador abriu deslogado. Iniciando rotina de login automático...");
                 Console.WriteLine("[BOT-PASSO] Tela de login detectada. Iniciando login automático...");
 
-                var extractorLogin = configuration["EXTRACTOR_LOGIN"];
-                var extractorPassword = configuration["EXTRACTOR_PASSWORD"];
+                var extractorLogin = configuration["EXTRACTOR_LOGIN"]?.Trim('\r', '\n', ' ');
+                var extractorPassword = configuration["EXTRACTOR_PASSWORD"]?.Trim('\r', '\n', ' ');
+
+                logger.LogInformation($"[WORKER] PASSO: Login carregado (tamanho: {extractorLogin?.Length}), Senha carregada (tamanho: {extractorPassword?.Length})");
+                Console.WriteLine($"[BOT-PASSO] Credenciais obtidas do ambiente. Tamanho Login: {extractorLogin?.Length}, Tamanho Senha: {extractorPassword?.Length}");
 
                 if (string.IsNullOrWhiteSpace(extractorLogin) || string.IsNullOrWhiteSpace(extractorPassword) || extractorLogin.Contains("@exemplo.com"))
                 {
