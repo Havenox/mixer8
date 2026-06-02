@@ -55,8 +55,11 @@ pw-browsers/
 # === Configurações e Arquivos do Moises Extractor (Segurança) ===
 **/auth.json
 **/config/auth.json
+**/config/user_profile/
+**/config/user_profile/**/*
 **/downloads/
 **/downloads/*
+!.env.example
 !**/downloads/.gitkeep
 
 # === Docker ===

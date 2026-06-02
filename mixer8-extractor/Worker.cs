@@ -182,13 +182,37 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             using var playwright = await Playwright.CreateAsync();
 
             // Configurações do Navegador
+            var configDirForProfile = configuration["EXTRACTOR_CONFIG_DIR"] ?? "./mixer8-extractor/config";
+            if (!Path.IsPathRooted(configDirForProfile))
+            {
+                var baseDir = AppContext.BaseDirectory;
+                var resolved = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", configDirForProfile));
+                if (!Directory.Exists(resolved))
+                {
+                    resolved = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", configDirForProfile));
+                }
+                if (!Directory.Exists(resolved))
+                {
+                    resolved = Path.GetFullPath(Path.Combine(baseDir, "..", configDirForProfile));
+                }
+                if (!Directory.Exists(resolved))
+                {
+                    resolved = Path.GetFullPath(Path.Combine(baseDir, configDirForProfile));
+                }
+                configDirForProfile = resolved;
+            }
+            var userProfileDir = Path.Combine(configDirForProfile, "user_profile");
+            if (!Directory.Exists(userProfileDir))
+            {
+                Directory.CreateDirectory(userProfileDir);
+            }
             var headlessStr = configuration["EXTRACTOR_HEADLESS"] ?? "true";
             bool isHeadless = !string.Equals(headlessStr, "false", StringComparison.OrdinalIgnoreCase);
             
             var slowMoStr = configuration["EXTRACTOR_SLOW_MO"] ?? "0";
             int slowMo = int.TryParse(slowMoStr, out var sm) ? sm : 0;
 
-            var launchOptions = new BrowserTypeLaunchOptions
+            var contextOptions = new BrowserTypeLaunchPersistentContextOptions
             {
                 Headless = isHeadless,
                 SlowMo = slowMo,
@@ -201,33 +225,17 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                     "--disable-blink-features=AutomationControlled", // Anti-bot stealth
                     "--use-gl=angle", 
                     "--use-angle=swiftshader"
-                }
-            };
-
-            logger.LogInformation($"[WORKER] Lançando Chromium (Headless: {isHeadless}, SlowMo: {slowMo}ms)...");
-            await using var browser = await playwright.Chromium.LaunchAsync(launchOptions);
-
-            // Injeta estado de autenticação a partir de auth.json
-            var contextOptions = new BrowserNewContextOptions
-            {
+                },
                 UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 ViewportSize = new ViewportSize { Width = 1280, Height = 800 },
                 Locale = "pt-BR",
                 TimezoneId = "America/Sao_Paulo"
             };
 
-            if (File.Exists(filePath))
-            {
-                contextOptions.StorageStatePath = filePath;
-                logger.LogInformation($"[WORKER] Cookies carregados com sucesso de: {filePath}");
-            }
-            else
-            {
-                throw new InvalidOperationException($"[WORKER ERROR] Cookies de sessão (auth.json) ausentes em: {filePath}");
-            }
-
-            var context = await browser.NewContextAsync(contextOptions);
-            var page = await context.NewPageAsync();
+            logger.LogInformation($"[WORKER] Lançando Chromium com Perfil Persistente (Headless: {isHeadless}, SlowMo: {slowMo}ms, Perfil: {userProfileDir})...");
+            
+            var context = await playwright.Chromium.LaunchPersistentContextAsync(userProfileDir, contextOptions);
+            var page = context.Pages.FirstOrDefault() ?? await context.NewPageAsync();
 
             // 4. Acessa a página de Upload Split
             await UpdateTrackStatusAsync(track.TrackId, "Processando: Acessando a tela de Upload do Moises.ai", db, stoppingToken);
@@ -359,9 +367,8 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
 
             logger.LogInformation($"[WORKER SUCCESS] Download do ZIP de stems finalizado com sucesso: {zipPath}");
 
-            // Fecha o navegador e contexto com segurança
-            await context.CloseAsync();
-            await browser.CloseAsync();
+            // Fecha o contexto do navegador com segurança
+            await context.DisposeAsync();
 
             // Etapa 11: Invoca o endpoint do backend para que ele processe e converta tudo para Opus
             var apiUrl = configuration["API_URL"];
