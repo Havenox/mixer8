@@ -1,8 +1,8 @@
-# 🎧 Mixer8 — O Player Spotify + Moises com Superpoderes
+# 🎧 Mixer8 — O Player de Multi-Stems Interativo com Superpoderes
 
-Mixer8 é um ecossistema digital de alta fidelidade que combina a experiência clássica de streaming e descoberta musical estilo **Spotify** com as capacidades analíticas de engenharia de áudio e separação de faixas estilo **Moises.ai**. 
+Mixer8 é um ecossistema digital de alta fidelidade que combina a experiência clássica de streaming e descoberta musical estilo plataformas de streaming de referência com as capacidades analíticas de engenharia de áudio e separação de faixas baseadas em IA de serviços externos de processamento. 
 
-A principal inovação do Mixer8 é conceitual: **uma música não é apenas um único arquivo estático de áudio (.mp3), mas sim a fusão harmônica e síncrona de múltiplos arquivos de áudio (.mp3/.wav) correspondentes a cada uma de suas faixas e stems independentes (Voz, Baixo, Bateria, Teclado, Outros)**. O usuário interage com um player web dinâmico (estilo DAW/Mesa de Som) podendo gerenciar volumes individuais, ativar presets de mixagem em tempo real e extrair faixas de forma automatizada por um microserviço headless.
+A principal inovação do Mixer8 é conceitual: **uma música não é apenas um único arquivo estático de á áudio (.mp3), mas sim a fusão harmônica e síncrona de múltiplos arquivos de áudio (.mp3/.wav) correspondentes a cada uma de suas faixas e stems independentes (Voz, Baixo, Bateria, Teclado, Outros)**. O usuário interage com um player web dinâmico (estilo DAW/Mesa de Som) podendo gerenciar volumes individuais, ativar presets de mixagem em tempo real e extrair faixas de forma automatizada por um microserviço headless.
 
 ---
 
@@ -21,14 +21,14 @@ O repositório está estruturado de forma modular e desacoplada, utilizando as s
                                  └──────┬───────┘      Orquestrador / Banco de Dados
                                         │ (REST / Webhooks)
                                         ▼
-                       ┌────────────────────────────────┐
-                       │        moises-extractor        │  <-- .NET 10 Headless Bot
-                       └────────────────────────────────┘      Browser Automation (Playwright)
+                        ┌────────────────────────────────┐
+                        │        mixer8-extractor        │  <-- .NET 10 Headless Bot
+                        └────────────────────────────────┘      Browser Automation (Playwright)
 ```
 
 1. **[mixer8-web](file:///g:/DEV/mixer8/mixer8-web/) (Frontend)**: SPA moderno construído com React LTS, TypeScript, Vite, TailwindCSS e Shadcn UI. Possui um player headless interativo que se mantém persistente durante toda a navegação e uma interface de mesa de som (DAW) para mixagem de stems.
 2. **[mixer8-api](file:///g:/DEV/mixer8/mixer8-api/) (Backend API)**: API robusta desenvolvida em **.NET 10 (C# 13)** utilizando Clean Architecture, responsável pelas regras de negócio, autenticação com controle de acesso (RBAC), manipulação de metadados das tracks e orquestração de microsserviços.
-3. **[moises-extractor](file:///g:/DEV/mixer8/moises-extractor/) (Microserviço/Bot)**: Serviço inteligente em **.NET 10** rodando headless com **Microsoft Playwright**. Ele simula interações de um usuário real no website do Moises.ai de forma autônoma para realizar upload, processar áudios em 5 stems e baixar o pacote ZIP contendo as faixas isoladas de forma 100% automatizada.
+3. **[mixer8-extractor](file:///g:/DEV/mixer8/mixer8-extractor/) (Microserviço/Bot)**: Serviço inteligente em **.NET 10** rodando headless com **Microsoft Playwright**. Ele simula interações de um usuário real no website do serviço de processamento de áudio externo de forma autônoma para realizar upload, extrair stems e baixar o pacote ZIP contendo as faixas isoladas de forma 100% automatizada.
 
 ---
 
@@ -63,7 +63,7 @@ O repositório está estruturado de forma modular e desacoplada, utilizando as s
    ```bash
    docker-compose up -d --build
    ```
-   *Este comando iniciará o banco de dados PostgreSQL e o microserviço do moises-extractor pronto para rodar em segundo plano.*
+   *Este comando iniciará o banco de dados PostgreSQL e o microserviço do mixer8-extractor pronto para rodar em segundo plano.*
 
 ---
 
