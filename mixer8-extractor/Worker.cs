@@ -303,7 +303,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 }
 
                 // 1. Espera e preenche o e-mail de forma humana
-                var emailSelector = "input[type='email'], input[name='email'], input[placeholder*='email'], input[placeholder*='E-mail']";
+                var emailSelector = "input[placeholder*='e-mail'], input[placeholder*='E-mail'], input[placeholder*='Digite seu e-mail'], input.rt-TextFieldInput[type='text'], input[type='email']";
                 await page.WaitForSelectorAsync(emailSelector, new PageWaitForSelectorOptions { Timeout = 20000 });
                 await page.FocusAsync(emailSelector);
                 
@@ -315,7 +315,8 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 }
 
                 // 2. Preenche a senha de forma humana
-                var passwordSelector = "input[type='password'], input[name='password']";
+                var passwordSelector = "input[type='password'], input[placeholder='Senha'], input[placeholder='Password']";
+                await page.WaitForSelectorAsync(passwordSelector, new PageWaitForSelectorOptions { Timeout = 10000 });
                 await page.FocusAsync(passwordSelector);
 
                 logger.LogInformation("[WORKER] Digitando senha...");
@@ -326,7 +327,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 }
 
                 // 3. Submete o formulário
-                var submitBtnSelector = "button[type='submit'], button:has-text('Entrar'), button:has-text('Log in'), button:has-text('Login')";
+                var submitBtnSelector = "button[class*='_submitButton_'], button[type='submit']:has-text('Entrar'), button:has-text('Entrar'), button[type='submit']";
                 await page.ClickAsync(submitBtnSelector);
                 
                 logger.LogInformation("[WORKER] Submetendo credenciais...");
