@@ -263,6 +263,38 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
 
                 await UpdateTrackStatusAsync(track.TrackId, "Processando: Efetuando login automático", db, stoppingToken);
 
+                // 0.1. Tenta aceitar os cookies para desobstruir a tela se o banner estiver visível
+                try
+                {
+                    var acceptCookiesBtn = page.Locator("button:has-text('Aceitar'), button:has-text('Accept'), button:has-text('Negar não essencial')").First;
+                    if (await acceptCookiesBtn.CountAsync() > 0 && await acceptCookiesBtn.IsVisibleAsync())
+                    {
+                        logger.LogInformation("[WORKER] Banner de consentimento detectado. Clicando para aceitar cookies...");
+                        await acceptCookiesBtn.ClickAsync();
+                        await Task.Delay(Random.Shared.Next(800, 1200), stoppingToken);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogDebug($"[WORKER DEBUG] Banner de cookies ausente ou não clicável: {ex.Message}");
+                }
+
+                // 0.2. Clica no botão "Continuar com e-mail" para exibir os inputs
+                try
+                {
+                    var emailBtn = page.Locator("button:has-text('Continuar com e-mail'), button:has-text('Continue with email'), button[class*='emailButton']").First;
+                    if (await emailBtn.CountAsync() > 0)
+                    {
+                        logger.LogInformation("[WORKER] Clicando no botão 'Continuar com e-mail'...");
+                        await emailBtn.ClickAsync();
+                        await Task.Delay(Random.Shared.Next(1000, 1800), stoppingToken);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning($"[WORKER WARNING] Falha ou botão 'Continuar com e-mail' já clicado: {ex.Message}");
+                }
+
                 // 1. Espera e preenche o e-mail de forma humana
                 var emailSelector = "input[type='email'], input[name='email'], input[placeholder*='email'], input[placeholder*='E-mail']";
                 await page.WaitForSelectorAsync(emailSelector, new PageWaitForSelectorOptions { Timeout = 20000 });
