@@ -264,35 +264,42 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 await UpdateTrackStatusAsync(track.TrackId, "Processando: Efetuando login automático", db, stoppingToken);
 
                 // 0.1. Tenta aceitar os cookies para desobstruir a tela se o banner estiver visível
-                try
-                {
-                    var acceptCookiesBtn = page.Locator("button:has-text('Aceitar'), button:has-text('Accept'), button:has-text('Negar não essencial')").First;
-                    if (await acceptCookiesBtn.CountAsync() > 0 && await acceptCookiesBtn.IsVisibleAsync())
-                    {
-                        logger.LogInformation("[WORKER] Banner de consentimento detectado. Clicando para aceitar cookies...");
-                        await acceptCookiesBtn.ClickAsync();
-                        await Task.Delay(Random.Shared.Next(800, 1200), stoppingToken);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    logger.LogDebug($"[WORKER DEBUG] Banner de cookies ausente ou não clicável: {ex.Message}");
-                }
+                await AcceptCookiesIfVisibleAsync(page, stoppingToken);
 
                 // 0.2. Clica no botão "Continuar com e-mail" para exibir os inputs
-                try
+                logger.LogInformation("[WORKER] Procurando o botão 'Continuar com e-mail'...");
+                var emailBtnSelectors = new[]
                 {
-                    var emailBtn = page.Locator("button:has-text('Continuar com e-mail'), button:has-text('Continue with email'), button[class*='emailButton']").First;
-                    if (await emailBtn.CountAsync() > 0)
+                    "button:has-text('Continuar com e-mail')",
+                    "button:has-text('Continue with email')",
+                    "button[class*='emailButton']",
+                    "button[class*='_emailButton_']"
+                };
+
+                bool emailBtnClicked = false;
+                foreach (var selector in emailBtnSelectors)
+                {
+                    try
                     {
-                        logger.LogInformation("[WORKER] Clicando no botão 'Continuar com e-mail'...");
-                        await emailBtn.ClickAsync();
-                        await Task.Delay(Random.Shared.Next(1000, 1800), stoppingToken);
+                        var emailBtn = page.Locator(selector).First;
+                        if (await emailBtn.CountAsync() > 0 && await emailBtn.IsVisibleAsync())
+                        {
+                            logger.LogInformation($"[WORKER] Clicando no botão 'Continuar com e-mail' via seletor: {selector}");
+                            await emailBtn.ClickAsync(new LocatorClickOptions { Timeout = 10000 });
+                            emailBtnClicked = true;
+                            await Task.Delay(Random.Shared.Next(1500, 2500), stoppingToken);
+                            break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogDebug($"[WORKER DEBUG] Tentativa com {selector} falhou: {ex.Message}");
                     }
                 }
-                catch (Exception ex)
+
+                if (!emailBtnClicked)
                 {
-                    logger.LogWarning($"[WORKER WARNING] Falha ou botão 'Continuar com e-mail' já clicado: {ex.Message}");
+                    logger.LogWarning("[WORKER WARNING] Não foi possível clicar no botão 'Continuar com e-mail' de forma explícita. Pode ser que já esteja na tela de credenciais.");
                 }
 
                 // 1. Espera e preenche o e-mail de forma humana
@@ -346,14 +353,17 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             }
             await fileInput.SetInputFilesAsync(originalFile);
 
-            logger.LogInformation("[WORKER] Arquivo selecionado no input do navegador. Aguardando processamento da seleção de stems...");
+            logger.LogInformation("[WORKER] Arquivo selecionado no input do navegador. Aguardando 2 segundos e preparando envio...");
+            await Task.Delay(Random.Shared.Next(2000, 3000), stoppingToken);
+
+            // Garante que o banner de cookies está aceito
+            await AcceptCookiesIfVisibleAsync(page, stoppingToken);
 
             // 6. Tela de Seleção de Stems
-            // O Moises redireciona automaticamente para a tela de stems (split).
-            // O padrão da conta do usuário já vem pré-selecionado (5 stems). Clicamos em "Enviar".
+            // O Moises redireciona automaticamente para a tela de stems (split) ou habilita o botão de Enviar.
             await UpdateTrackStatusAsync(track.TrackId, "Processando: Configurando divisão de stems (Moises)", db, stoppingToken);
 
-            var submitButtonSelector = "button:has-text('Enviar'), button:has-text('Submit'), button:has(svg)";
+            var submitButtonSelector = "button#upload_submit_button, button:has-text('Enviar'), button:has-text('Submit')";
             await page.WaitForSelectorAsync(submitButtonSelector, new PageWaitForSelectorOptions { Timeout = 60000 });
             await Task.Delay(Random.Shared.Next(1500, 3000), stoppingToken); // delay humano anti-bot
             
@@ -371,11 +381,14 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             await UpdateTrackStatusAsync(track.TrackId, "Processando: Identificando a música na Biblioteca", db, stoppingToken);
             logger.LogInformation("[WORKER] Localizando a música mais recente na lista...");
 
-            // Aguarda a tabela/grade de faixas carregar
-            await page.WaitForSelectorAsync("table, .track-list, .track-row, tr, [role='row']", new PageWaitForSelectorOptions { Timeout = 45000 });
+            // Limpa cookies banner se reaparecer
+            await AcceptCookiesIfVisibleAsync(page, stoppingToken);
+
+            // Aguarda a tabela/grade/flex list de faixas carregar usando o seletor moderno Radix UI
+            var firstRowSelector = "span[class*='_titleText_'], div[class*='_titleText_'], .track-row:first-child, tr:first-child td, .track-list-item:first-child, td a";
+            await page.WaitForSelectorAsync(firstRowSelector, new PageWaitForSelectorOptions { Timeout = 45000 });
             
-            // Clicamos na primeira linha ou no primeiro td clicável
-            var firstRowSelector = ".track-row:first-child, tr:first-child td, .track-list-item:first-child, td a";
+            logger.LogInformation("[WORKER] Primeiro item da biblioteca localizado. Clicando...");
             await page.ClickAsync(firstRowSelector);
             await Task.Delay(Random.Shared.Next(2000, 4000), stoppingToken);
 
@@ -384,7 +397,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             logger.LogInformation("[WORKER] DAW / Player carregado. Monitorando processamento das stems...");
 
             // Monitoramos a presença e a ativação do botão "Exportar" que é habilitado quando pronto
-            var exportButtonSelector = "button:has-text('Exportar'), button:has-text('Export')";
+            var exportButtonSelector = "button[class*='download-task_buttonExport__'], button:has-text('Exportar'), button:has-text('Export')";
             
             logger.LogInformation("[WORKER] Monitorando o botão de Exportar na DAW. Limite de espera de 15 minutos...");
             
@@ -420,23 +433,58 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 throw new TimeoutException("[WORKER ERROR] O processamento das stems demorou mais que o esperado (limite de 15 min).");
             }
 
-            // 10. Menu de Exportação e Download
+            // 10. Menu de Exportação e Download com Retry resiliente
             await UpdateTrackStatusAsync(track.TrackId, "Processando: Exportando stems selecionadas", db, stoppingToken);
-            logger.LogInformation("[WORKER] Clicando no botão 'Exportar'...");
-            await page.ClickAsync(exportButtonSelector);
-            await Task.Delay(Random.Shared.Next(1500, 2500), stoppingToken);
 
-            // Clica na opção "Exportar todos os canais" / "Export all tracks"
-            var exportAllSelector = "button:has-text('Exportar todos os canais'), button:has-text('Export all tracks'), text=Exportar todos os canais";
-            logger.LogInformation("[WORKER] Solicitando exportação de todas as faixas...");
-            
-            // Intercepta o download
-            var downloadTask = page.WaitForDownloadAsync();
-            await page.ClickAsync(exportAllSelector);
-            
-            logger.LogInformation("[WORKER] Aguardando preparação do ZIP e início do download das stems...");
-            var download = await downloadTask;
-            
+            var exportAllSelector = "a[class*='download-task-drop_button__'], button:has-text('Exportar todos os canais'), a:has-text('Exportar todos os canais'), text=Exportar todos os canais";
+            IDownload? download = null;
+            int maxExportRetries = 3;
+
+            for (int retry = 1; retry <= maxExportRetries; retry++)
+            {
+                try
+                {
+                    logger.LogInformation($"[WORKER] [Tentativa {retry}/{maxExportRetries}] Clicando no botão 'Exportar'...");
+                    
+                    // Garante que o banner de cookies está aceito
+                    await AcceptCookiesIfVisibleAsync(page, stoppingToken);
+
+                    var exportButton = page.Locator(exportButtonSelector).First;
+                    await exportButton.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 15000 });
+                    await exportButton.ClickAsync();
+                    await Task.Delay(Random.Shared.Next(2000, 3000), stoppingToken);
+
+                    logger.LogInformation($"[WORKER] [Tentativa {retry}/{maxExportRetries}] Clicando em 'Exportar todos os canais' e aguardando download...");
+                    
+                    var exportAllBtn = page.Locator(exportAllSelector).First;
+                    await exportAllBtn.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 15000 });
+                    
+                    // Intercepta o download
+                    var downloadTask = page.WaitForDownloadAsync(new PageWaitForDownloadOptions { Timeout = 120000 });
+                    await exportAllBtn.ClickAsync();
+                    
+                    download = await downloadTask;
+                    break; // Download iniciado com sucesso! Sai do loop.
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning($"[WORKER WARNING] [Tentativa {retry}/{maxExportRetries}] Falha ao exportar/iniciar download: {ex.Message}. Resetando...");
+                    
+                    // Se falhou, clica em um ponto neutro da tela para fechar eventuais dropdowns abertos e aguarda
+                    try
+                    {
+                        await page.Mouse.ClickAsync(10, 10);
+                        await Task.Delay(2000, stoppingToken);
+                    }
+                    catch { }
+                }
+            }
+
+            if (download == null)
+            {
+                throw new TimeoutException("[WORKER ERROR] Falha ao iniciar o download das stems após várias retentativas na DAW.");
+            }
+
             var zipPath = Path.Combine(downloadsDir, $"{track.TrackId}_stems.zip");
             logger.LogInformation($"[WORKER] Download iniciado! Gravando arquivo ZIP em: {zipPath}");
             await download.SaveAsAsync(zipPath);
@@ -492,4 +540,37 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             logger.LogInformation($"[WORKER STATUS] Track: {trackId} -> {status}");
         }
     }
+
+    private async Task AcceptCookiesIfVisibleAsync(IPage page, CancellationToken stoppingToken)
+    {
+        try
+        {
+            var cookieSelectors = new[] 
+            { 
+                "button.osano-cm-accept", 
+                ".osano-cm-accept",
+                "button.osano-cm-button--type_accept",
+                "button:has-text('Aceitar')", 
+                "button:has-text('Accept')",
+                "button:has-text('Negar não essencial')"
+            };
+
+            foreach (var selector in cookieSelectors)
+            {
+                var locator = page.Locator(selector).First;
+                if (await locator.CountAsync() > 0 && await locator.IsVisibleAsync())
+                {
+                    logger.LogInformation($"[WORKER] Banner de consentimento detectado ({selector}). Clicando em Aceitar...");
+                    await locator.ClickAsync(new LocatorClickOptions { Timeout = 5000 });
+                    await Task.Delay(Random.Shared.Next(1000, 1500), stoppingToken);
+                    break;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug($"[WORKER DEBUG] Erro ou banner de cookies ausente/já fechado: {ex.Message}");
+        }
+    }
 }
+
