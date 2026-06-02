@@ -8,11 +8,14 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
 
+using Mixer8.Api.Domain;
+using Mixer8.Api.Infrastructure;
+
 namespace Mixer8.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class AdminController(IConfiguration configuration) : ControllerBase
+public class AdminController(IConfiguration configuration, Mixer8DbContext dbContext) : ControllerBase
 {
     [Authorize(Roles = "Admin,Moderator")]
     [HttpPost("ImportSession")]
@@ -31,6 +34,32 @@ public class AdminController(IConfiguration configuration) : ControllerBase
         catch (JsonException)
         {
             return BadRequest(new { ErrorMessage = "INVALID_JSON_FORMAT" });
+        }
+
+        // Salva no banco de dados na tabela SystemSettings
+        try
+        {
+            var setting = await dbContext.SystemSettings.FindAsync("MoisesSession_AuthJson");
+            if (setting == null)
+            {
+                setting = new SystemSetting
+                {
+                    Key = "MoisesSession_AuthJson",
+                    Value = request.CookiesJson,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                dbContext.SystemSettings.Add(setting);
+            }
+            else
+            {
+                setting.Value = request.CookiesJson;
+                setting.UpdatedAt = DateTime.UtcNow;
+            }
+            await dbContext.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ADMIN_CONTROLLER ERROR] Erro ao persistir cookies no banco: {ex.Message}");
         }
 
         // Resolve o diretório de configurações do extrator do .env
@@ -70,6 +99,25 @@ public class AdminController(IConfiguration configuration) : ControllerBase
             return Ok(new { CookiesJson = content });
         }
 
+        // Se o arquivo físico não existir, tenta restaurar a partir do banco PostgreSQL
+        try
+        {
+            var setting = await dbContext.SystemSettings.FindAsync("MoisesSession_AuthJson");
+            if (setting != null && !string.IsNullOrWhiteSpace(setting.Value))
+            {
+                if (!Directory.Exists(configDir))
+                {
+                    Directory.CreateDirectory(configDir);
+                }
+                await System.IO.File.WriteAllTextAsync(filePath, setting.Value);
+                return Ok(new { CookiesJson = setting.Value });
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ADMIN_CONTROLLER ERROR] Erro ao recuperar cookies do banco: {ex.Message}");
+        }
+
         return Ok(new { CookiesJson = "" });
     }
 
@@ -84,14 +132,41 @@ public class AdminController(IConfiguration configuration) : ControllerBase
         }
 
         var filePath = Path.Combine(configDir, "auth.json");
-        if (!System.IO.File.Exists(filePath))
+        string content = "";
+
+        if (System.IO.File.Exists(filePath))
+        {
+            content = await System.IO.File.ReadAllTextAsync(filePath);
+        }
+        else
+        {
+            // Tenta recuperar do banco de dados
+            try
+            {
+                var setting = await dbContext.SystemSettings.FindAsync("MoisesSession_AuthJson");
+                if (setting != null && !string.IsNullOrWhiteSpace(setting.Value))
+                {
+                    content = setting.Value;
+                    if (!Directory.Exists(configDir))
+                    {
+                        Directory.CreateDirectory(configDir);
+                    }
+                    await System.IO.File.WriteAllTextAsync(filePath, content);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ADMIN_CONTROLLER ERROR] Erro ao buscar do banco para testar conexao: {ex.Message}");
+            }
+        }
+
+        if (string.IsNullOrEmpty(content))
         {
             return BadRequest(new { ErrorMessage = "NO_SESSION_FOUND" });
         }
 
         try
         {
-            var content = await System.IO.File.ReadAllTextAsync(filePath);
             var cookies = JsonSerializer.Deserialize<List<CookieItem>>(content);
 
             if (cookies == null || cookies.Count == 0)
@@ -139,7 +214,7 @@ public class AdminController(IConfiguration configuration) : ControllerBase
 
     [Authorize(Roles = "Admin,Moderator")]
     [HttpGet("TestSession")]
-    public IActionResult TestSession()
+    public async Task<IActionResult> TestSession()
     {
         // Resolve o caminho de auth.json
         var configDir = configuration["EXTRACTOR_CONFIG_DIR"] ?? "./mixer8-extractor/config";
@@ -149,7 +224,29 @@ public class AdminController(IConfiguration configuration) : ControllerBase
         }
 
         var filePath = Path.Combine(configDir, "auth.json");
-        var active = System.IO.File.Exists(filePath);
+        bool active = System.IO.File.Exists(filePath);
+
+        if (!active)
+        {
+            // Tenta restaurar a partir do banco de dados
+            try
+            {
+                var setting = await dbContext.SystemSettings.FindAsync("MoisesSession_AuthJson");
+                if (setting != null && !string.IsNullOrWhiteSpace(setting.Value))
+                {
+                    if (!Directory.Exists(configDir))
+                    {
+                        Directory.CreateDirectory(configDir);
+                    }
+                    await System.IO.File.WriteAllTextAsync(filePath, setting.Value);
+                    active = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ADMIN_CONTROLLER ERROR] Erro ao buscar do banco para testar sessao: {ex.Message}");
+            }
+        }
 
         return Ok(new TestSessionResponse
         {
