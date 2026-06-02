@@ -346,13 +346,15 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 Console.WriteLine("[BOT-PASSO] Credenciais submetidas. Aguardando processamento inicial...");
                 await Task.Delay(Random.Shared.Next(1000, 2000), stoppingToken);
 
-                // 4. Aguarda retornar para a tela de upload/split
-                Console.WriteLine("[BOT-PASSO] Aguardando redirecionamento de volta para a tela de upload (/upload/split)...");
-                await page.WaitForURLAsync("**/upload/split**", new PageWaitForURLOptions { Timeout = 45000 });
-                logger.LogInformation("[WORKER SUCCESS] PASSO: Login automático concluído!");
-                Console.WriteLine("[BOT-PASSO] Login automático efetuado com sucesso! Redirecionado.");
+                // 4. Aguarda retornar para a tela de upload/split (verificando pela presença da caixa de upload)
+                Console.WriteLine("[BOT-PASSO] Aguardando o carregamento da tela de Upload (localizando a caixa de upload)...");
+                var dropzoneSelector = ".select-local-file_dropzone__, [class*='select-local-file_dropzone'], input[type='file']";
+                await page.WaitForSelectorAsync(dropzoneSelector, new PageWaitForSelectorOptions { Timeout = 45000, State = WaitForSelectorState.Visible });
                 
-                await Task.Delay(3000, stoppingToken); // delay humano pós-login
+                logger.LogInformation("[WORKER SUCCESS] PASSO: Login automático concluído!");
+                Console.WriteLine("[BOT-PASSO] Login automático efetuado com sucesso! Tela de Upload carregada.");
+                
+                await Task.Delay(2000, stoppingToken); // delay humano pós-login
             }
             else
             {
