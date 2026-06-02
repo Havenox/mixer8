@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Mixer8.Extractor.Domain;
 using Mixer8.Extractor.Infrastructure;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Playwright;
 using System;
 using System.IO;
 using System.IO.Compression;
@@ -86,28 +87,60 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
 
         try
         {
-            // Etapa 1: Inicializando o Browser
-            await UpdateTrackStatusAsync(track.TrackId, "Processando: Inicializando container do Playwright", db, stoppingToken);
-            await Task.Delay(3000, stoppingToken);
+            // Sincroniza cookies do Moises.ai a partir do banco PostgreSQL
+            await UpdateTrackStatusAsync(track.TrackId, "Processando: Sincronizando cookies do Moises.ai", db, stoppingToken);
 
-            // Etapa 2: Importando cookies
-            await UpdateTrackStatusAsync(track.TrackId, "Processando: Importando cookies de sessão (auth.json)", db, stoppingToken);
-            await Task.Delay(3000, stoppingToken);
+            var configDir = configuration["EXTRACTOR_CONFIG_DIR"] ?? "./mixer8-extractor/config";
+            if (!Path.IsPathRooted(configDir))
+            {
+                var baseDir = AppContext.BaseDirectory;
+                var resolved = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", configDir));
+                if (!Directory.Exists(resolved))
+                {
+                    resolved = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", configDir));
+                }
+                if (!Directory.Exists(resolved))
+                {
+                    resolved = Path.GetFullPath(Path.Combine(baseDir, "..", configDir));
+                }
+                if (!Directory.Exists(resolved))
+                {
+                    resolved = Path.GetFullPath(Path.Combine(baseDir, configDir));
+                }
+                configDir = resolved;
+            }
 
-            // Etapa 3: Upload
-            await UpdateTrackStatusAsync(track.TrackId, "Processando: Realizando upload seguro do áudio", db, stoppingToken);
-            await Task.Delay(4000, stoppingToken);
+            if (!Directory.Exists(configDir))
+            {
+                Directory.CreateDirectory(configDir);
+            }
 
-            // Etapa 4: Separação (Esta etapa simula a separação da IA de stems)
-            await UpdateTrackStatusAsync(track.TrackId, "Processando: Separando stems de áudio (Voz, Baixo, Bateria...)", db, stoppingToken);
-            await Task.Delay(8000, stoppingToken);
+            var filePath = Path.Combine(configDir, "auth.json");
 
-            // Etapa 5: Download
-            await UpdateTrackStatusAsync(track.TrackId, "Processando: Baixando ZIP de stems exportadas", db, stoppingToken);
-            await Task.Delay(3000, stoppingToken);
+            // Busca no banco o JSON de cookies mais atualizado
+            var sessionSetting = await db.SystemSettings.FindAsync("MoisesSession_AuthJson");
+            if (sessionSetting != null && !string.IsNullOrWhiteSpace(sessionSetting.Value))
+            {
+                bool precisaGravar = true;
+                if (File.Exists(filePath))
+                {
+                    var conteudoLocal = await File.ReadAllTextAsync(filePath, stoppingToken);
+                    if (conteudoLocal == sessionSetting.Value)
+                    {
+                        precisaGravar = false;
+                    }
+                }
 
-            // Etapa 6: Criação das Stems físicas via API do Backend
-            logger.LogInformation($"[WORKER] Extração de '{track.TrackTitle}' finalizada no bot. Empacotando stems e notificando a API...");
+                if (precisaGravar)
+                {
+                    logger.LogInformation("[WORKER] Novo arquivo de cookies detectado no banco de dados. Sincronizando em disco...");
+                    await File.WriteAllTextAsync(filePath, sessionSetting.Value, stoppingToken);
+                }
+            }
+            else
+            {
+                logger.LogWarning("[WORKER WARNING] Nenhuma sessão ativa 'MoisesSession_AuthJson' foi encontrada na tabela SystemSettings do banco PostgreSQL.");
+            }
 
             // 1. Resolução resiliente do diretório de downloads
             var downloadsDir = configuration["EXTRACTOR_DOWNLOADS_DIR"] ?? "./mixer8-extractor/downloads";
@@ -144,35 +177,193 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 throw new FileNotFoundException($"[WORKER ERROR] Arquivo original do upload não encontrado em {downloadsDir} com o ID {track.TrackId}");
             }
 
-            var fileExt = Path.GetExtension(originalFile);
-            var zipPath = Path.Combine(downloadsDir, $"{track.TrackId}_stems.zip");
+            // 3. Inicializa o Playwright
+            await UpdateTrackStatusAsync(track.TrackId, "Processando: Inicializando o Playwright", db, stoppingToken);
+            using var playwright = await Playwright.CreateAsync();
 
-            // 3. Compacta o arquivo original 5 vezes simulando as 5 stems separadas pelo Moises
-            logger.LogInformation($"[WORKER] Gerando pacote ZIP contendo as 5 stems simuladas em: {zipPath}");
-            using (var zipStream = new FileStream(zipPath, FileMode.Create))
+            // Configurações do Navegador
+            var headlessStr = configuration["EXTRACTOR_HEADLESS"] ?? "true";
+            bool isHeadless = !string.Equals(headlessStr, "false", StringComparison.OrdinalIgnoreCase);
+            
+            var slowMoStr = configuration["EXTRACTOR_SLOW_MO"] ?? "0";
+            int slowMo = int.TryParse(slowMoStr, out var sm) ? sm : 0;
+
+            var launchOptions = new BrowserTypeLaunchOptions
             {
-                using (var archive = new ZipArchive(zipStream, ZipArchiveMode.Create))
-                {
-                    var stemNames = new[]
-                    {
-                        $"vocals{fileExt}",
-                        $"drums{fileExt}",
-                        $"bass{fileExt}",
-                        $"piano{fileExt}",
-                        $"others{fileExt}"
-                    };
+                Headless = isHeadless,
+                SlowMo = slowMo,
+                Args = new[] 
+                { 
+                    "--no-sandbox", 
+                    "--disable-setuid-sandbox", 
+                    "--disable-dev-shm-usage",
+                    "--disable-web-security",
+                    "--disable-blink-features=AutomationControlled", // Anti-bot stealth
+                    "--use-gl=angle", 
+                    "--use-angle=swiftshader"
+                }
+            };
 
-                    foreach (var stemName in stemNames)
+            logger.LogInformation($"[WORKER] Lançando Chromium (Headless: {isHeadless}, SlowMo: {slowMo}ms)...");
+            await using var browser = await playwright.Chromium.LaunchAsync(launchOptions);
+
+            // Injeta estado de autenticação a partir de auth.json
+            var contextOptions = new BrowserNewContextOptions
+            {
+                UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                ViewportSize = new ViewportSize { Width = 1280, Height = 800 },
+                Locale = "pt-BR",
+                TimezoneId = "America/Sao_Paulo"
+            };
+
+            if (File.Exists(filePath))
+            {
+                contextOptions.StorageStatePath = filePath;
+                logger.LogInformation($"[WORKER] Cookies carregados com sucesso de: {filePath}");
+            }
+            else
+            {
+                throw new InvalidOperationException($"[WORKER ERROR] Cookies de sessão (auth.json) ausentes em: {filePath}");
+            }
+
+            var context = await browser.NewContextAsync(contextOptions);
+            var page = await context.NewPageAsync();
+
+            // 4. Acessa a página de Upload Split
+            await UpdateTrackStatusAsync(track.TrackId, "Processando: Acessando a tela de Upload do Moises.ai", db, stoppingToken);
+            logger.LogInformation("[WORKER] Acessando a página de upload: https://studio.moises.ai/upload/split");
+            
+            await page.GotoAsync("https://studio.moises.ai/upload/split", new PageGotoOptions 
+            { 
+                Timeout = 60000, 
+                WaitUntil = WaitUntilState.NetworkIdle 
+            });
+
+            // Pequeno delay anti-bot
+            await Task.Delay(Random.Shared.Next(1000, 2000), stoppingToken);
+
+            // Se redirecionou para o login, significa que os cookies expiraram
+            if (page.Url.Contains("/login") || page.Url.Contains("/auth/login"))
+            {
+                throw new UnauthorizedAccessException("[WORKER ERROR] A sessão de cookies do Moises.ai expirou. É necessário reimportar a sessão no painel Admin.");
+            }
+
+            // 5. Upload do Arquivo no Dropzone do Moises
+            await UpdateTrackStatusAsync(track.TrackId, "Processando: Enviando áudio original para o Moises.ai", db, stoppingToken);
+            logger.LogInformation($"[WORKER] Realizando upload do arquivo original para o Moises: {originalFile}");
+
+            // O Playwright seleciona e injeta o arquivo no input oculto de uploads
+            var fileInputSelector = "input[type='file']";
+            await page.WaitForSelectorAsync(fileInputSelector, new PageWaitForSelectorOptions { Timeout = 20000 });
+            var fileInput = await page.QuerySelectorAsync(fileInputSelector);
+            if (fileInput == null)
+            {
+                throw new InvalidOperationException("[WORKER ERROR] Não foi possível localizar o input de arquivos do Moises.ai.");
+            }
+            await fileInput.SetInputFilesAsync(originalFile);
+
+            logger.LogInformation("[WORKER] Arquivo selecionado no input do navegador. Aguardando processamento da seleção de stems...");
+
+            // 6. Tela de Seleção de Stems
+            // O Moises redireciona automaticamente para a tela de stems (split).
+            // O padrão da conta do usuário já vem pré-selecionado (5 stems). Clicamos em "Enviar".
+            await UpdateTrackStatusAsync(track.TrackId, "Processando: Configurando divisão de stems (Moises)", db, stoppingToken);
+
+            var submitButtonSelector = "button:has-text('Enviar'), button:has-text('Submit'), button:has(svg)";
+            await page.WaitForSelectorAsync(submitButtonSelector, new PageWaitForSelectorOptions { Timeout = 60000 });
+            await Task.Delay(Random.Shared.Next(1500, 3000), stoppingToken); // delay humano anti-bot
+            
+            logger.LogInformation("[WORKER] Clicando no botão 'Enviar' para iniciar a extração...");
+            await page.ClickAsync(submitButtonSelector);
+
+            // 7. Retorno à Biblioteca
+            await UpdateTrackStatusAsync(track.TrackId, "Processando: Aguardando retorno para a Biblioteca", db, stoppingToken);
+            logger.LogInformation("[WORKER] Aguardando redirecionamento para a biblioteca...");
+            
+            await page.WaitForURLAsync("**/library**", new PageWaitForURLOptions { Timeout = 120000 });
+            await Task.Delay(Random.Shared.Next(3000, 5000), stoppingToken); // delay humano de carregamento
+
+            // 8. Clicar no primeiro áudio da lista (mais recente)
+            await UpdateTrackStatusAsync(track.TrackId, "Processando: Identificando a música na Biblioteca", db, stoppingToken);
+            logger.LogInformation("[WORKER] Localizando a música mais recente na lista...");
+
+            // Aguarda a tabela/grade de faixas carregar
+            await page.WaitForSelectorAsync("table, .track-list, .track-row, tr, [role='row']", new PageWaitForSelectorOptions { Timeout = 45000 });
+            
+            // Clicamos na primeira linha ou no primeiro td clicável
+            var firstRowSelector = ".track-row:first-child, tr:first-child td, .track-list-item:first-child, td a";
+            await page.ClickAsync(firstRowSelector);
+            await Task.Delay(Random.Shared.Next(2000, 4000), stoppingToken);
+
+            // 9. DAW (Player): Aguardar o processamento das faixas
+            await UpdateTrackStatusAsync(track.TrackId, "Processando: Aguardando separação de stems na DAW", db, stoppingToken);
+            logger.LogInformation("[WORKER] DAW / Player carregado. Monitorando processamento das stems...");
+
+            // Monitoramos a presença e a ativação do botão "Exportar" que é habilitado quando pronto
+            var exportButtonSelector = "button:has-text('Exportar'), button:has-text('Export')";
+            
+            logger.LogInformation("[WORKER] Monitorando o botão de Exportar na DAW. Limite de espera de 15 minutos...");
+            
+            bool dawPronto = false;
+            int tentativasDAW = 90; // 90 * 10s = 15 minutos
+            while (!dawPronto && tentativasDAW > 0)
+            {
+                tentativasDAW--;
+                await Task.Delay(10000, stoppingToken);
+                
+                var exportButton = page.Locator(exportButtonSelector).First;
+                if (await exportButton.CountAsync() > 0)
+                {
+                    bool isEnabled = await exportButton.IsEnabledAsync();
+                    if (isEnabled)
                     {
-                        var entry = archive.CreateEntry(stemName);
-                        using var entryStream = entry.Open();
-                        using var sourceStream = new FileStream(originalFile, FileMode.Open, FileAccess.Read, FileShare.Read);
-                        await sourceStream.CopyToAsync(entryStream, stoppingToken);
+                        dawPronto = true;
+                        logger.LogInformation("[WORKER] Status: Áudio processado e botão 'Exportar' ativo!");
                     }
+                    else
+                    {
+                        logger.LogInformation($"[WORKER] Status: Faixas ainda em processamento na DAW... (Tentativas restantes: {tentativasDAW})");
+                    }
+                }
+                else
+                {
+                    logger.LogInformation($"[WORKER] Status: DAW carregando interface... (Tentativas restantes: {tentativasDAW})");
                 }
             }
 
-            // 4. Invoca o endpoint do backend para que ele processe e converta tudo para Opus
+            if (!dawPronto)
+            {
+                throw new TimeoutException("[WORKER ERROR] O processamento das stems demorou mais que o esperado (limite de 15 min).");
+            }
+
+            // 10. Menu de Exportação e Download
+            await UpdateTrackStatusAsync(track.TrackId, "Processando: Exportando stems selecionadas", db, stoppingToken);
+            logger.LogInformation("[WORKER] Clicando no botão 'Exportar'...");
+            await page.ClickAsync(exportButtonSelector);
+            await Task.Delay(Random.Shared.Next(1500, 2500), stoppingToken);
+
+            // Clica na opção "Exportar todos os canais" / "Export all tracks"
+            var exportAllSelector = "button:has-text('Exportar todos os canais'), button:has-text('Export all tracks'), text=Exportar todos os canais";
+            logger.LogInformation("[WORKER] Solicitando exportação de todas as faixas...");
+            
+            // Intercepta o download
+            var downloadTask = page.WaitForDownloadAsync();
+            await page.ClickAsync(exportAllSelector);
+            
+            logger.LogInformation("[WORKER] Aguardando preparação do ZIP e início do download das stems...");
+            var download = await downloadTask;
+            
+            var zipPath = Path.Combine(downloadsDir, $"{track.TrackId}_stems.zip");
+            logger.LogInformation($"[WORKER] Download iniciado! Gravando arquivo ZIP em: {zipPath}");
+            await download.SaveAsAsync(zipPath);
+
+            logger.LogInformation($"[WORKER SUCCESS] Download do ZIP de stems finalizado com sucesso: {zipPath}");
+
+            // Fecha o navegador e contexto com segurança
+            await context.CloseAsync();
+            await browser.CloseAsync();
+
+            // Etapa 11: Invoca o endpoint do backend para que ele processe e converta tudo para Opus
             var apiUrl = configuration["API_URL"];
             if (string.IsNullOrEmpty(apiUrl))
             {
@@ -182,7 +373,6 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             apiUrl = apiUrl.TrimEnd('/');
 
             using var httpClient = new HttpClient();
-            // Aumenta timeout para upload/processamento de áudio se necessário
             httpClient.Timeout = TimeSpan.FromMinutes(5);
 
             var requestUrl = $"{apiUrl}/api/Tracks/{track.TrackId}/ProcessStemsZip";
