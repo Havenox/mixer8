@@ -774,6 +774,23 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             Console.WriteLine($"[BOT-PASSO] Aguardando atraso fixo de {delayMs / 1000} segundos para que o Moises conclua o processamento de todas as stems...");
             await Task.Delay(delayMs, stoppingToken);
 
+            // Realiza um F5/refresh na página para carregar as stems prontas e reestruturar a DOM de forma limpa
+            try
+            {
+                Console.WriteLine("[BOT-PASSO] Executando F5 (recarregando a página) para atualizar o estado do player de áudio...");
+                await page.ReloadAsync(new PageReloadOptions 
+                { 
+                    Timeout = 30000, 
+                    WaitUntil = WaitUntilState.DOMContentLoaded 
+                });
+                Console.WriteLine("[BOT-PASSO] Recarregamento concluído! Aguardando 10 segundos para inicialização e renderização completa da interface...");
+                await Task.Delay(10000, stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[BOT-PASSO] [Aviso] Timeout ou lentidão ao recarregar a página ({ex.Message}). Continuando mesmo assim...");
+            }
+
             Console.WriteLine("[BOT-PASSO] Iniciando monitoramento do botão 'Exportar'...");
 
             // Monitoramos a presença e a ativação do botão "Exportar" que é habilitado quando pronto
