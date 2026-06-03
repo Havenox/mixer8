@@ -37,6 +37,9 @@ Ajustamos de forma cirúrgica as constantes de tempo de execução da automaçã
 ### Configuração
 * **Mudanças em [.env](file:///g:/DEV/mixer8/.env) e [.env.example](file:///g:/DEV/mixer8/.env.example)**:
   - Adicionada a variável `EXTRACTOR_WAIT_TIME_BASE_SECONDS=180` para fácil ajuste do time-gate.
+  - Adicionada a variável `EXTRACTOR_BROWSER_CHANNEL=chrome` no `.env` local para manter a execução local sobre o Google Chrome.
+* **Mudança em [appsettings.Development.json](file:///g:/DEV/mixer8/mixer8-extractor/appsettings.Development.json)**:
+  - Definido `"EXTRACTOR_BROWSER_CHANNEL": ""` para garantir que o contêiner Docker rodando em modo Development não tente buscar o executável do Google Chrome inexistente no Linux do contêiner, utilizando o Chromium padrão instalado.
 
 ## 🎯 Impacto e Resultado
 * **Estabilidade Headless Sem Lixo em Disco**: Execução fluida do navegador headless em produção sem gravação de logs de depuração redundantes ou prints temporários.
