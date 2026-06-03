@@ -64,6 +64,17 @@ O extrator realiza a leitura física deste ZIP, decodifica a tag `<stem>`, renom
 * **Exemplo**: `02 - Vestido Curto-drums-D minor-150bpm-441hz.mp3` é decodificado, renomeado para **`Bateria.mp3`**, e salvo sob a pasta dedicada no servidor `/downloads/tracks/[TrackId]/Bateria.mp3`.
 * **Persistência Relacional**: As URLs de streaming físicas (ex: `/tracks/[TrackId]/Bateria.mp3`) de cada faixa descompactada com sucesso são registradas na tabela `"Stems"`, marcando a música como `Pronto`.
 
+### Resiliência na Localização de Elementos Assíncronos
+Durante a execução do bot headless, latências de renderização de Single Page Applications ou atrasos na carga de recursos externos podem fazer com que elementos HTML dinâmicos não estejam prontos de imediato. Para mitigar isso, o bot envelopa a localização dos frames em loops de retry:
+* **Upload Frame**: Busca repetida com tolerância de até 10 segundos para encontrar o frame ativo de upload (`GetActiveUploadFrameAsync`).
+* **Player DAW Frame**: Busca repetida com tolerância de até 15 segundos para encontrar o frame da mesa de mixagem (`GetActivePlayerFrameAsync`).
+Isso protege a automação contra timeouts prematuros de renderização.
+
+### Estratégia de Sincronização e Mitigação via Recarregamento (F5)
+Executar uma DAW complexa em contêineres sem aceleração gráfica física expõe o navegador headless a limitações de processamento de áudio (AudioContext) e renderização WebGL. A mitigação é feita via recarregamento de página:
+1. **Ignorar Decodificação em Tempo Real**: Forçar um recarregamento de página (F5) após o tempo de processamento no servidor permite que a interface da DAW recupere o estado compilado direto do banco de dados parceiro. Isso expõe diretamente o botão "Export" ativo e ignora a necessidade de carregar, decodificar ou reproduzir streams de áudio localmente, o que costuma causar quebras.
+2. **Buffer de Segurança Pós-F5**: A automação aplica um tempo de espera estático de 30 segundos após o F5. Esse período garante a reconstrução completa do DOM e inicialização estável da página do player headless antes de prosseguir com a exportação.
+
 ---
 
 ## 3. Presets de Mixagem e UX Persistente
