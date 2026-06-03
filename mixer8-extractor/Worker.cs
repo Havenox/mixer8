@@ -450,38 +450,12 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
 
             // 5.1. Detecção dinâmica de IFrames ativos na página
             Console.WriteLine("[BOT-PASSO] Verificando se a interface está embutida dentro de algum IFrame...");
-            IFrame? interactionFrame = null;
-            
-            // Dá um delay curto para que a DOM termine de estruturar os frames na SPA
             await Task.Delay(2000, stoppingToken);
+            IFrame? interactionFrame = await GetActiveUploadFrameAsync(page);
             
-            var framesList = page.Frames.ToList();
-            Console.WriteLine($"[BOT-PASSO] Total de IFrames detectados na página: {framesList.Count}");
-            foreach (var frame in framesList)
-            {
-                if (frame == page.MainFrame) continue;
-                try
-                {
-                    // Verifica se o HTML do frame contém strings-chave características da interface de upload do Moises
-                    var content = await frame.ContentAsync();
-                    if (content.Contains("Armazenado na nuvem", StringComparison.OrdinalIgnoreCase) || 
-                        content.Contains("Arquivos locais", StringComparison.OrdinalIgnoreCase) ||
-                        content.Contains("tab_container", StringComparison.OrdinalIgnoreCase) ||
-                        content.Contains("url_text_box", StringComparison.OrdinalIgnoreCase))
-                    {
-                        interactionFrame = frame;
-                        Console.WriteLine($"[BOT-PASSO] Interface de upload localizada no IFrame: '{frame.Name}' (URL: {frame.Url})");
-                        break;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    logger.LogDebug($"[WORKER DEBUG] Erro ao ler conteúdo do frame {frame.Name}: {ex.Message}");
-                }
-            }
-
             if (interactionFrame != null)
             {
+                Console.WriteLine($"[BOT-PASSO] Interface de upload localizada no IFrame: '{interactionFrame.Name}' (URL: {interactionFrame.Url})");
                 Console.WriteLine("[BOT-PASSO] Atenção: As ações de clique e inserção serão direcionadas para o IFrame detectado!");
             }
             else
@@ -754,39 +728,12 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             
             // 9.1. Detecção dinâmica de IFrames ativos na página da DAW (Player2)
             Console.WriteLine("[BOT-PASSO] Verificando se o Player/DAW está rodando dentro de um IFrame...");
-            IFrame? playerFrame = null;
-            
-            // Dá um delay curto para que a DOM carregue os frames iniciais do player
             await Task.Delay(5000, stoppingToken);
-            
-            var playerFramesList = page.Frames.ToList();
-            Console.WriteLine($"[BOT-PASSO] [DAW] Total de IFrames detectados na página da DAW: {playerFramesList.Count}");
-            foreach (var frame in playerFramesList)
-            {
-                if (frame == page.MainFrame) continue;
-                try
-                {
-                    var content = await frame.ContentAsync();
-                    if (content.Contains("Exportar", StringComparison.OrdinalIgnoreCase) || 
-                        content.Contains("Export", StringComparison.OrdinalIgnoreCase) ||
-                        content.Contains("Separando faixas", StringComparison.OrdinalIgnoreCase) ||
-                        content.Contains("Vocais", StringComparison.OrdinalIgnoreCase) ||
-                        content.Contains("Vocals", StringComparison.OrdinalIgnoreCase) ||
-                        content.Contains("buttonExport", StringComparison.OrdinalIgnoreCase))
-                    {
-                        playerFrame = frame;
-                        Console.WriteLine($"[BOT-PASSO] [DAW] Interface localizada no IFrame: '{frame.Name}' (URL: {frame.Url})");
-                        break;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    logger.LogDebug($"[WORKER DEBUG] Erro ao ler conteúdo do frame {frame.Name}: {ex.Message}");
-                }
-            }
+            IFrame? playerFrame = await GetActivePlayerFrameAsync(page);
 
             if (playerFrame != null)
             {
+                Console.WriteLine($"[BOT-PASSO] [DAW] Interface localizada no IFrame: '{playerFrame.Name}' (URL: {playerFrame.Url})");
                 Console.WriteLine("[BOT-PASSO] [DAW] As interações do player serão direcionadas para o IFrame correspondente.");
             }
             else
@@ -842,6 +789,9 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 Console.WriteLine($"[BOT-PASSO] Verificando botão 'Exportar' (Tempo restante máximo: {tentativasDAW * 10}s)...");
                 await Task.Delay(10000, stoppingToken);
                 
+                // Atualiza o frame dinamicamente para evitar referências desalocadas/remontadas pela SPA
+                playerFrame = await GetActivePlayerFrameAsync(page);
+                
                 var exportButton = playerFrame != null ? playerFrame.Locator(exportButtonSelector).First : page.Locator(exportButtonSelector).First;
                 if (await exportButton.CountAsync() > 0)
                 {
@@ -888,6 +838,9 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                     
                     // Garante que o banner de cookies está aceito
                     await AcceptCookiesIfVisibleAsync(page, stoppingToken);
+
+                    // Atualiza o frame dinamicamente caso tenha ocorrido reload ou redirecionamento na DAW
+                    playerFrame = await GetActivePlayerFrameAsync(page);
 
                     var exportButton = playerFrame != null ? playerFrame.Locator(exportButtonSelector).First : page.Locator(exportButtonSelector).First;
                     await exportButton.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 15000 });
@@ -1059,5 +1012,66 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         }
     }
 
+    private async Task<IFrame?> GetActivePlayerFrameAsync(IPage page)
+    {
+        var framesList = page.Frames.ToList();
+        foreach (var frame in framesList)
+        {
+            if (frame == page.MainFrame) continue;
+            if (frame.Url.Contains("/player2/") || frame.Url.Contains("/player/"))
+            {
+                return frame;
+            }
+        }
+        foreach (var frame in framesList)
+        {
+            if (frame == page.MainFrame) continue;
+            try
+            {
+                var content = await frame.ContentAsync();
+                if (content.Contains("Exportar", StringComparison.OrdinalIgnoreCase) || 
+                    content.Contains("Export", StringComparison.OrdinalIgnoreCase) ||
+                    content.Contains("Separando faixas", StringComparison.OrdinalIgnoreCase) ||
+                    content.Contains("Vocais", StringComparison.OrdinalIgnoreCase) ||
+                    content.Contains("Vocals", StringComparison.OrdinalIgnoreCase) ||
+                    content.Contains("buttonExport", StringComparison.OrdinalIgnoreCase))
+                {
+                    return frame;
+                }
+            }
+            catch {}
+        }
+        return null;
+    }
+
+    private async Task<IFrame?> GetActiveUploadFrameAsync(IPage page)
+    {
+        var framesList = page.Frames.ToList();
+        foreach (var frame in framesList)
+        {
+            if (frame == page.MainFrame) continue;
+            if (frame.Url.Contains("/upload/split/"))
+            {
+                return frame;
+            }
+        }
+        foreach (var frame in framesList)
+        {
+            if (frame == page.MainFrame) continue;
+            try
+            {
+                var content = await frame.ContentAsync();
+                if (content.Contains("Armazenado na nuvem", StringComparison.OrdinalIgnoreCase) || 
+                    content.Contains("Arquivos locais", StringComparison.OrdinalIgnoreCase) ||
+                    content.Contains("tab_container", StringComparison.OrdinalIgnoreCase) ||
+                    content.Contains("url_text_box", StringComparison.OrdinalIgnoreCase))
+                {
+                    return frame;
+                }
+            }
+            catch {}
+        }
+        return null;
+    }
 }
 
