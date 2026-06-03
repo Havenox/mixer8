@@ -243,10 +243,13 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             var slowMoStr = configuration["EXTRACTOR_SLOW_MO"] ?? "0";
             int slowMo = int.TryParse(slowMoStr, out var sm) ? sm : 0;
 
+            var browserChannel = configuration["EXTRACTOR_BROWSER_CHANNEL"] ?? "";
+
             var contextOptions = new BrowserTypeLaunchPersistentContextOptions
             {
                 Headless = isHeadless,
                 SlowMo = slowMo,
+                Channel = string.IsNullOrEmpty(browserChannel) ? null : browserChannel,
                 Args = new[] 
                 { 
                     "--no-sandbox", 
@@ -265,7 +268,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 TimezoneId = "America/Sao_Paulo"
             };
 
-            logger.LogInformation($"[WORKER] Lançando Chromium com Perfil Persistente (Headless: {isHeadless}, SlowMo: {slowMo}ms, Perfil: {userProfileDir})...");
+            logger.LogInformation($"[WORKER] Lançando Chromium com Perfil Persistente (Headless: {isHeadless}, Canal: {browserChannel}, SlowMo: {slowMo}ms, Perfil: {userProfileDir})...");
             Console.WriteLine($"[BOT-PASSO] Lançando navegador com perfil persistente em: {userProfileDir}");
 
             var context = await playwright.Chromium.LaunchPersistentContextAsync(userProfileDir, contextOptions);
@@ -273,6 +276,20 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             // Garante que só temos 1 página aberta no perfil persistente e foca nela em primeiro plano
             var pages = context.Pages.ToList();
             page = pages.FirstOrDefault() ?? await context.NewPageAsync();
+            
+            // Registra listeners para capturar erros e logs do console do navegador para depuração detalhada
+            page.Console += (sender, msg) => 
+            {
+                if (msg.Type == "error" || msg.Text.Contains("failed", StringComparison.OrdinalIgnoreCase) || msg.Text.Contains("error", StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine($"[BROWSER-CONSOLE] [{msg.Type.ToUpper()}] {msg.Text} (URL: {msg.Location})");
+                }
+            };
+            page.PageError += (sender, exception) => 
+            {
+                Console.WriteLine($"[BROWSER-UNHANDLED-EXCEPTION] {exception}");
+            };
+
             for (int i = 1; i < pages.Count; i++)
             {
                 try { await pages[i].CloseAsync(); } catch { }
