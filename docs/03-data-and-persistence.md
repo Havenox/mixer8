@@ -129,7 +129,15 @@ Ao concluir o download e extração das faixas, o microserviço atualiza o statu
 
 ## 3. Processamentos em Background Decoplados
 
-A aplicação possui rotinas de background agendadas (Cron Jobs / Hosted Services) para tarefas de manutenção preventiva:
+A aplicação possui rotinas de background agendadas (Cron Jobs / Hosted Services) para tarefas de manutenção preventiva e diagnóstico:
 
 1. **Limpeza de Arquivos Temporários**: Uma tarefa diária que varre a pasta `/app/downloads` temporária da API e do Extractor, removendo arquivos originais de upload e ZIPs antigos já descompactados cujos dados já foram persistidos nos storages de CDN, liberando espaço em disco na VPS.
 2. **Consolidação de Estatísticas de Audiência**: Agregador que contabiliza as execuções de tracks em lote a cada hora (evitando que requisições HTTP individuais do player inflem acessos simultâneos no banco de dados principal de forma síncrona).
+3. **Monitoramento de Flags de Depuração (Extractor)**: O Worker C# executa uma thread paralela em background que monitora continuamente a criação do arquivo `take_screenshot.flag` no diretório de configuração. Ao detectar a flag, ela aciona uma captura de tela do navegador headless ativo (`screenshot_live.png`) para diagnóstico e exclui o arquivo flag em seguida.
+
+---
+
+## 4. Persistência de Volumes e Dados de Sessão
+Para que o bot mantenha seu estado de login e autenticação ativo entre reinicializações de contêineres Docker, o diretório de dados do bot é isolado e persistido:
+* **Mapeamento de Volume**: O diretório de configuração do extrator (definido pela variável de ambiente `EXTRACTOR_CONFIG_DIR`, mapeado para `/app/config` no contêiner) é montado como um volume compartilhado com o host no `docker-compose.yml`.
+* **Preservação de Estado**: Arquivos cruciais como o estado de autenticação do Playwright (`auth.json`), logs do navegador e capturas de tela diagnósticas em runtime são armazenados neste volume, garantindo que o bot não precise reautenticar a cada recriação do contêiner.
