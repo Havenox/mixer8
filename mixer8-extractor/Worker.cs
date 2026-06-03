@@ -19,6 +19,8 @@ namespace Mixer8.Extractor;
 /// </summary>
 public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IConfiguration configuration) : BackgroundService
 {
+    private readonly List<string> _browserLogs = new();
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation("[WORKER] Extrator de Stems iniciado em .NET 10.");
@@ -280,13 +282,26 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             // Registra listeners para capturar erros e logs do console do navegador para depuração detalhada
             page.Console += (sender, msg) => 
             {
+                var logLine = $"[{DateTime.Now:HH:mm:ss}] [CONSOLE] [{msg.Type.ToUpper()}] {msg.Text} (URL: {msg.Location})";
+                lock (_browserLogs)
+                {
+                    _browserLogs.Add(logLine);
+                }
+                SaveBrowserLogs();
+
                 if (msg.Type == "error" || msg.Text.Contains("failed", StringComparison.OrdinalIgnoreCase) || msg.Text.Contains("error", StringComparison.OrdinalIgnoreCase))
                 {
-                    Console.WriteLine($"[BROWSER-CONSOLE] [{msg.Type.ToUpper()}] {msg.Text} (URL: {msg.Location})");
+                    Console.WriteLine($"[BROWSER-CONSOLE] [{msg.Type.ToUpper()}] {msg.Text}");
                 }
             };
             page.PageError += (sender, exception) => 
             {
+                var logLine = $"[{DateTime.Now:HH:mm:ss}] [UNHANDLED-EXCEPTION] {exception}";
+                lock (_browserLogs)
+                {
+                    _browserLogs.Add(logLine);
+                }
+                SaveBrowserLogs();
                 Console.WriteLine($"[BROWSER-UNHANDLED-EXCEPTION] {exception}");
             };
 
@@ -794,7 +809,45 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             }
 
             Console.WriteLine($"[BOT-PASSO] Aguardando atraso fixo de {delayMs / 1000} segundos para que o Moises conclua o processamento de todas as stems...");
-            await Task.Delay(delayMs, stoppingToken);
+            
+            // Tirar print imediatamente ao acessar a DAW
+            try
+            {
+                await page.ScreenshotAsync(new PageScreenshotOptions { Path = "daw_01_acesso.png" });
+                Console.WriteLine("[BOT-DEBUG] Screenshot de depuração 'daw_01_acesso.png' salvo!");
+            }
+            catch (Exception ex) { Console.WriteLine($"[BOT-DEBUG] Erro ao salvar screenshot 'daw_01_acesso.png': {ex.Message}"); }
+
+            // Aguarda 10 segundos e tira o segundo print
+            await Task.Delay(10000, stoppingToken);
+            try
+            {
+                await page.ScreenshotAsync(new PageScreenshotOptions { Path = "daw_02_10seg.png" });
+                Console.WriteLine("[BOT-DEBUG] Screenshot de depuração 'daw_02_10seg.png' salvo!");
+            }
+            catch (Exception ex) { Console.WriteLine($"[BOT-DEBUG] Erro ao salvar screenshot 'daw_02_10seg.png': {ex.Message}"); }
+
+            // Aguarda mais 10 segundos e tira o terceiro print
+            await Task.Delay(10000, stoppingToken);
+            try
+            {
+                await page.ScreenshotAsync(new PageScreenshotOptions { Path = "daw_03_20seg.png" });
+                Console.WriteLine("[BOT-DEBUG] Screenshot de depuração 'daw_03_20seg.png' salvo!");
+            }
+            catch (Exception ex) { Console.WriteLine($"[BOT-DEBUG] Erro ao salvar screenshot 'daw_03_20seg.png': {ex.Message}"); }
+
+            // Aguarda o tempo restante para o processamento total
+            int remainingDelayMs = Math.Max(0, delayMs - 20000);
+            Console.WriteLine($"[BOT-PASSO] Aguardando atraso restante de {remainingDelayMs / 1000} segundos para processamento de stems...");
+            await Task.Delay(remainingDelayMs, stoppingToken);
+
+            // Tirar print imediatamente antes do F5
+            try
+            {
+                await page.ScreenshotAsync(new PageScreenshotOptions { Path = "daw_04_antes_refresh.png" });
+                Console.WriteLine("[BOT-DEBUG] Screenshot de depuração 'daw_04_antes_refresh.png' salvo!");
+            }
+            catch (Exception ex) { Console.WriteLine($"[BOT-DEBUG] Erro ao salvar screenshot 'daw_04_antes_refresh.png': {ex.Message}"); }
 
             // Realiza um F5/refresh na página para carregar as stems prontas e reestruturar a DOM de forma limpa
             try
@@ -805,8 +858,25 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                     Timeout = 30000, 
                     WaitUntil = WaitUntilState.DOMContentLoaded 
                 });
+                
+                // Tirar print imediatamente após o F5/refresh
+                try
+                {
+                    await page.ScreenshotAsync(new PageScreenshotOptions { Path = "daw_05_pos_refresh.png" });
+                    Console.WriteLine("[BOT-DEBUG] Screenshot de depuração 'daw_05_pos_refresh.png' salvo!");
+                }
+                catch (Exception ex2) { Console.WriteLine($"[BOT-DEBUG] Erro ao salvar screenshot 'daw_05_pos_refresh.png': {ex2.Message}"); }
+
                 Console.WriteLine("[BOT-PASSO] Recarregamento concluído! Aguardando 30 segundos para inicialização e renderização completa da interface...");
                 await Task.Delay(30000, stoppingToken);
+
+                // Tirar print após o tempo de espera pós-refresh
+                try
+                {
+                    await page.ScreenshotAsync(new PageScreenshotOptions { Path = "daw_06_fim_delay_pos_refresh.png" });
+                    Console.WriteLine("[BOT-DEBUG] Screenshot de depuração 'daw_06_fim_delay_pos_refresh.png' salvo!");
+                }
+                catch (Exception ex3) { Console.WriteLine($"[BOT-DEBUG] Erro ao salvar screenshot 'daw_06_fim_delay_pos_refresh.png': {ex3.Message}"); }
             }
             catch (Exception ex)
             {
@@ -1130,6 +1200,20 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             catch {}
         }
         return null;
+    }
+
+    private void SaveBrowserLogs()
+    {
+        try
+        {
+            string projectDir = Directory.GetCurrentDirectory();
+            string logPath = Path.Combine(projectDir, "browser_console.txt");
+            lock (_browserLogs)
+            {
+                File.WriteAllLines(logPath, _browserLogs);
+            }
+        }
+        catch {}
     }
 }
 
