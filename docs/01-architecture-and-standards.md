@@ -57,6 +57,7 @@ Adotamos uma política rígida de **Zero Hardcode** para dados sensíveis, segre
 * **Injeção de Configurações**: Todas as portas de escuta, conexões de banco de dados, chaves de criptografia e credenciais de serviços externos devem ser carregadas em tempo de execução das variáveis de ambiente (`EnvironmentVariables`).
 * **Estrutura de Variáveis**: O arquivo `.env` na raiz é o ponto centralizador local. No Docker Compose, os valores são repassados aos containers pelo mecanismo de `env_file`.
 * **String de Conexão Dinâmica**: No C# e no Node, as conexões de banco não devem ser duplicadas. A string de conexão final deve ser construída programaticamente a partir das chaves individuais (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`), simplificando a alteração de senhas sem riscos de inconsistência.
+* **Parametrização do Extrator Headless**: Variáveis de ambiente como `EXTRACTOR_WAIT_TIME_BASE_SECONDS` (tempo de carência base), `EXTRACTOR_BROWSER_CHANNEL` (canal de distribuição do navegador) e `EXTRACTOR_CONFIG_DIR` (diretório de dados e flags) evitam o hardcoding de caminhos físicos ou tempos estáticos de espera, permitindo a adequação do bot a diferentes capacidades de hardware e ambientes de infraestrutura sem alterações no código fonte.
 
 ---
 
@@ -97,3 +98,7 @@ O controle de acessos da API do Mixer8 garante a proteção dos recursos intelec
 * **Derived State (Estado Derivado)**: Proibido o uso de `useEffect` para sincronizar estados redundantes. Toda a lógica de filtragem, paginação ou formatação deve ser calculada na renderização de forma síncrona.
 * **Prevenção de Duplo Envio**: Todos os formulários e ações de mutação assíncrona devem desabilitar fisicamente a interação do usuário (`disabled={isPending}`) durante o processamento.
 * **Acumuladores de Tempo Reais para Audiência**: Para medição de audiência e controle de reproduções, o tempo escutado deve ser acumulado de forma líquida em referências estáveis (`useRef`) no context player do React, disparando a chamada da API somente após satisfazer o limite temporal do negócio (Regra dos 30s).
+
+### 🤖 Práticas de Automação Headless (Playwright & Docker)
+* **Requisitos do Navegador e Codecs Proprietários**: A decodificação de áudio de alta fidelidade em DAWs de terceiros requer codecs proprietários (como MP3/AAC). Por conta disso, o contêiner de automação deve obrigatoriamente executar a distribuição oficial estável do Google Chrome (canal de navegador `chrome`) em vez do Chromium básico padrão do Playwright, mitigando erros de inicialização de áudio (*EncodingError*).
+* **Argumentos de Inicialização Headless**: A execução estável em ambientes virtuais sem aceleração de GPU por hardware exige a desativação da política de autoplay (`--autoplay-policy=no-user-gesture-required`) e a ativação forçada de renderização via software WebGL (ex: SwiftShader/ANGLE), permitindo que a interface gráfica virtual da DAW inicialize perfeitamente.
