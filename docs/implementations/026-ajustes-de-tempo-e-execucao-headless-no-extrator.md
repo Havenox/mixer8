@@ -18,8 +18,9 @@ Ajustamos de forma cirúrgica as constantes de tempo de execução da automaçã
 1. **Aumento dos Tempos Padrão do Time Gate**: Ajustamos o limite seguro de carência de transcodificação de stems de 2 para 3 minutos para arquivos normais. A proporção foi estendida para 4 minutos (arquivos médios) e 5 minutos (arquivos grandes), garantindo integridade e download completo.
 2. **Buffer Pós-F5 Estendido**: Aumentamos o tempo de espera estático após a recarga da página (F5) de 10 segundos para 30 segundos, mitigando a lentidão de renderização sem aceleração GPU.
 3. **Diretrizes de Autoplay e Renderização Gráfica**: Injetamos argumentos de inicialização no Chromium para ignorar a restrição de autoplay e habilitar renderização por software de WebGL/GPU (via ANGLE/SwiftShader).
-4. **Telemetria de Frames e Screenshots**: Inserimos logs informativos detalhados no loop do extrator (URL principal e mapeamento de frames) e implementamos a geração automática de capturas de tela de depuração (`daw_debug.png`) sempre que o botão de exportação não for detectado.
-5. **Reativação do Headless em Desenvolvimento**: Com a robustez do fluxo validada em modo headed (com tela), o modo headless foi reativado no arquivo de configuração do ambiente local para teste em modo de homologação final.
+4. **Telemetria de Frames e Logs de Erro**: Inserimos logs informativos detalhados no loop do extrator (URL principal e mapeamento de frames).
+5. **Sequenciamento de Fotos de Diagnóstico e Captura de Console**: Criamos um fluxo de capturas de tela sequenciais controladas pelo tempo durante o ciclo de processamento da DAW e persistimos todos os eventos e exceções do console do navegador no arquivo local `browser_console.txt` para auditoria offline completa.
+6. **Reativação do Headless em Desenvolvimento**: Com a robustez do fluxo validada em modo headed (com tela), o modo headless foi reativado no arquivo de configuração do ambiente local para teste em modo de homologação final.
 
 ## 🛠️ Implementação Técnica
 
@@ -33,7 +34,9 @@ Ajustamos de forma cirúrgica as constantes de tempo de execução da automaçã
   - Aumentado o delay do `Task.Delay` subsequente ao `page.ReloadAsync` para `30000` ms (30 segundos).
 * **Telemetria e Debug em [Worker.cs](file:///g:/DEV/mixer8/mixer8-extractor/Worker.cs)**:
   - Emissão da URL atual da página principal e listagem do grafo de URLs e nomes de frames ativos durante a checagem de prontidão da DAW.
-  - Geração automática de `daw_debug.png` em caso de falhas na localização do botão.
+  - Gravação em tempo real de todas as mensagens e erros de console no arquivo `browser_console.txt`.
+  - Sequência de screenshots na esteira da DAW: `daw_01_acesso.png` (abertura), `daw_02_10seg.png` (10s), `daw_03_20seg.png` (20s), `daw_04_antes_refresh.png` (fim do time gate), `daw_05_pos_refresh.png` (pós-F5 imediato) e `daw_06_fim_delay_pos_refresh.png` (pós-F5 tardio).
+  - Captura sob demanda `daw_debug.png` em caso de falhas na localização do botão de exportação.
 
 ### Configuração
 * **Mudança em [appsettings.Development.json](file:///g:/DEV/mixer8/mixer8-extractor/appsettings.Development.json)**:
@@ -41,7 +44,7 @@ Ajustamos de forma cirúrgica as constantes de tempo de execução da automaçã
 
 ## 🎯 Impacto e Resultado
 * **Estabilidade Headless**: O robô agora inicializa o player, carrega o contexto de áudio e detecta os botões de exportação de forma consistente, mesmo sob altos tempos de inicialização da engine Web Audio em servidores sem GPU.
-* **Diagnósticos Transparentes**: Desenvolvedores e logs conseguem acompanhar a hierarquia de frames e a tela real do navegador sem precisar abrir a interface gráfica.
+* **Diagnósticos Transparentes**: Desenvolvedores e logs conseguem acompanhar a hierarquia de frames, os logs do console em `browser_console.txt` e a tela real do navegador através da linha do tempo visual gerada pelos screenshots de depuração.
 * **Redução de Exceções Stale**: Ao aguardar 30 segundos adicionais pós-F5, eliminamos condições de corrida na renderização inicial dos frames.
 
 ---
