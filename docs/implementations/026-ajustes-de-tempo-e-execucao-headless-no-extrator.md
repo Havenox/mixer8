@@ -29,21 +29,25 @@ Ajustamos de forma cirúrgica as constantes de tempo de execução da automaçã
 * **Argumentos de Inicialização do Navegador em [Worker.cs](file:///g:/DEV/mixer8/mixer8-extractor/Worker.cs)**:
   - Adicionado `--autoplay-policy=no-user-gesture-required` para isentar a exigência de gestos em reproduções de áudio.
   - Adicionados `--use-gl=angle`, `--use-angle=gl`, `--ignore-gpu-blocklist` e `--enable-webgl` para forçar compatibilidade gráfica no headless.
+  - Adicionada variável de classe `_activePage` e uma thread em background que monitora a existência do arquivo `/app/config/take_screenshot.flag` para capturar prints de tela em tempo real (`screenshot_live.png`) de forma não-intrusiva.
 * **Ajuste de Constantes e Parametrização em [Worker.cs](file:///g:/DEV/mixer8/mixer8-extractor/Worker.cs)**:
   - Leitura de `EXTRACTOR_WAIT_TIME_BASE_SECONDS` das configurações (padrão 180s).
   - Escalonamento dinâmico: arquivos médios (`base + 60s`) e grandes (`base + 120s`).
   - Delay estático de `30000` ms (30 segundos) mantido pós-F5 para segurança de interface.
+  - **Loops de Retry para IFrames**: Envelopamento da detecção de frames dinâmicos (`GetActiveUploadFrameAsync` e `GetActivePlayerFrameAsync`) em loops de retry de 10s e 15s respectivamente para evitar falhas de carregamento assíncrono.
 
-### Configuração
+### Configuração e Infraestrutura (Docker & Host)
 * **Mudanças em [.env](file:///g:/DEV/mixer8/.env) e [.env.example](file:///g:/DEV/mixer8/.env.example)**:
   - Adicionada a variável `EXTRACTOR_WAIT_TIME_BASE_SECONDS=180` para fácil ajuste do time-gate.
-  - Adicionada a variável `EXTRACTOR_BROWSER_CHANNEL=chrome` no `.env` local para manter a execução local sobre o Google Chrome.
-* **Mudança em [appsettings.Development.json](file:///g:/DEV/mixer8/mixer8-extractor/appsettings.Development.json)**:
-  - Definido `"EXTRACTOR_BROWSER_CHANNEL": ""` para garantir que o contêiner Docker rodando em modo Development não tente buscar o executável do Google Chrome inexistente no Linux do contêiner, utilizando o Chromium padrão instalado.
+  - Adicionada a variável `EXTRACTOR_BROWSER_CHANNEL=chrome` para definir a distribuição oficial do Chrome.
+* **Suporte ao Google Chrome Oficial no Docker Linux**:
+  - Atualizado o [Dockerfile](file:///g:/DEV/mixer8/mixer8-extractor/Dockerfile) para baixar a distribuição oficial do Chrome (`install --with-deps chrome`), resolvendo a deficiência de decodificadores de mídia proprietários (MP3/AAC) do Chromium base.
+  - Ajustado o [docker-compose.yml](file:///g:/DEV/mixer8/docker-compose.yml) para injetar `EXTRACTOR_BROWSER_CHANNEL=chrome` e `EXTRACTOR_CONFIG_DIR=/app/config` no contêiner, garantindo persistência de volumes (`auth.json`, perfil e flags de debug) entre o host e o contêiner.
 
 ## 🎯 Impacto e Resultado
-* **Estabilidade Headless Sem Lixo em Disco**: Execução fluida do navegador headless em produção sem gravação de logs de depuração redundantes ou prints temporários.
-* **Prontidão Multisservidor**: O isolamento por volumes e comunicação via domínio público permite escalabilidade horizontal (rodar múltiplos workers na ponta sob IPs distintos).
+* **Paridade Total Host/Docker**: O contêiner Docker agora roda sob o Google Chrome Oficial estável do Linux, decodificando áudio da DAW perfeitamente e eliminando a tela preta com *"Ocorreu algum erro"*.
+* **Depuração Não Intrusiva**: Possibilidade de auditar a interface do navegador headless em runtime em produção gravando arquivos flag em disco.
+* **Resiliência e Persistência**: A detecção dinâmica de IFrames tolerante a atrasos e o isolamento de caminhos em volumes compartilhados no docker-compose garantem alta imunidade a falhas de rede.
 
 ---
-**Nota do Desenvolvedor:** *A estruturação dos volumes compartilhados foi fundamental para evitar falhas de upload no Cloudflare com arquivos de áudio de mais de 100MB. A parametrização dos tempos de espera via .env torna a manutenção ágil sem necessidade de recompile do Hosted Service.*
+**Nota do Desenvolvedor:** *A instalação do Google Chrome Oficial no Linux resolveu de vez a quebra do player de áudio na DAW, trazendo o comportamento do contêiner idêntico ao Windows baremetal. As flags de screenshot sob demanda no disco facilitaram o diagnóstico sem a necessidade de manter logs verbosos de imagem ativos.*
