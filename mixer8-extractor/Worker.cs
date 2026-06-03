@@ -755,20 +755,20 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 Console.WriteLine($"[BOT-DEBUG] Falha ao ler tamanho do arquivo original: {ex.Message}");
             }
 
-            int delayMs = 120000; // 2 minutos padrão (120.000 ms)
+            int delayMs = 180000; // 3 minutos padrão (180.000 ms)
             if (fileSizeBytes > 15 * 1024 * 1024) // > 15 MB (geralmente > 6-7 min de áudio)
             {
-                delayMs = 240000; // 4 minutos
-                Console.WriteLine($"[BOT-PASSO] Arquivo grande detectado ({fileSizeBytes / (1024.0 * 1024.0):F2} MB). Definindo tempo de espera para 4 minutos.");
+                delayMs = 300000; // 5 minutos
+                Console.WriteLine($"[BOT-PASSO] Arquivo grande detectado ({fileSizeBytes / (1024.0 * 1024.0):F2} MB). Definindo tempo de espera para 5 minutos.");
             }
             else if (fileSizeBytes > 8 * 1024 * 1024) // > 8 MB (geralmente > 3-4 min de áudio)
             {
-                delayMs = 180000; // 3 minutos
-                Console.WriteLine($"[BOT-PASSO] Arquivo médio-grande detectado ({fileSizeBytes / (1024.0 * 1024.0):F2} MB). Definindo tempo de espera para 3 minutos.");
+                delayMs = 240000; // 4 minutos
+                Console.WriteLine($"[BOT-PASSO] Arquivo médio-grande detectado ({fileSizeBytes / (1024.0 * 1024.0):F2} MB). Definindo tempo de espera para 4 minutos.");
             }
             else
             {
-                Console.WriteLine($"[BOT-PASSO] Arquivo padrão/pequeno detectado ({fileSizeBytes / (1024.0 * 1024.0):F2} MB). Definindo tempo de espera padrão de 2 minutos.");
+                Console.WriteLine($"[BOT-PASSO] Arquivo padrão/pequeno detectado ({fileSizeBytes / (1024.0 * 1024.0):F2} MB). Definindo tempo de espera padrão de 3 minutos.");
             }
 
             Console.WriteLine($"[BOT-PASSO] Aguardando atraso fixo de {delayMs / 1000} segundos para que o Moises conclua o processamento de todas as stems...");
@@ -783,8 +783,8 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                     Timeout = 30000, 
                     WaitUntil = WaitUntilState.DOMContentLoaded 
                 });
-                Console.WriteLine("[BOT-PASSO] Recarregamento concluído! Aguardando 10 segundos para inicialização e renderização completa da interface...");
-                await Task.Delay(10000, stoppingToken);
+                Console.WriteLine("[BOT-PASSO] Recarregamento concluído! Aguardando 30 segundos para inicialização e renderização completa da interface...");
+                await Task.Delay(30000, stoppingToken);
             }
             catch (Exception ex)
             {
