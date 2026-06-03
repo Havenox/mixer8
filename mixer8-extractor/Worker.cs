@@ -367,6 +367,18 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             Console.WriteLine("[BOT-PASSO] Verificando termos da LGPD e cookies preventivamente...");
             await AcceptCookiesIfVisibleAsync(page, stoppingToken);
 
+            // 0.2. Aguarda a interface carregar elementos mínimos do estado deslogado ou logado para evitar checagens precoces
+            var loginOrLoggedSelector = "button:has-text('Continuar com e-mail'), button:has-text('Continue with email'), button[class*='emailButton'], input[type='email'], input[placeholder*='e-mail'], div[class*='tab_container'], .tab_container, div[class*='select-local-file_dropzone']";
+            Console.WriteLine("[BOT-PASSO] Aguardando a renderização da interface (botão de login ou tela de upload)...");
+            try
+            {
+                await page.WaitForSelectorAsync(loginOrLoggedSelector, new PageWaitForSelectorOptions { State = WaitForSelectorState.Visible, Timeout = 15000 });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[BOT-PASSO] [Aviso] Timeout ao aguardar os elementos da interface: {ex.Message}. Prosseguindo com a análise de autenticação...");
+            }
+
             // Verifica se precisamos logar analisando a presença do botão de e-mail ou campos de login
             Console.WriteLine("[BOT-PASSO] Analisando elementos da página para verificar estado de autenticação...");
             var emailBtnSelectors = new[]
