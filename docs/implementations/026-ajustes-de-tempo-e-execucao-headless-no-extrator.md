@@ -15,12 +15,13 @@ Isso causava três falhas principais:
 
 ## 🧠 Estratégia da Solução
 Ajustamos de forma cirúrgica as constantes de tempo de execução da automação Playwright C# e as diretrizes do navegador para dar uma margem de segurança adequada à compilação e execução em servidores headless:
-1. **Aumento dos Tempos Padrão do Time Gate**: Ajustamos o limite seguro de carência de transcodificação de stems de 2 para 3 minutos para arquivos normais. A proporção foi estendida para 4 minutos (arquivos médios) e 5 minutos (arquivos grandes), garantindo integridade e download completo.
-2. **Buffer Pós-F5 Estendido**: Aumentamos o tempo de espera estático após a recarga da página (F5) de 10 segundos para 30 segundos, mitigando a lentidão de renderização sem aceleração GPU.
+1. **Atraso Base Parametrizado via `.env`**: Em vez de valores hardcoded, o atraso de carência base agora é lido da variável de ambiente `EXTRACTOR_WAIT_TIME_BASE_SECONDS` (com padrão de 180 segundos). A escala para arquivos médios (+60s) e grandes (+120s) é gerada proporcionalmente, garantindo integridade e download completo.
+2. **Buffer Pós-F5 Estendido**: Aumentamos o tempo de espera estático após a recarga da página (F5) para 30 segundos, mitigando a lentidão de renderização sem aceleração GPU.
 3. **Diretrizes de Autoplay e Renderização Gráfica**: Injetamos argumentos de inicialização no Chromium para ignorar a restrição de autoplay e habilitar renderização por software de WebGL/GPU (via ANGLE/SwiftShader).
-4. **Telemetria de Frames e Logs de Erro**: Inserimos logs informativos detalhados no loop do extrator (URL principal e mapeamento de frames).
-5. **Sequenciamento de Fotos de Diagnóstico e Captura de Console**: Criamos um fluxo de capturas de tela sequenciais controladas pelo tempo durante o ciclo de processamento da DAW e persistimos todos os eventos e exceções do console do navegador no arquivo local `browser_console.txt` para auditoria offline completa.
-6. **Reativação do Headless em Desenvolvimento**: Com a robustez do fluxo validada em modo headed (com tela), o modo headless foi reativado no arquivo de configuração do ambiente local para teste em modo de homologação final.
+4. **Remoção de Elementos de Depuração Temporários**: Os logs verbosos de frames e as capturas de tela sequenciais (`daw_01` a `daw_06` e `daw_debug.png`) foram removidos para evitar gravação contínua em disco em ambiente produtivo, restando apenas os logs informativos normais de fluxo.
+5. **Decisões de Arquitetura de Rede**:
+   - **Transferência via Volume Compartilhado**: Para evitar limites de tráfego de arquivos grandes (100MB+) via Cloudflare, o extrator grava o ZIP baixado em uma pasta física compartilhada e faz um POST com payload vazio para a API. A API lê o arquivo diretamente do disco.
+   - **Comunicação Desacoplada**: O Worker monitora o banco PostgreSQL via polling (`SKIP LOCKED`) e chama a API utilizando seu domínio público parametrizado, permitindo que a API e o extrator rodem em servidores geograficamente separados.
 
 ## 🛠️ Implementação Técnica
 
@@ -28,24 +29,18 @@ Ajustamos de forma cirúrgica as constantes de tempo de execução da automaçã
 * **Argumentos de Inicialização do Navegador em [Worker.cs](file:///g:/DEV/mixer8/mixer8-extractor/Worker.cs)**:
   - Adicionado `--autoplay-policy=no-user-gesture-required` para isentar a exigência de gestos em reproduções de áudio.
   - Adicionados `--use-gl=angle`, `--use-angle=gl`, `--ignore-gpu-blocklist` e `--enable-webgl` para forçar compatibilidade gráfica no headless.
-* **Ajuste de Constantes em [Worker.cs](file:///g:/DEV/mixer8/mixer8-extractor/Worker.cs)**:
-  - Redefinido `delayMs = 180000` (3 minutos) como valor inicial padrão.
-  - Atualizadas as faixas de tamanho físico para definir `240000` (4 minutos) e `300000` (5 minutos) de espera fixa.
-  - Aumentado o delay do `Task.Delay` subsequente ao `page.ReloadAsync` para `30000` ms (30 segundos).
-* **Telemetria e Debug em [Worker.cs](file:///g:/DEV/mixer8/mixer8-extractor/Worker.cs)**:
-  - Emissão da URL atual da página principal e listagem do grafo de URLs e nomes de frames ativos durante a checagem de prontidão da DAW.
-  - Gravação em tempo real de todas as mensagens e erros de console no arquivo `browser_console.txt`.
-  - Sequência de screenshots na esteira da DAW: `daw_01_acesso.png` (abertura), `daw_02_10seg.png` (10s), `daw_03_20seg.png` (20s), `daw_04_antes_refresh.png` (fim do time gate), `daw_05_pos_refresh.png` (pós-F5 imediato) e `daw_06_fim_delay_pos_refresh.png` (pós-F5 tardio).
-  - Captura sob demanda `daw_debug.png` em caso de falhas na localização do botão de exportação.
+* **Ajuste de Constantes e Parametrização em [Worker.cs](file:///g:/DEV/mixer8/mixer8-extractor/Worker.cs)**:
+  - Leitura de `EXTRACTOR_WAIT_TIME_BASE_SECONDS` das configurações (padrão 180s).
+  - Escalonamento dinâmico: arquivos médios (`base + 60s`) e grandes (`base + 120s`).
+  - Delay estático de `30000` ms (30 segundos) mantido pós-F5 para segurança de interface.
 
 ### Configuração
-* **Mudança em [appsettings.Development.json](file:///g:/DEV/mixer8/mixer8-extractor/appsettings.Development.json)**:
-  - Alterado `"EXTRACTOR_HEADLESS"` de `false` para `true` para garantir testes e execuções headless imediatos pelo desenvolvedor.
+* **Mudanças em [.env](file:///g:/DEV/mixer8/.env) e [.env.example](file:///g:/DEV/mixer8/.env.example)**:
+  - Adicionada a variável `EXTRACTOR_WAIT_TIME_BASE_SECONDS=180` para fácil ajuste do time-gate.
 
 ## 🎯 Impacto e Resultado
-* **Estabilidade Headless**: O robô agora inicializa o player, carrega o contexto de áudio e detecta os botões de exportação de forma consistente, mesmo sob altos tempos de inicialização da engine Web Audio em servidores sem GPU.
-* **Diagnósticos Transparentes**: Desenvolvedores e logs conseguem acompanhar a hierarquia de frames, os logs do console em `browser_console.txt` e a tela real do navegador através da linha do tempo visual gerada pelos screenshots de depuração.
-* **Redução de Exceções Stale**: Ao aguardar 30 segundos adicionais pós-F5, eliminamos condições de corrida na renderização inicial dos frames.
+* **Estabilidade Headless Sem Lixo em Disco**: Execução fluida do navegador headless em produção sem gravação de logs de depuração redundantes ou prints temporários.
+* **Prontidão Multisservidor**: O isolamento por volumes e comunicação via domínio público permite escalabilidade horizontal (rodar múltiplos workers na ponta sob IPs distintos).
 
 ---
-**Nota do Desenvolvedor:** *A execução headless economiza recursos substanciais de CPU e memória RAM no servidor de produção, mas impõe desafios únicos de temporização e áudio. O relaxamento das políticas de autoplay e a injeção de suporte a GL resolvem os travamentos silenciosos da engine.*
+**Nota do Desenvolvedor:** *A estruturação dos volumes compartilhados foi fundamental para evitar falhas de upload no Cloudflare com arquivos de áudio de mais de 100MB. A parametrização dos tempos de espera via .env torna a manutenção ágil sem necessidade de recompile do Hosted Service.*
