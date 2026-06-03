@@ -26,9 +26,9 @@ RUN apt-get update && apt-get install -y \
 # Copia os binários compilados a partir do estágio de build
 COPY --from=build-env /app/out .
 
-# Executa o script de instalação do Playwright que baixa o Chromium correspondente 
+# Executa o script de instalação do Playwright que baixa o Google Chrome Oficial 
 # e instala automaticamente todas as dependências de sistema (apt-get) necessárias
-RUN node .playwright/package/cli.js install --with-deps chromium
+RUN node .playwright/package/cli.js install --with-deps chrome
 
 # Definição de volumes para persistência de cookies de sessão (config) e downloads
 VOLUME [ "/app/config", "/app/downloads" ]

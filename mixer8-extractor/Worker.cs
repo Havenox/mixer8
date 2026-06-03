@@ -19,9 +19,48 @@ namespace Mixer8.Extractor;
 /// </summary>
 public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IConfiguration configuration) : BackgroundService
 {
+    private IPage? _activePage;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation("[WORKER] Extrator de Stems iniciado em .NET 10.");
+
+        // Tarefa paralela de depuração em runtime (permite tirar prints em tempo de execução via flag)
+        _ = Task.Run(async () =>
+        {
+            var configDir = configuration["EXTRACTOR_CONFIG_DIR"] ?? "./mixer8-extractor/config";
+            if (!Path.IsPathRooted(configDir))
+            {
+                var baseDir = AppContext.BaseDirectory;
+                var resolved = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", configDir));
+                if (!Directory.Exists(resolved)) resolved = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", configDir));
+                if (!Directory.Exists(resolved)) resolved = Path.GetFullPath(Path.Combine(baseDir, "..", configDir));
+                if (!Directory.Exists(resolved)) resolved = Path.GetFullPath(Path.Combine(baseDir, configDir));
+                configDir = resolved;
+            }
+
+            var flagPath = Path.Combine(configDir, "take_screenshot.flag");
+            var shotPath = Path.Combine(configDir, "screenshot_live.png");
+
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                try
+                {
+                    if (File.Exists(flagPath) && _activePage != null)
+                    {
+                        Console.WriteLine($"[BOT-DEBUG-LIVE] Flag de screenshot detectada. Capturando tela ativa...");
+                        await _activePage.ScreenshotAsync(new PageScreenshotOptions { Path = shotPath, FullPage = true });
+                        File.Delete(flagPath);
+                        Console.WriteLine($"[BOT-DEBUG-LIVE] Captura efetuada com sucesso! Salva em: {shotPath}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[BOT-DEBUG-LIVE] Erro ao processar flag de screenshot: {ex.Message}");
+                }
+                await Task.Delay(2000, stoppingToken);
+            }
+        }, stoppingToken);
 
         // Consulta de depuração inicial para listar as últimas tracks e resetar a última para teste
         using (var scope = serviceProvider.CreateScope())
@@ -276,6 +315,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             // Garante que só temos 1 página aberta no perfil persistente e foca nela em primeiro plano
             var pages = context.Pages.ToList();
             page = pages.FirstOrDefault() ?? await context.NewPageAsync();
+            _activePage = page;
             
             // Registra listeners para capturar erros e logs do console do navegador para logs informativos de erros
             page.Console += (sender, msg) => 
@@ -470,10 +510,15 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             logger.LogInformation($"[WORKER] PASSO: Enviando URL da track original para o Moises: {publicTrackUrl}");
             Console.WriteLine($"[BOT-PASSO] URL agnóstica montada para envio: {publicTrackUrl}");
 
-            // 5.1. Detecção dinâmica de IFrames ativos na página
+            // 5.1. Detecção dinâmica de IFrames ativos na página com retry resiliente
             Console.WriteLine("[BOT-PASSO] Verificando se a interface está embutida dentro de algum IFrame...");
-            await Task.Delay(2000, stoppingToken);
-            IFrame? interactionFrame = await GetActiveUploadFrameAsync(page);
+            IFrame? interactionFrame = null;
+            for (int waitIFrame = 0; waitIFrame < 10; waitIFrame++)
+            {
+                interactionFrame = await GetActiveUploadFrameAsync(page);
+                if (interactionFrame != null) break;
+                await Task.Delay(1000, stoppingToken);
+            }
             
             if (interactionFrame != null)
             {
@@ -748,10 +793,15 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             await UpdateTrackStatusAsync(track.TrackId, "Processando: Aguardando separação de stems na DAW", db, stoppingToken);
             logger.LogInformation("[WORKER] PASSO: DAW / Player carregado. Monitorando processamento das stems...");
             
-            // 9.1. Detecção dinâmica de IFrames ativos na página da DAW (Player2)
+            // 9.1. Detecção dinâmica de IFrames ativos na página da DAW (Player2) com retry resiliente
             Console.WriteLine("[BOT-PASSO] Verificando se o Player/DAW está rodando dentro de um IFrame...");
-            await Task.Delay(5000, stoppingToken);
-            IFrame? playerFrame = await GetActivePlayerFrameAsync(page);
+            IFrame? playerFrame = null;
+            for (int waitIFrame = 0; waitIFrame < 15; waitIFrame++)
+            {
+                playerFrame = await GetActivePlayerFrameAsync(page);
+                if (playerFrame != null) break;
+                await Task.Delay(1000, stoppingToken);
+            }
 
             if (playerFrame != null)
             {
@@ -987,6 +1037,10 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 dbTrack.ExtractionStatus = "Falhou";
             }
             await db.SaveChangesAsync(stoppingToken);
+        }
+        finally
+        {
+            _activePage = null;
         }
     }
 

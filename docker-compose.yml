@@ -14,7 +14,9 @@ services:
     environment:
       - DOTNET_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
       - EXTRACTOR_DOWNLOADS_DIR=/app/downloads
+      - EXTRACTOR_CONFIG_DIR=/app/config
       - API_URL=http://api:5000
+      - EXTRACTOR_BROWSER_CHANNEL=chrome
     volumes:
       # Volume para persistir os downloads dos ZIPs na VPS/Host
       - ${EXTRACTOR_DOWNLOADS_DIR:-./mixer8-extractor/downloads}:/app/downloads
