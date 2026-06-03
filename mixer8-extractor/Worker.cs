@@ -252,7 +252,12 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                     "--no-sandbox", 
                     "--disable-setuid-sandbox", 
                     "--disable-dev-shm-usage",
-                    "--disable-blink-features=AutomationControlled" // Anti-bot stealth
+                    "--disable-blink-features=AutomationControlled", // Anti-bot stealth
+                    "--autoplay-policy=no-user-gesture-required",
+                    "--use-gl=angle",
+                    "--use-angle=gl",
+                    "--ignore-gpu-blocklist",
+                    "--enable-webgl"
                 },
                 UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 ViewportSize = new ViewportSize { Width = 1280, Height = 800 },
@@ -809,6 +814,15 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 // Atualiza o frame dinamicamente para evitar referências desalocadas/remontadas pela SPA
                 playerFrame = await GetActivePlayerFrameAsync(page);
                 
+                // Coleta dados de depuração para diagnosticar falhas no modo headless
+                Console.WriteLine($"[BOT-DEBUG] URL da página principal: {page.Url}");
+                var framesList = page.Frames.ToList();
+                Console.WriteLine($"[BOT-DEBUG] Total de frames ativos: {framesList.Count}");
+                foreach (var f in framesList)
+                {
+                    Console.WriteLine($"  - Frame URL: {f.Url} | Name: {f.Name}");
+                }
+
                 var exportButton = playerFrame != null ? playerFrame.Locator(exportButtonSelector).First : page.Locator(exportButtonSelector).First;
                 if (await exportButton.CountAsync() > 0)
                 {
@@ -829,6 +843,16 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 {
                     logger.LogInformation($"[WORKER] PASSO: Status: DAW carregando interface... (Tentativas restantes: {tentativasDAW})");
                     Console.WriteLine("[BOT-PASSO] Interface da DAW ainda carregando elementos básicos...");
+                    
+                    try
+                    {
+                        await page.ScreenshotAsync(new PageScreenshotOptions { Path = "daw_debug.png" });
+                        Console.WriteLine("[BOT-DEBUG] Screenshot de depuração salvo em 'daw_debug.png'!");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[BOT-DEBUG] Erro ao salvar screenshot de depuração: {ex.Message}");
+                    }
                 }
             }
 
