@@ -23,12 +23,16 @@ RUN apt-get update && apt-get install -y \
     apt-get install -y nodejs && \
     rm -rf /var/lib/apt/lists/*
 
-# Copia os binários compilados a partir do estágio de build
-COPY --from=build-env /app/out .
+# Copia primeiro apenas o driver do Playwright para cachear o download do Chrome
+COPY --from=build-env /app/out/.playwright ./.playwright
 
 # Executa o script de instalação do Playwright que baixa o Google Chrome Oficial 
-# e instala automaticamente todas as dependências de sistema (apt-get) necessárias
+# e instala automaticamente todas as dependências de sistema (apt-get) necessárias.
+# Essa etapa será cacheada pelo Docker e só rodará de novo se você atualizar a versão do Playwright.
 RUN node .playwright/package/cli.js install --with-deps chrome
+
+# Agora sim, copia o restante dos binários compilados (que mudam frequentemente)
+COPY --from=build-env /app/out .
 
 # Definição de volumes para persistência de cookies de sessão (config) e downloads
 VOLUME [ "/app/config", "/app/downloads" ]
