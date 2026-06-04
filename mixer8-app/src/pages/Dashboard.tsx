@@ -273,6 +273,32 @@ export const Dashboard: React.FC = () => {
     };
   }, [hasMore, isFetchingMore, isLoadingTracks, page]);
 
+  // Preenche a tela automaticamente caso a resolução seja grande e não gere scrollbar
+  useEffect(() => {
+    if (!hasMore || isFetchingMore || isLoadingTracks) return;
+
+    const checkAndFillPage = () => {
+      const scrollContainer = document.querySelector('.overflow-y-auto');
+      if (!scrollContainer) return;
+
+      const { scrollHeight, clientHeight } = scrollContainer;
+      if (scrollHeight > 0 && scrollHeight <= clientHeight + 50) {
+        fetchTracks(false);
+      }
+    };
+
+    // Delay de 300ms para permitir render completo do grid e imagens
+    const timer = setTimeout(checkAndFillPage, 300);
+
+    // Adiciona listener de redimensionamento da janela
+    window.addEventListener('resize', checkAndFillPage);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', checkAndFillPage);
+    };
+  }, [tracks, hasMore, isFetchingMore, isLoadingTracks]);
+
   // 2. Pooling do progresso real da conversão do Worker na VPS
   useEffect(() => {
     let interval: any;
