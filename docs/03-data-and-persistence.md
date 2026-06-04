@@ -34,6 +34,7 @@ erDiagram
         Guid UploadedBy FK
         String ExtractionStatus "Aguardando, Processando, Pronto, Falhou"
         String Visibility "Public, Private, Unlisted"
+        Boolean DeletionPending
         DateTime CreatedAt
         Int Duration
         Long PlayCount
@@ -132,6 +133,11 @@ O fluxo de exclusão de faixas no backend em `DELETE /api/Tracks/{id}` realiza a
 1. **Transação Relacional**: A remoção da faixa no PostgreSQL remove em cascata todas as referências associadas em `Stems`, `PlaylistTracks` e `MixingPresets`. Isso funciona mesmo se a faixa não possuir stems (status `Aguardando`, `Processando` ou `Falhou`).
 2. **Limpeza do Sistema de Arquivos**: Após a confirmação da transação no banco, a API remove fisicamente os diretórios de stems (`wwwroot/stems/{id}`) e quaisquer arquivos temporários que possam estar na pasta de downloads ou buffer do extrator.
 3. **Rollback Seguro**: Em caso de qualquer falha na remoção dos arquivos do disco ou no banco, a transação sofre um rollback automático, mantendo o estado íntegro.
+
+### D. Controle de Exclusão Lógica (Soft Delete)
+Para faixas deletadas por uploaders comuns, a API realiza uma exclusão lógica (`DeletionPending = true`). Esse mecanismo evita o descarte prematuro e definitivo de arquivos em disco e referências no banco, garantindo:
+1. **Ocultamento Imediato**: A flag é avaliada dinamicamente em consultas SQL (`TracksController`) e relacionamentos de playlists (`PlaylistsController`), isolando a faixa sob moderação e ocultando-a para usuários não-admins.
+2. **Revisão pelo Administrador**: As faixas sob moderação continuam armazenadas fisicamente no PostgreSQL e no servidor. Uma vez que o administrador confirma a deleção definitiva via `DELETE /api/Tracks/{id}`, o banco executa a limpeza física total em cascata e o servidor expurga os diretórios físicos.
 
 
 ---

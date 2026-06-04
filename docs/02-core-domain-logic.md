@@ -135,5 +135,24 @@ Para suportar diferentes níveis de privacidade no compartilhamento de conteúdo
   * O carregamento de playlists (`GetPlaylistById`) filtra as faixas associadas dinamicamente usando a regra `IsTrackVisible(track, playlist, userId, isAdmin)`.
   * As contagens de músicas (`TracksCount`) mostradas nos cabeçalhos de playlists e cards são computadas dinamicamente refletindo apenas a quantidade de músicas que o usuário logado de fato tem permissão para visualizar.
 
+---
+
+## 7. Edição por Uploaders e Fluxo de Solicitação de Exclusão (Soft Delete)
+
+Para empoderar os criadores de conteúdo ao mesmo tempo que mantém a integridade do armazenamento na plataforma, a Mixer8 introduz um fluxo diferenciado de modificação e deleção para uploaders normais (como `PaidUser` ou `User` que enviaram a faixa) contra administradores:
+
+### A. Escopo de Edição Diferenciado
+* **Uploaders Comuns**: Possuem permissão para editar os metadados de suas próprias músicas (Título, Artista, Visibilidade e Imagem de Capa). A API bloqueia e o frontend oculta completamente a seção de gerenciamento e substituição de stems de áudio.
+* **Administradores**: Mantêm privilégios irrestritos para editar metadados e manipular stems (adicionar, substituir ou deletar canais físicos).
+
+### B. Solicitação de Exclusão (Soft Delete) vs Exclusão Física
+* **Deleção por Admin**: Remove permanentemente o registro no banco de dados PostgreSQL e apaga fisicamente os diretórios e arquivos de áudio (.mp3/.wav) e capa em disco no servidor.
+* **Deleção por Uploader (Exclusão Lógica)**: Atualiza o estado da faixa definindo `DeletionPending = true`. A música e seus arquivos físicos não são deletados de imediato, mas ela é **escondida instantaneamente** de todas as listagens públicas, buscas e playlists para usuários comuns.
+* **Interface de Moderação para Admins**: Faixas marcadas com `DeletionPending = true` permanecem visíveis na biblioteca geral exclusivamente para administradores do sistema, sinalizadas com a tag vermelha `"Aguardando Exclusão"`. O administrador pode então realizar a exclusão física definitiva ou restaurar a faixa.
+* **Tags Indicativas na Interface**:
+  - Usuários comuns visualizam uma tag discreta `"Minha"` nas músicas de sua propriedade para facilitar a identificação e o acesso ao menu de edição rápida.
+  - Modais de exclusão no Dashboard, App e PlaylistDetail ajustam dinamicamente seus títulos ("Solicitar Exclusão da Música" vs "Excluir Música Permanentemente") e textos de aviso explicativos com base no papel do usuário conectado, preservando a contagem de 3 segundos antes do disparo do endpoint.
+
+
 
 
