@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
-import { X, Plus, Loader2, Check, AlertTriangle, Trash2, ListMusic } from 'lucide-react';
+import { X, Plus, Loader2, Check, AlertTriangle, Trash2, ListMusic, Image } from 'lucide-react';
 
 import { API_URL, SERVER_URL } from '../config';
 
@@ -60,6 +60,7 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [editVisibility, setEditVisibility] = useState('Public');
   const [editCoverFile, setEditCoverFile] = useState<File | null>(null);
   const [editCoverPreview, setEditCoverPreview] = useState<string | null>(null);
+  const [editCoverUrl, setEditCoverUrl] = useState('');
   const [deleteCoverFlag, setDeleteCoverFlag] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editError, setEditError] = useState('');
@@ -94,6 +95,7 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setEditVisibility(playlist.Visibility);
     setEditCoverFile(null);
     setEditCoverPreview(playlist.CoverUrl ? (playlist.CoverUrl.startsWith('http') ? playlist.CoverUrl : `${SERVER_URL}${playlist.CoverUrl}`) : null);
+    setEditCoverUrl(playlist.CoverUrl || '');
     setDeleteCoverFlag(false);
     setEditError('');
     setCollabs([]);
@@ -308,6 +310,7 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       formData.append('Visibility', editVisibility);
       formData.append('Description', editDescription.trim());
       formData.append('DeleteCover', deleteCoverFlag ? 'true' : 'false');
+      formData.append('CoverUrl', editCoverUrl.trim());
       
       if (editCoverFile) {
         formData.append('CoverFile', editCoverFile);
@@ -717,6 +720,36 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                       )}
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* URL externa opcional */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] text-brand-gray font-bold uppercase tracking-wider" htmlFor="playlistCoverUrl">
+                  Ou URL Externa da Imagem
+                </label>
+                <div className="relative">
+                  <input
+                    id="playlistCoverUrl"
+                    type="text"
+                    value={editCoverUrl}
+                    disabled={isSavingEdit}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEditCoverUrl(val);
+                      setEditCoverFile(null); // Limpa o arquivo físico se digitou URL
+                      if (val) {
+                        setEditCoverPreview(val.startsWith('http') || val.startsWith('/') ? (val.startsWith('http') ? val : `${SERVER_URL}${val}`) : val);
+                        setDeleteCoverFlag(false);
+                      } else {
+                        setEditCoverPreview(null);
+                        setDeleteCoverFlag(true);
+                      }
+                    }}
+                    className="w-full bg-black border border-brand-hover rounded py-1.5 px-2 pl-8 text-xs text-white focus:outline-none focus:border-brand-green transition-all"
+                    placeholder="https://imagem.com/foto.jpg"
+                  />
+                  <Image className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-gray" />
                 </div>
               </div>
 

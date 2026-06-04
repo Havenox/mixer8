@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   Play, UploadCloud, CheckCircle, Clock, FileAudio, 
-  Sparkles, ShieldAlert, Disc, AlertTriangle, Plus, Trash2, X, Music, Loader2, Settings, RefreshCw
+  Sparkles, ShieldAlert, Disc, AlertTriangle, Plus, Trash2, X, Music, Loader2, Settings, RefreshCw, Image
 } from 'lucide-react';
 
 import { usePlayer } from '../context/PlayerContext';
@@ -35,6 +35,7 @@ export const Dashboard: React.FC = () => {
   const [editArtist, setEditArtist] = useState('');
   const [editCoverFile, setEditCoverFile] = useState<File | null>(null);
   const [editCoverPreview, setEditCoverPreview] = useState('');
+  const [editCoverUrl, setEditCoverUrl] = useState('');
   const [stemsToDelete, setStemsToDelete] = useState<string[]>([]); // IDs das stems a deletar
   const [stemsToReplace, setStemsToReplace] = useState<Record<string, File>>({}); // ID -> Arquivo
   const [newStemsFiles, setNewStemsFiles] = useState<File[]>([]);
@@ -47,6 +48,7 @@ export const Dashboard: React.FC = () => {
       setEditArtist(trackToEdit.ArtistName);
       setEditCoverFile(null);
       setEditCoverPreview(trackToEdit.CoverUrl ? (trackToEdit.CoverUrl.startsWith('http') ? trackToEdit.CoverUrl : `${SERVER_URL}${trackToEdit.CoverUrl}`) : '');
+      setEditCoverUrl(trackToEdit.CoverUrl || '');
       setStemsToDelete([]);
       setStemsToReplace({});
       setNewStemsFiles([]);
@@ -71,6 +73,7 @@ export const Dashboard: React.FC = () => {
       const formData = new FormData();
       formData.append('TrackTitle', editTitle.trim());
       formData.append('ArtistName', editArtist.trim());
+      formData.append('CoverUrl', editCoverUrl.trim());
       
       if (editCoverFile) {
         formData.append('CoverFile', editCoverFile);
@@ -836,11 +839,40 @@ export const Dashboard: React.FC = () => {
                         if (file) {
                           setEditCoverFile(file);
                           setEditCoverPreview(URL.createObjectURL(file));
+                          setEditCoverUrl(''); // Limpa a URL se selecionou arquivo físico
                         }
                       }}
                       className="text-xs text-brand-gray file:mr-3 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-bold file:bg-brand-hover file:text-white hover:file:bg-brand-hover/80 file:cursor-pointer"
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* URL externa opcional */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] text-brand-gray font-bold uppercase tracking-wider" htmlFor="trackCoverUrl">
+                  Ou URL Externa da Imagem
+                </label>
+                <div className="relative">
+                  <input
+                    id="trackCoverUrl"
+                    type="text"
+                    value={editCoverUrl}
+                    disabled={isSaving}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEditCoverUrl(val);
+                      setEditCoverFile(null); // Limpa o arquivo físico se digitou URL
+                      if (val) {
+                        setEditCoverPreview(val.startsWith('http') || val.startsWith('/') ? (val.startsWith('http') ? val : `${SERVER_URL}${val}`) : val);
+                      } else {
+                        setEditCoverPreview('');
+                      }
+                    }}
+                    className="w-full bg-black border border-brand-hover rounded py-1.5 px-2 pl-8 text-xs text-white focus:outline-none focus:border-brand-green transition-all"
+                    placeholder="https://imagem.com/foto.jpg"
+                  />
+                  <Image className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-gray" />
                 </div>
               </div>
 

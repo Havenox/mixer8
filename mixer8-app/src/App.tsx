@@ -14,7 +14,7 @@ import { PlaylistDetail } from './pages/PlaylistDetail';
 import { Playlists } from './pages/Playlists';
 import { Settings as SettingsPage } from './pages/Settings';
 import { PublicProfile } from './pages/PublicProfile';
-import { Play, Sparkles, Disc, Flame, Music, Radio, Loader2, Plus, Trash2, AlertTriangle, X, Settings, RefreshCw, ListMusic, Clock, User, Heart } from 'lucide-react';
+import { Play, Sparkles, Disc, Flame, Music, Radio, Loader2, Plus, Trash2, AlertTriangle, X, Settings, RefreshCw, ListMusic, Clock, User, Heart, Image } from 'lucide-react';
 
 import { API_URL, SERVER_URL } from './config';
 
@@ -112,6 +112,7 @@ const Explore: React.FC = () => {
   const [editArtist, setEditArtist] = useState('');
   const [editCoverFile, setEditCoverFile] = useState<File | null>(null);
   const [editCoverPreview, setEditCoverPreview] = useState('');
+  const [editCoverUrl, setEditCoverUrl] = useState('');
   const [stemsToDelete, setStemsToDelete] = useState<string[]>([]); // IDs das stems a deletar
   const [stemsToReplace, setStemsToReplace] = useState<Record<string, File>>({}); // ID -> Arquivo
   const [newStemsFiles, setNewStemsFiles] = useState<File[]>([]);
@@ -124,6 +125,7 @@ const Explore: React.FC = () => {
       setEditArtist(trackToEdit.ArtistName);
       setEditCoverFile(null);
       setEditCoverPreview(trackToEdit.CoverUrl ? (trackToEdit.CoverUrl.startsWith('http') ? trackToEdit.CoverUrl : `${SERVER_URL}${trackToEdit.CoverUrl}`) : '');
+      setEditCoverUrl(trackToEdit.CoverUrl || '');
       setStemsToDelete([]);
       setStemsToReplace({});
       setNewStemsFiles([]);
@@ -148,6 +150,7 @@ const Explore: React.FC = () => {
       const formData = new FormData();
       formData.append('TrackTitle', editTitle.trim());
       formData.append('ArtistName', editArtist.trim());
+      formData.append('CoverUrl', editCoverUrl.trim());
       
       if (editCoverFile) {
         formData.append('CoverFile', editCoverFile);
@@ -675,11 +678,40 @@ const Explore: React.FC = () => {
                         if (file) {
                           setEditCoverFile(file);
                           setEditCoverPreview(URL.createObjectURL(file));
+                          setEditCoverUrl(''); // Limpa a URL se selecionou arquivo físico
                         }
                       }}
                       className="text-xs text-brand-gray file:mr-3 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-bold file:bg-brand-hover file:text-white hover:file:bg-brand-hover/80 file:cursor-pointer"
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* URL externa opcional */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] text-brand-gray font-bold uppercase tracking-wider" htmlFor="trackCoverUrl">
+                  Ou URL Externa da Imagem
+                </label>
+                <div className="relative">
+                  <input
+                    id="trackCoverUrl"
+                    type="text"
+                    value={editCoverUrl}
+                    disabled={isSaving}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEditCoverUrl(val);
+                      setEditCoverFile(null); // Limpa o arquivo físico se digitou URL
+                      if (val) {
+                        setEditCoverPreview(val.startsWith('http') || val.startsWith('/') ? (val.startsWith('http') ? val : `${SERVER_URL}${val}`) : val);
+                      } else {
+                        setEditCoverPreview('');
+                      }
+                    }}
+                    className="w-full bg-black border border-brand-hover rounded py-1.5 px-2 pl-8 text-xs text-white focus:outline-none focus:border-brand-green transition-all"
+                    placeholder="https://imagem.com/foto.jpg"
+                  />
+                  <Image className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-gray" />
                 </div>
               </div>
 
