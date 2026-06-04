@@ -652,7 +652,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
                 .ThenInclude(pt => pt.Track)
             .Include(p => p.PlaylistCollaborators)
             .AsSplitQuery()
-            .Where(p => p.Visibility == "Public" && p.OwnerId != userId && !p.PlaylistCollaborators.Any(pc => pc.UserId == userId))
+            .Where(p => p.Visibility == "Public")
             .OrderByDescending(p => p.PlaylistTracks.Count)
             .Take(10)
             .ToListAsync();
@@ -691,8 +691,8 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
                 OwnerEmail = email ?? "",
                 CoverUrl = p.CoverUrl ?? firstTrackCover,
                 CreatedAt = p.CreatedAt,
-                IsOwner = false,
-                IsCollaborator = false,
+                IsOwner = p.OwnerId == userId,
+                IsCollaborator = p.PlaylistCollaborators.Any(pc => pc.UserId == userId),
                 IsSaved = savedPlaylistIds.Contains(p.PlaylistId),
                 TracksCount = p.PlaylistTracks.Count(pt => IsTrackVisible(pt.Track, p, userId, isAdmin)),
                 OwnerUserName = profile?.UserName,
