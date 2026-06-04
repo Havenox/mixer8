@@ -9,7 +9,7 @@ import {
   Loader2, ArrowLeft, Settings, Trash2,
   Clock, X, AlertTriangle, Plus, Minus,
   Lock, Globe, EyeOff, MoreHorizontal,
-  Heart, Share2, ListMusic, CheckCircle, Info, RefreshCw
+  Heart, Share2, ListMusic, CheckCircle, Info, ShieldAlert
 } from 'lucide-react';
 
 import { API_URL, SERVER_URL } from '../config';
@@ -165,6 +165,8 @@ export const PlaylistDetail: React.FC = () => {
   // Estados do Menu de Contexto e Exclusão Física de Música (Admin)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; track: IPlaylistTrack } | null>(null);
   const [trackToDelete, setTrackToDelete] = useState<IPlaylistTrack | null>(null);
+  const [trackToReview, setTrackToReview] = useState<IPlaylistTrack | null>(null);
+
   const [trackToRemove, setTrackToRemove] = useState<IPlaylistTrack | null>(null);
   const [deleteCountdown, setDeleteCountdown] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -476,26 +478,7 @@ export const PlaylistDetail: React.FC = () => {
     }
   };
 
-  const handleRestoreTrack = async (trackId: string) => {
-    if (!Token) return;
 
-    try {
-      const res = await fetch(`${API_URL}/Tracks/${trackId}/Restore`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${Token}`
-        }
-      });
-
-      if (res.ok) {
-        fetchPlaylistDetails();
-      } else {
-        alert('Falha ao restaurar a música.');
-      }
-    } catch {
-      alert('Erro de conexão ao tentar restaurar a música.');
-    }
-  };
 
   const formatTrackDuration = (secs: number) => {
     const minutes = Math.floor(secs / 60);
@@ -1395,30 +1378,31 @@ export const PlaylistDetail: React.FC = () => {
           {(CurrentUser?.UserRole === 'Admin' || contextMenu.track.UploadedBy === CurrentUser?.UserId) && (
             <>
               <div className="h-[1px] bg-brand-hover my-1" />
-              {CurrentUser?.UserRole === 'Admin' && contextMenu.track.DeletionPending && (
+              {CurrentUser?.UserRole === 'Admin' && contextMenu.track.DeletionPending ? (
                 <button
                   onClick={() => {
-                    handleRestoreTrack(contextMenu.track.TrackId);
+                    setTrackToReview(contextMenu.track);
                     setContextMenu(null);
                   }}
-                  className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-brand-green mb-1"
+                  className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-brand-green"
                 >
-                  <RefreshCw className="w-4 h-4 text-brand-green shrink-0" />
-                  <span>Restaurar Música</span>
+                  <ShieldAlert className="w-4 h-4 text-brand-green shrink-0" />
+                  <span>Avaliar Solicitação</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setTrackToDelete(contextMenu.track);
+                    setDeleteCountdown(3);
+                    setDeleteError('');
+                    setContextMenu(null);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-red-950/20 text-white hover:text-red-400 transition-all cursor-pointer flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4 text-red-500 shrink-0" />
+                  <span>Excluir Música</span>
                 </button>
               )}
-              <button
-                onClick={() => {
-                  setTrackToDelete(contextMenu.track);
-                  setDeleteCountdown(3);
-                  setDeleteError('');
-                  setContextMenu(null);
-                }}
-                className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-red-950/20 text-white hover:text-red-400 transition-all cursor-pointer flex items-center gap-2"
-              >
-                <Trash2 className="w-4 h-4 text-red-500 shrink-0" />
-                <span>Excluir Música</span>
-              </button>
             </>
           )}
         </div>
@@ -1522,6 +1506,118 @@ export const PlaylistDetail: React.FC = () => {
                   <span>{CurrentUser?.UserRole === 'Admin' ? 'Confirmar Exclusão' : 'Confirmar Solicitação'}</span>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE REVISÃO E AVALIAÇÃO DE EXCLUSÃO (ADMIN ONLY) */}
+      {trackToReview && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
+          <div className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200">
+            <button 
+              onClick={() => setTrackToReview(null)}
+              className="absolute top-4 right-4 text-brand-gray hover:text-white cursor-pointer"
+              disabled={isDeleting}
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 text-brand-green">
+              <ShieldAlert className="w-6 h-6 shrink-0" />
+              <div className="flex flex-col">
+                <span className="text-[10px] text-brand-green font-bold uppercase tracking-wider">Painel de Moderação</span>
+                <h3 className="text-sm font-bold text-white">Revisar Solicitação de Exclusão</h3>
+              </div>
+            </div>
+
+            <div className="bg-black/40 border border-brand-hover p-3 rounded flex items-center gap-3">
+              <div className="w-12 h-12 bg-black rounded overflow-hidden flex items-center justify-center text-brand-green border border-brand-hover shrink-0">
+                {trackToReview.CoverUrl ? (
+                  <img 
+                    src={trackToReview.CoverUrl.startsWith('http') ? trackToReview.CoverUrl : `${SERVER_URL}${trackToReview.CoverUrl}`} 
+                    alt="Capa" 
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <Music className="w-5 h-5" />
+                )}
+              </div>
+              <div className="flex flex-col truncate">
+                <span className="font-bold text-white text-sm truncate">{trackToReview.TrackTitle}</span>
+                <span className="text-xs text-brand-gray truncate">{trackToReview.ArtistName}</span>
+              </div>
+            </div>
+
+            <div className="bg-red-950/20 border border-red-900/30 p-4 rounded flex flex-col gap-1.5">
+              <span className="text-[10px] text-red-400 font-bold uppercase tracking-wider">Justificativa do Solicitante</span>
+              <p className="text-xs text-white leading-relaxed m-0 italic select-text">
+                "{trackToReview.DeletionReason || "Nenhum motivo informado pelo usuário."}"
+              </p>
+            </div>
+
+            {deleteError && (
+              <div className="bg-red-500/10 border border-red-500/30 p-2.5 rounded text-xs text-red-400">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="flex justify-between gap-3 mt-2 pt-3 border-t border-brand-hover">
+              <button
+                type="button"
+                onClick={() => setTrackToReview(null)}
+                disabled={isDeleting}
+                className="py-2 px-3 border border-brand-hover rounded text-xs font-semibold text-brand-gray hover:text-white cursor-pointer disabled:opacity-50"
+              >
+                Voltar
+              </button>
+              
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (isDeleting) return;
+                    setIsDeleting(true);
+                    setDeleteError('');
+                    try {
+                      const res = await fetch(`${API_URL}/Tracks/${trackToReview.TrackId}/Restore`, {
+                        method: 'POST',
+                        headers: {
+                          'Authorization': `Bearer ${Token}`
+                        }
+                      });
+                      if (res.ok) {
+                        setTrackToReview(null);
+                        fetchPlaylistDetails();
+                      } else {
+                        const errorData = await res.json().catch(() => ({}));
+                        setDeleteError(errorData.ErrorMessage || 'Falha ao restaurar a música.');
+                      }
+                    } catch {
+                      setDeleteError('Erro de conexão ao tentar restaurar a música.');
+                    } finally {
+                      setIsDeleting(false);
+                    }
+                  }}
+                  disabled={isDeleting}
+                  className="py-2 px-3 bg-brand-green text-black font-bold rounded text-xs hover:scale-105 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:hover:scale-100"
+                >
+                  Manter Ativa (Restaurar)
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (isDeleting) return;
+                    setTrackToDelete(trackToReview);
+                    setTrackToReview(null);
+                  }}
+                  disabled={isDeleting}
+                  className="py-2 px-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded text-xs hover:scale-105 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:hover:scale-100"
+                >
+                  Confirmar Exclusão
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1812,18 +1908,31 @@ export const PlaylistDetail: React.FC = () => {
             {CurrentUser?.UserRole === 'Admin' && (
               <>
                 <div className="h-[1px] bg-brand-hover my-1 shrink-0" />
-                <button
-                  onClick={() => {
-                    setTrackToDelete(mobileTrackMenu);
-                    setDeleteCountdown(3);
-                    setDeleteError('');
-                    setMobileTrackMenu(null);
-                  }}
-                  className="w-full text-left px-3 py-3 rounded-lg text-sm font-semibold hover:bg-red-950/20 text-white hover:text-red-400 active:bg-red-950/40 transition-all cursor-pointer flex items-center gap-3"
-                >
-                  <Trash2 className="w-5 h-5 text-red-500 shrink-0" />
-                  <span>Excluir Música (Total)</span>
-                </button>
+                {mobileTrackMenu.DeletionPending ? (
+                  <button
+                    onClick={() => {
+                      setTrackToReview(mobileTrackMenu);
+                      setMobileTrackMenu(null);
+                    }}
+                    className="w-full text-left px-3 py-3 rounded-lg text-sm font-semibold hover:bg-brand-hover text-white active:bg-brand-hover/80 transition-all cursor-pointer flex items-center gap-3"
+                  >
+                    <ShieldAlert className="w-5 h-5 text-brand-green shrink-0" />
+                    <span>Avaliar Solicitação</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setTrackToDelete(mobileTrackMenu);
+                      setDeleteCountdown(3);
+                      setDeleteError('');
+                      setMobileTrackMenu(null);
+                    }}
+                    className="w-full text-left px-3 py-3 rounded-lg text-sm font-semibold hover:bg-red-950/20 text-white hover:text-red-400 active:bg-red-950/40 transition-all cursor-pointer flex items-center gap-3"
+                  >
+                    <Trash2 className="w-5 h-5 text-red-500 shrink-0" />
+                    <span>Excluir Música (Total)</span>
+                  </button>
+                )}
               </>
             )}
           </div>
