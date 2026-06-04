@@ -213,7 +213,11 @@ const Explore: React.FC = () => {
 
   const fetchTracks = async () => {
     try {
-      const res = await fetch(`${API_URL}/Tracks`);
+      const headers: Record<string, string> = {};
+      if (Token) {
+        headers['Authorization'] = `Bearer ${Token}`;
+      }
+      const res = await fetch(`${API_URL}/Tracks`, { headers });
       if (res.ok) {
         const data = await res.json();
         // Exibe apenas as tracks com extração concluída

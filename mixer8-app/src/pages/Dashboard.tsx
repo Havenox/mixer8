@@ -214,7 +214,11 @@ export const Dashboard: React.FC = () => {
     }
 
     try {
-      const res = await fetch(`${API_URL}/Tracks?page=${targetPage}&limit=10`);
+      const headers: Record<string, string> = {};
+      if (Token) {
+        headers['Authorization'] = `Bearer ${Token}`;
+      }
+      const res = await fetch(`${API_URL}/Tracks?page=${targetPage}&limit=10`, { headers });
       if (res.ok) {
         const data = await res.json();
         if (resetPage) {
@@ -243,7 +247,7 @@ export const Dashboard: React.FC = () => {
 
   useEffect(() => {
     fetchTracks(true);
-  }, []);
+  }, [Token]);
 
   // Monitora o scroll do container de PersistentLayout (.overflow-y-auto) para scroll infinito
   useEffect(() => {
@@ -276,7 +280,11 @@ export const Dashboard: React.FC = () => {
     if (newTrackId) {
       interval = setInterval(async () => {
         try {
-          const res = await fetch(`${API_URL}/Tracks`);
+          const headers: Record<string, string> = {};
+          if (Token) {
+            headers['Authorization'] = `Bearer ${Token}`;
+          }
+          const res = await fetch(`${API_URL}/Tracks`, { headers });
           if (res.ok) {
             const data: ITrack[] = await res.json();
             setTracks(data);

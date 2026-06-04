@@ -744,14 +744,9 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
 
     private static bool IsTrackVisible(Track track, Playlist playlist, Guid? userId, bool isAdmin)
     {
-        if (track.Visibility == "Public") return true;
+        if (track.Visibility == "Public" || track.Visibility == "Unlisted") return true;
         if (userId == null) return false;
         if (track.UploadedBy == userId.Value || isAdmin) return true;
-        if (track.Visibility == "Unlisted")
-        {
-            return playlist.OwnerId == userId.Value || 
-                   playlist.PlaylistCollaborators.Any(pc => pc.UserId == userId.Value);
-        }
         return false;
     }
 }
