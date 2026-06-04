@@ -218,6 +218,20 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
         var isSaved = userId.HasValue && await dbContext.SavedPlaylists
             .AnyAsync(sp => sp.UserId == userId.Value && sp.PlaylistId == id);
 
+        Dictionary<Guid, string> uploaderEmails = new();
+        Dictionary<Guid, string> uploaderUserNames = new();
+        if (isAdmin && playlist.PlaylistTracks.Any())
+        {
+            var uploaderIds = playlist.PlaylistTracks.Select(pt => pt.Track.UploadedBy).Distinct().ToList();
+            uploaderEmails = await dbContext.Users
+                .Where(u => uploaderIds.Contains(u.UserId))
+                .ToDictionaryAsync(u => u.UserId, u => u.Email);
+
+            uploaderUserNames = await dbContext.UserProfiles
+                .Where(up => uploaderIds.Contains(up.UserId))
+                .ToDictionaryAsync(up => up.UserId, up => up.UserName);
+        }
+
         var detailDto = new PlaylistDetailResponseDto
         {
             PlaylistId = playlist.PlaylistId,
@@ -251,6 +265,8 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
                     Duration = pt.Track.Duration,
                     Visibility = pt.Track.Visibility,
                     UploadedBy = pt.Track.UploadedBy,
+                    UploadedByEmail = uploaderEmails.GetValueOrDefault(pt.Track.UploadedBy),
+                    UploadedByUserName = uploaderUserNames.GetValueOrDefault(pt.Track.UploadedBy),
                     Stems = pt.Track.Stems.Select(s => new PlaylistStemResponseDto
                     {
                         StemId = s.StemId,
@@ -850,6 +866,8 @@ public class PlaylistTrackResponseDto
     public int Duration { get; set; }
     public string Visibility { get; set; } = null!;
     public Guid UploadedBy { get; set; }
+    public string? UploadedByEmail { get; set; }
+    public string? UploadedByUserName { get; set; }
     public List<PlaylistStemResponseDto> Stems { get; set; } = new();
 }
 

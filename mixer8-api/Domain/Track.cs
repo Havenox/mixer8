@@ -19,6 +19,12 @@ public class Track
     public bool DeletionPending { get; set; } = false;
     public string? DeletionReason { get; set; }
 
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public string? UploadedByEmail { get; set; }
+
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public string? UploadedByUserName { get; set; }
+
     public int Duration { get; set; } // Duração em segundos
     public long PlayCount { get; set; } = 0; // Contador de reproduções
 

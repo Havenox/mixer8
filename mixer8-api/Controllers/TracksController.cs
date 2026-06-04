@@ -44,6 +44,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             )
             .OrderByDescending(t => t.CreatedAt);
 
+        List<Track> tracks;
         if (page.HasValue && limit.HasValue)
         {
             var p = page.Value;
@@ -51,15 +52,34 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             if (p < 1) p = 1;
             if (l < 1) l = 10;
 
-            var paginatedTracks = await query
+            tracks = await query
                 .Skip((p - 1) * l)
                 .Take(l)
                 .ToListAsync();
-
-            return Ok(paginatedTracks);
+        }
+        else
+        {
+            tracks = await query.ToListAsync();
         }
 
-        var tracks = await query.ToListAsync();
+        if (isAdmin && tracks.Any())
+        {
+            var uploaderIds = tracks.Select(t => t.UploadedBy).Distinct().ToList();
+            var usersMap = await dbContext.Users
+                .Include(u => u.UserProfile)
+                .Where(u => uploaderIds.Contains(u.UserId))
+                .ToDictionaryAsync(u => u.UserId, u => new { u.Email, u.UserProfile?.UserName });
+
+            foreach (var track in tracks)
+            {
+                if (usersMap.TryGetValue(track.UploadedBy, out var uInfo))
+                {
+                    track.UploadedByEmail = uInfo.Email;
+                    track.UploadedByUserName = uInfo.UserName;
+                }
+            }
+        }
+
         return Ok(tracks);
     }
 
