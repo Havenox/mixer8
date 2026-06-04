@@ -125,6 +125,13 @@ COMMIT;
 ### B. Mutações em Lote Atômicas
 Ao concluir o download e extração das faixas, o microserviço atualiza o status no banco e insere as stems em um único bloco transacional. Se a inserção de qualquer uma das 5 stems falhar, o banco executa um `Rollback` automático, revertendo o status da música de volta para `Falhou` ou `Aguardando`, garantindo que nunca existam músicas "órfãs" com dados de stems incompletos na interface do usuário.
 
+### C. Exclusão Física Transacional (Independente de Status)
+O fluxo de exclusão de faixas no backend em `DELETE /api/Tracks/{id}` realiza a purga total de forma transacional segura:
+1. **Transação Relacional**: A remoção da faixa no PostgreSQL remove em cascata todas as referências associadas em `Stems`, `PlaylistTracks` e `MixingPresets`. Isso funciona mesmo se a faixa não possuir stems (status `Aguardando`, `Processando` ou `Falhou`).
+2. **Limpeza do Sistema de Arquivos**: Após a confirmação da transação no banco, a API remove fisicamente os diretórios de stems (`wwwroot/stems/{id}`) e quaisquer arquivos temporários que possam estar na pasta de downloads ou buffer do extrator.
+3. **Rollback Seguro**: Em caso de qualquer falha na remoção dos arquivos do disco ou no banco, a transação sofre um rollback automático, mantendo o estado íntegro.
+
+
 ---
 
 ## 3. Processamentos em Background Decoplados

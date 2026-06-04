@@ -98,3 +98,14 @@ Para assegurar a integridade dos contadores de execuções (`PlayCount`) e preve
    - **Tracks**: O cooldown dura `Math.Max(track.Duration - 5, 30)` segundos.
    - **Playlists/Álbuns**: O cooldown dura 5 minutos.
    Se a chamada ocorrer dentro da janela de cooldown do respectivo usuário/IP para aquela entidade, ela é ignorada silenciosamente (sem incrementar o contador do banco).
+
+---
+
+## 5. Edição e Exclusão Física de Faixas em Qualquer Estado
+
+Para permitir o controle total do ciclo de vida das faixas no ecossistema Mixer8, a aplicação permite a edição e exclusão de qualquer música da biblioteca, independentemente de seu status de extração (`Aguardando`, `Processando`, `Falhou`, `Pronto`).
+
+- **Edição de Metadados**: A edição de metadados (como título e nome do artista) é permitida para qualquer música. No frontend, o modal de edição é resiliente e lida de forma segura caso a faixa ainda não tenha stems processadas.
+- **Exclusão Completa**: A exclusão definitiva de uma faixa remove todos os registros associados no banco de dados e limpa os diretórios de stems em disco, evitando dados órfãos ou arquivos temporários não utilizados.
+- **Restrição de Playlist**: Faixas que não estão prontas (ou que falharam no processamento de stems) não exibem a opção "Adicionar à playlist" no menu de contexto, prevenindo quebras e erros no reprodutor de áudio multi-stem.
+

@@ -1,7 +1,7 @@
 # Context Preservation (Save State) - Mixer8 Ecosystem
 
-**Data da Última Atualização:** 02/06/2026  
-**Status do Projeto:** Purga de Mocks Concluída, Player Multi-Stems Ativo, Uploader Direto Implementado, Conteinerização/Conversão Opus Concluída, Recursos Premium/Shuffle/Repeat Dinâmicos, Barra de Progresso Premium e Extrator Headless E2E via Playwright Ativos.
+**Data da Última Atualização:** 03/06/2026  
+Status do Projeto: Purga de Mocks Concluída, Player Multi-Stems Ativo, Uploader Direto Implementado, Conteinerização/Conversão Opus Concluída, Recursos Premium/Shuffle/Repeat Dinâmicos, Barra de Progresso Premium, Extrator Headless E2E via Playwright e Menu de Contexto Irrestrito Ativos.
 
 ---
 
@@ -22,7 +22,7 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
 2. **Autenticação RBAC e BCrypt**: Senhas criptografadas com hash adaptativo BCrypt. Usuários semente (`admin`, `moderator`, `paiduser`, `user`) registrados com a senha `mixer8` e claims injetados nos tokens JWT.
 3. **Importação e Validação de Cookies Headless**:
    * O painel administrativo persistente grava fisicamente o JSONEditThisCookie no banco de dados.
-   * Criado o teste de conexão ativa que valida os cookies diretamente nos servidores da plataforma externa de IA de stems (`https://studio.external-stems-ai.com/`), retornando se a sessão está ativa ou expirada (evitando simulações no frontend).
+   * Criado o teste de conexão activa que valida os cookies diretamente nos servidores da plataforma externa de IA de stems (`https://studio.external-stems-ai.com/`), retornando se a sessão está ativa ou expirada (evitando simulações no frontend).
 4. **Portas Dinâmicas**: Configuração unificada via `.env` na raiz do projeto.
 5. **Purga Completa de Mocks**:
    * **Página Explorar**: Dados de Queen, Santana e Eagles fictícios removidos por completo. O catálogo consome faixas reais via `/api/Tracks` e oculta seções de gêneros caso não existam músicas prontas.
@@ -63,7 +63,7 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
 12. **Shuffle (Aleatório) e Repeat (Repetição) no Player**:
     * Implementados os modos Shuffle e Repeat no player com sincronização e persistência no `localStorage`.
     * A reprodução aleatória gerencia uma pilha interna de histórico para evitar repetições no avanço e permitir o retorno de faixas exato na ordem inversa. O Repeat suporta One, All e Off.
-13. **Persistência Sem Perda do Mixer e Isenção de Faixa Única**:
+13. **Persistência Sem Perda del Mixer e Isenção de Faixa Única**:
     * A mesa de stems foi ajustada para persistir volumes, mutes e solos por canal no `localStorage`. Em vez de limpar o dicionário ao carregar novas músicas, realizamos uma mesclagem (merge) preservando chaves de canais ausentes.
     * A atualização de ganho de áudio foi otimizada com referências mutáveis para contornar atrasos de batching do React.
     * Adicionada isenção de ganho (1.0 constante) para faixas contendo apenas uma única stem, evitando silenciamento colateral.
@@ -75,6 +75,10 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
     * Substituído o comportamento anterior onde apenas a bolinha (thumb) se movia na barra de progresso do player.
     * Implementada a classe CSS `.dynamic-progress` com suporte a variáveis customizadas (`--slider-progress`) baseadas em `linear-gradient`.
     * A cor percorrida é pintada dinamicamente com o verde premium `#1db954`, enquanto a restante permanece cinza (`#282828` padrão ou `#333333` no hover), atualizando em tempo real com fluidez tanto na interface Desktop quanto na versão Mobile expandida.
+16. **Interação e Exclusão Irrestrita na Biblioteca**:
+    * Habilitado o menu de contexto personalizado do Mixer8 para todas as faixas (independentemente do status de extração: `Aguardando`, `Processando...`, `Falhou`, `Pronto`), evitando a exibição do menu padrão do navegador.
+    * O editor de metadados e o fluxo relacional/físico de exclusão em cascata do backend foram validados para funcionar perfeitamente em faixas sem stems ou com processamento interrompido.
+    * A injeção em playlists de músicas não prontas permanece bloqueada na interface de usuário.
 
 ---
 
@@ -86,4 +90,5 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
 
 ## ❓ Perguntas Abertas / Notas
 * O banco de dados PostgreSQL continua rodando de forma externa no homelab (`192.168.18.110`), mantendo-se comentado no compose para preservar a consistência relacional prévia.
+
 
