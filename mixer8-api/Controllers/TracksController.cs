@@ -1205,6 +1205,8 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             var cooldownSeconds = Math.Max(track.Duration - 5, 30);
             
             track.PlayCount++;
+            track.WeekPlayCount++;
+            dbContext.TrackPlays.Add(new TrackPlay { TrackId = track.TrackId, PlayedAt = DateTime.UtcNow });
             trackIncremented = true;
 
             var cacheOptions = new MemoryCacheEntryOptions

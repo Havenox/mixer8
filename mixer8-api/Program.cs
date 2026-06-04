@@ -116,6 +116,8 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(optio
 
 builder.Services.AddOpenApi();
 
+builder.Services.AddHostedService<WeeklyPlayCleanupWorker>();
+
 var app = builder.Build();
 
 // 6. Roda Migrações automáticas de Banco de Dados na Inicialização (Resiliência) e Seed de usuários

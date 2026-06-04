@@ -27,6 +27,7 @@ public class Track
 
     public int Duration { get; set; } // Duração em segundos
     public long PlayCount { get; set; } = 0; // Contador de reproduções
+    public long WeekPlayCount { get; set; } = 0; // Contagem de plays dos últimos 7 dias
 
     public Guid? AlbumId { get; set; }
     public int? TrackNumber { get; set; }

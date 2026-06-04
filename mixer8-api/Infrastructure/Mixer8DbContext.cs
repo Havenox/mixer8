@@ -19,6 +19,7 @@ public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbCont
     public DbSet<SavedPlaylist> SavedPlaylists { get; set; } = null!;
     public DbSet<Album> Albums { get; set; } = null!;
     public DbSet<SystemSetting> SystemSettings { get; set; } = null!;
+    public DbSet<TrackPlay> TrackPlays { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -36,6 +37,7 @@ public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbCont
         modelBuilder.Entity<SavedPlaylist>().ToTable("SavedPlaylists");
         modelBuilder.Entity<Album>().ToTable("Albums");
         modelBuilder.Entity<SystemSetting>().ToTable("SystemSettings");
+        modelBuilder.Entity<TrackPlay>().ToTable("TrackPlays");
 
         // Chaves primárias
         modelBuilder.Entity<User>().HasKey(u => u.UserId);
@@ -49,6 +51,7 @@ public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbCont
         modelBuilder.Entity<SavedPlaylist>().HasKey(sp => sp.SavedPlaylistId);
         modelBuilder.Entity<Album>().HasKey(a => a.AlbumId);
         modelBuilder.Entity<SystemSetting>().HasKey(s => s.Key);
+        modelBuilder.Entity<TrackPlay>().HasKey(tp => tp.TrackPlayId);
 
         // Configura relacionamentos 1-para-1
         modelBuilder.Entity<User>()
@@ -136,5 +139,18 @@ public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbCont
             .WithMany()
             .HasForeignKey(pc => pc.UserId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Configura relacionamento TrackPlay e índices de auditoria e busca
+        modelBuilder.Entity<TrackPlay>()
+            .HasOne(tp => tp.Track)
+            .WithMany()
+            .HasForeignKey(tp => tp.TrackId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<TrackPlay>()
+            .HasIndex(tp => tp.PlayedAt);
+
+        modelBuilder.Entity<Track>()
+            .HasIndex(t => t.WeekPlayCount);
     }
 }
