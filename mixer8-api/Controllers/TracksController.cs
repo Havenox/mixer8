@@ -818,13 +818,14 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             }
 
             // 2. Atualizar capa
-            if (request.CoverFile != null && request.CoverFile.Length > 0)
+            var hasNewCoverFile = request.CoverFile != null && request.CoverFile.Length > 0;
+            var coverUrlChanged = request.CoverUrl != null && request.CoverUrl.Trim() != (track.CoverUrl ?? "");
+
+            if (hasNewCoverFile || coverUrlChanged)
             {
-                var coverExt = Path.GetExtension(request.CoverFile.FileName).ToLowerInvariant();
-                var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
-                if (allowedExtensions.Contains(coverExt))
+                // Remover capas antigas com extensões legadas se for um caminho local sob /stems/
+                if (!string.IsNullOrWhiteSpace(track.CoverUrl) && track.CoverUrl.StartsWith("/stems/"))
                 {
-                    // Remover capas antigas com extensões legadas para evitar arquivos órfãos
                     var oldExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
                     foreach (var oldExt in oldExtensions)
                     {
@@ -834,11 +835,24 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                             System.IO.File.Delete(oldFilePath);
                         }
                     }
+                }
+                track.CoverUrl = null;
+            }
 
+            if (hasNewCoverFile)
+            {
+                var coverExt = Path.GetExtension(request.CoverFile!.FileName).ToLowerInvariant();
+                var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
+                if (allowedExtensions.Contains(coverExt))
+                {
                     var coverPath = Path.Combine(trackDir, "cover.webp");
                     await ImageHelper.ProcessAndSaveImageAsync(request.CoverFile, coverPath);
                     track.CoverUrl = $"/stems/{id}/cover.webp";
                 }
+            }
+            else if (request.CoverUrl != null)
+            {
+                track.CoverUrl = string.IsNullOrWhiteSpace(request.CoverUrl) ? null : request.CoverUrl.Trim();
             }
 
             // 3. Deletar stems selecionadas
@@ -1222,4 +1236,5 @@ public class UpdateTrackRequest
     public IFormFile? CoverFile { get; set; }
     public string? DeleteStemIds { get; set; }
     public List<IFormFile> Files { get; set; } = new();
+    public string? CoverUrl { get; set; }
 }

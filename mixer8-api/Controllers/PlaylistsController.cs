@@ -296,8 +296,11 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
 
         playlist.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
 
-        // Gerenciar exclusão física da capa anterior se solicitado ou ao substituir por novo arquivo
-        if (request.DeleteCover || (request.CoverFile != null && request.CoverFile.Length > 0))
+        // Gerenciar exclusão física da capa anterior se solicitado, se houver novo arquivo ou se a URL da capa mudou
+        var hasNewCoverFile = request.CoverFile != null && request.CoverFile.Length > 0;
+        var coverUrlChanged = request.CoverUrl != null && request.CoverUrl.Trim() != (playlist.CoverUrl ?? "");
+
+        if (request.DeleteCover || hasNewCoverFile || coverUrlChanged)
         {
             if (!string.IsNullOrWhiteSpace(playlist.CoverUrl) && playlist.CoverUrl.StartsWith("/playlists/"))
             {
@@ -319,7 +322,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
         }
 
         // Salvar novo arquivo físico de capa se fornecido
-        if (request.CoverFile != null && request.CoverFile.Length > 0)
+        if (hasNewCoverFile)
         {
             var playlistDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "playlists", id.ToString());
             if (!Directory.Exists(playlistDir))
@@ -327,7 +330,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
                 Directory.CreateDirectory(playlistDir);
             }
 
-            var ext = Path.GetExtension(request.CoverFile.FileName).ToLowerInvariant();
+            var ext = Path.GetExtension(request.CoverFile!.FileName).ToLowerInvariant();
             var allowedExtensions = new[] { ".png", ".jpg", ".jpeg", ".webp" };
             if (allowedExtensions.Contains(ext))
             {
@@ -349,6 +352,10 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
 
                 playlist.CoverUrl = $"/playlists/{id}/{coverFileName}";
             }
+        }
+        else if (request.CoverUrl != null)
+        {
+            playlist.CoverUrl = string.IsNullOrWhiteSpace(request.CoverUrl) ? null : request.CoverUrl.Trim();
         }
 
         await dbContext.SaveChangesAsync();
@@ -746,6 +753,7 @@ public class UpdatePlaylistRequest
     public string? Description { get; set; }
     public IFormFile? CoverFile { get; set; }
     public bool DeleteCover { get; set; }
+    public string? CoverUrl { get; set; }
 }
 
 public class AddTrackDto
