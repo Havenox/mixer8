@@ -17,6 +17,7 @@ export interface ITrack {
   Stems: IStem[];
   Visibility?: string;
   UploadedBy?: string;
+  DeletionPending?: boolean;
 }
 
 interface IPlayerContext {

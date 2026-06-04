@@ -34,6 +34,7 @@ interface IPlaylistTrack {
   Duration: number;
   Visibility?: string;
   UploadedBy?: string;
+  DeletionPending?: boolean;
 }
 
 interface IPlaylistCollaborator {
@@ -457,7 +458,8 @@ export const PlaylistDetail: React.FC = () => {
         setTrackToDelete(null);
         fetchPlaylistDetails(); // Recarrega reativamente a lista
       } else {
-        setDeleteError('Não foi possível excluir a música da plataforma. Verifique as credenciais de admin.');
+        const errorData = await res.json().catch(() => ({}));
+        setDeleteError(errorData.ErrorMessage || 'Não foi possível concluir a exclusão.');
       }
     } catch {
       setDeleteError('Erro de conexão ao tentar excluir música da plataforma.');
@@ -1090,6 +1092,11 @@ export const PlaylistDetail: React.FC = () => {
                                 >
                                   {t.TrackTitle}
                                 </span>
+                                {t.DeletionPending && (
+                                  <span className="text-[8px] bg-red-950/60 text-red-400 border border-red-900/50 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider animate-pulse shrink-0">
+                                    Aguardando Exclusão
+                                  </span>
+                                )}
                                 {t.Visibility === 'Private' && (
                                   <div className="relative group/tooltip shrink-0 flex items-center gap-1 select-none">
                                     <span className="text-[8px] bg-red-950/40 text-red-400 border border-red-900/30 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
@@ -1242,6 +1249,11 @@ export const PlaylistDetail: React.FC = () => {
                         >
                           {t.TrackTitle}
                         </span>
+                        {t.DeletionPending && (
+                          <span className="text-[7px] bg-red-950/60 text-red-400 border border-red-900/50 px-1 py-0.2 rounded font-bold uppercase tracking-wider animate-pulse shrink-0">
+                            Aguardando Exclusão
+                          </span>
+                        )}
                         {t.Visibility === 'Private' && (
                           <div className="relative group/tooltip shrink-0 flex items-center gap-0.5 select-none">
                             <span className="text-[7px] bg-red-950/40 text-red-400 border border-red-900/30 px-1 py-0.2 rounded font-bold uppercase tracking-wider">
@@ -1329,7 +1341,7 @@ export const PlaylistDetail: React.FC = () => {
           )}
 
           {/* Seção do Administrador para exclusão total da plataforma */}
-          {CurrentUser?.UserRole === 'Admin' && (
+          {(CurrentUser?.UserRole === 'Admin' || contextMenu.track.UploadedBy === CurrentUser?.UserId) && (
             <>
               <div className="h-[1px] bg-brand-hover my-1" />
               <button
@@ -1363,8 +1375,12 @@ export const PlaylistDetail: React.FC = () => {
             <div className="flex items-center gap-3 text-red-500">
               <AlertTriangle className="w-6 h-6 shrink-0" />
               <div className="flex flex-col">
-                <span className="text-[10px] text-red-400 font-bold uppercase tracking-wider">Ação Destrutiva - Admin</span>
-                <h3 className="text-sm font-bold text-white">Excluir Música Permanentemente</h3>
+                <span className="text-[10px] text-red-400 font-bold uppercase tracking-wider">
+                  {CurrentUser?.UserRole === 'Admin' ? 'Ação Destrutiva - Admin' : 'Solicitar Exclusão'}
+                </span>
+                <h3 className="text-sm font-bold text-white">
+                  {CurrentUser?.UserRole === 'Admin' ? 'Excluir Música Permanentemente' : 'Solicitar Exclusão da Música'}
+                </h3>
               </div>
             </div>
 
@@ -1387,7 +1403,15 @@ export const PlaylistDetail: React.FC = () => {
             </div>
 
             <p className="text-xs text-brand-gray leading-relaxed m-0">
-              Esta ação é <strong className="text-red-400">irreversível</strong>. A música será removida permanentemente de todo o sistema Mixer8, seus arquivos físicos de áudio/stems e imagem de capa serão deletados do servidor, e ela será desassociada de todas as playlists.
+              {CurrentUser?.UserRole === 'Admin' ? (
+                <>
+                  Esta ação é <strong className="text-red-400">irreversível</strong>. A música será removida permanentemente de todo o sistema Mixer8, seus arquivos físicos de áudio/stems e imagem de capa serão deletados do servidor, e ela será desassociada de todas as playlists.
+                </>
+              ) : (
+                <>
+                  Esta solicitação enviará a música para moderação de um administrador e ela será <strong className="text-red-400">ocultada imediatamente</strong> da plataforma para todos os usuários normais.
+                </>
+              )}
             </p>
 
             {deleteError && (
@@ -1414,12 +1438,12 @@ export const PlaylistDetail: React.FC = () => {
                 {isDeleting ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Excluindo...</span>
+                    <span>{CurrentUser?.UserRole === 'Admin' ? 'Excluindo...' : 'Solicitando...'}</span>
                   </>
                 ) : deleteCountdown > 0 ? (
-                  <span>Excluir ({deleteCountdown}s)</span>
+                  <span>{CurrentUser?.UserRole === 'Admin' ? `Excluir (${deleteCountdown}s)` : `Solicitar (${deleteCountdown}s)`}</span>
                 ) : (
-                  <span>Confirmar Exclusão</span>
+                  <span>{CurrentUser?.UserRole === 'Admin' ? 'Confirmar Exclusão' : 'Confirmar Solicitação'}</span>
                 )}
               </button>
             </div>

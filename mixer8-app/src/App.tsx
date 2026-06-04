@@ -497,7 +497,7 @@ const Explore: React.FC = () => {
             <span>Adicionar à playlist</span>
           </button>
 
-          {CurrentUser?.UserRole === 'Admin' && (
+          {(CurrentUser?.UserRole === 'Admin' || contextMenu.track.UploadedBy === CurrentUser?.UserId) && (
             <>
               <div className="h-[1px] bg-brand-hover my-1" />
               <button
@@ -544,8 +544,12 @@ const Explore: React.FC = () => {
             <div className="flex items-center gap-3 text-red-500">
               <AlertTriangle className="w-6 h-6 shrink-0" />
               <div className="flex flex-col">
-                <span className="text-[10px] text-red-400 font-bold uppercase tracking-wider">Ação Destrutiva</span>
-                <h3 className="text-sm font-bold text-white">Excluir Música Permanentemente</h3>
+                <span className="text-[10px] text-red-400 font-bold uppercase tracking-wider">
+                  {CurrentUser?.UserRole === 'Admin' ? 'Ação Destrutiva' : 'Solicitar Exclusão'}
+                </span>
+                <h3 className="text-sm font-bold text-white">
+                  {CurrentUser?.UserRole === 'Admin' ? 'Excluir Música Permanentemente' : 'Solicitar Exclusão da Música'}
+                </h3>
               </div>
             </div>
 
@@ -568,7 +572,15 @@ const Explore: React.FC = () => {
             </div>
 
             <p className="text-xs text-brand-gray leading-relaxed m-0">
-              Esta ação é <strong className="text-red-400">irreversível</strong>. A música será removida permanentemente do banco de dados, seus arquivos físicos de stems (áudio) e capa serão excluídos do servidor, e ela será desassociada de qualquer playlist existente.
+              {CurrentUser?.UserRole === 'Admin' ? (
+                <>
+                  Esta ação é <strong className="text-red-400">irreversível</strong>. A música será removida permanentemente do banco de dados, seus arquivos físicos de stems (áudio) e capa serão excluídos do servidor, e ela será desassociada de qualquer playlist existente.
+                </>
+              ) : (
+                <>
+                  Esta solicitação enviará a música para moderação de um administrador e ela será <strong className="text-red-400">ocultada imediatamente</strong> da plataforma para todos os usuários normais.
+                </>
+              )}
             </p>
 
             {deleteError && (
@@ -595,12 +607,12 @@ const Explore: React.FC = () => {
                 {isDeleting ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Excluindo...</span>
+                    <span>{CurrentUser?.UserRole === 'Admin' ? 'Excluindo...' : 'Solicitando...'}</span>
                   </>
                 ) : deleteCountdown > 0 ? (
-                  <span>Excluir ({deleteCountdown}s)</span>
+                  <span>{CurrentUser?.UserRole === 'Admin' ? `Excluir (${deleteCountdown}s)` : `Solicitar (${deleteCountdown}s)`}</span>
                 ) : (
-                  <span>Confirmar Exclusão</span>
+                  <span>{CurrentUser?.UserRole === 'Admin' ? 'Confirmar Exclusão' : 'Confirmar Solicitação'}</span>
                 )}
               </button>
             </div>
@@ -626,8 +638,12 @@ const Explore: React.FC = () => {
             <div className="flex items-center gap-2 pr-8">
               <Settings className="w-5 h-5 text-brand-green" />
               <div className="flex flex-col">
-                <span className="text-[10px] text-brand-green font-bold uppercase tracking-wider">Painel Administrativo</span>
-                <h3 className="text-sm font-bold text-white">Editar Música e Stems</h3>
+                <span className="text-[10px] text-brand-green font-bold uppercase tracking-wider">
+                  {CurrentUser?.UserRole === 'Admin' ? 'Painel Administrativo' : 'Minha Música'}
+                </span>
+                <h3 className="text-sm font-bold text-white">
+                  {CurrentUser?.UserRole === 'Admin' ? 'Editar Música e Stems' : 'Editar Metadados da Música'}
+                </h3>
               </div>
             </div>
 
@@ -737,163 +753,166 @@ const Explore: React.FC = () => {
                 </select>
               </div>
 
-              {/* Gerenciamento das Stems Reais */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Canais de Stems Ativas</label>
-                <div className="flex flex-col gap-2 max-h-48 overflow-y-auto border border-brand-hover rounded p-2 bg-black/20">
-                  {trackToEdit.Stems && trackToEdit.Stems.length > 0 ? (
-                    [...trackToEdit.Stems]
-                      .sort((a, b) => {
-                        const order = [
-                          'Voz',
-                          'Vocal',
-                          'Bateria',
-                          'Baixo',
-                          'Guitarra',
-                          'Guitarra Solo',
-                          'Guitarra Base',
-                          'Sopro',
-                          'Teclado',
-                          'Piano',
-                          'Cordas',
-                          'Outros',
-                          'Metrônomo'
-                        ];
-                        const indexA = order.indexOf(a.StemType);
-                        const indexB = order.indexOf(b.StemType);
-                        const valA = a.StemType === 'Vocais' ? 0 : (indexA === -1 ? 999 : indexA);
-                        const valB = b.StemType === 'Vocais' ? 0 : (indexB === -1 ? 999 : indexB);
-                        return valA - valB;
-                      })
-                      .map((stem) => {
-                      const isDeleted = stemsToDelete.includes(stem.StemId);
-                      const isReplaced = stemsToReplace[stem.StemId] !== undefined;
+              {/* Gerenciamento das Stems Reais (Apenas Admin) */}
+              {CurrentUser?.UserRole === 'Admin' && (
+                <>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Canais de Stems Ativas</label>
+                    <div className="flex flex-col gap-2 max-h-48 overflow-y-auto border border-brand-hover rounded p-2 bg-black/20">
+                      {trackToEdit.Stems && trackToEdit.Stems.length > 0 ? (
+                        [...trackToEdit.Stems]
+                          .sort((a, b) => {
+                            const order = [
+                              'Voz',
+                              'Vocal',
+                              'Bateria',
+                              'Baixo',
+                              'Guitarra',
+                              'Guitarra Solo',
+                              'Guitarra Base',
+                              'Sopro',
+                              'Teclado',
+                              'Piano',
+                              'Cordas',
+                              'Outros',
+                              'Metrônomo'
+                            ];
+                            const indexA = order.indexOf(a.StemType);
+                            const indexB = order.indexOf(b.StemType);
+                            const valA = a.StemType === 'Vocais' ? 0 : (indexA === -1 ? 999 : indexA);
+                            const valB = b.StemType === 'Vocais' ? 0 : (indexB === -1 ? 999 : indexB);
+                            return valA - valB;
+                          })
+                          .map((stem) => {
+                          const isDeleted = stemsToDelete.includes(stem.StemId);
+                          const isReplaced = stemsToReplace[stem.StemId] !== undefined;
 
-                      return (
-                        <div 
-                          key={stem.StemId} 
-                          className={`flex items-center justify-between p-2 rounded border text-xs transition-colors ${
-                            isDeleted 
-                              ? 'bg-red-950/20 border-red-500/30 text-red-300 line-through' 
-                              : isReplaced 
-                                ? 'bg-brand-green/10 border-brand-green/30 text-brand-green'
-                                : 'bg-black/40 border-brand-hover text-white'
-                          }`}
-                        >
-                          <div className="flex flex-col truncate">
-                            <span className="font-bold capitalize truncate">{stem.StemType}</span>
-                            <span className="text-[10px] text-brand-gray truncate">
-                              {isReplaced ? `Substituindo por: ${stemsToReplace[stem.StemId].name}` : stem.AudioUrl.split('/').pop()}
-                            </span>
-                          </div>
+                          return (
+                            <div 
+                              key={stem.StemId} 
+                              className={`flex items-center justify-between p-2 rounded border text-xs transition-colors ${
+                                isDeleted 
+                                  ? 'bg-red-950/20 border-red-500/30 text-red-300 line-through' 
+                                  : isReplaced 
+                                    ? 'bg-brand-green/10 border-brand-green/30 text-brand-green'
+                                    : 'bg-black/40 border-brand-hover text-white'
+                              }`}
+                            >
+                              <div className="flex flex-col truncate">
+                                <span className="font-bold capitalize truncate">{stem.StemType}</span>
+                                <span className="text-[10px] text-brand-gray truncate">
+                                  {isReplaced ? `Substituindo por: ${stemsToReplace[stem.StemId].name}` : stem.AudioUrl.split('/').pop()}
+                                </span>
+                              </div>
 
-                          <div className="flex items-center gap-2 shrink-0">
-                            {/* Substituir arquivo */}
-                            {!isDeleted && (
-                              <label className="py-1 px-2 bg-brand-hover text-white font-bold rounded text-[9px] hover:bg-brand-hover/80 transition-colors cursor-pointer select-none">
-                                Substituir
-                                <input 
-                                  type="file"
-                                  accept="audio/*"
-                                  disabled={isSaving}
-                                  onChange={e => {
-                                    const file = e.target.files?.[0];
-                                    if (file) {
-                                      setStemsToReplace(prev => ({ ...prev, [stem.StemId]: file }));
+                              <div className="flex items-center gap-2 shrink-0">
+                                {/* Substituir arquivo */}
+                                {!isDeleted && (
+                                  <label className="py-1 px-2 bg-brand-hover text-white font-bold rounded text-[9px] hover:bg-brand-hover/80 transition-colors cursor-pointer select-none">
+                                    Substituir
+                                    <input 
+                                      type="file"
+                                      accept="audio/*"
+                                      disabled={isSaving}
+                                      onChange={e => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                          setStemsToReplace(prev => ({ ...prev, [stem.StemId]: file }));
+                                        }
+                                      }}
+                                      className="hidden"
+                                    />
+                                  </label>
+                                )}
+
+                                {/* Desfazer substituição */}
+                                {isReplaced && !isDeleted && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setStemsToReplace(prev => {
+                                        const copy = { ...prev };
+                                        delete copy[stem.StemId];
+                                        return copy;
+                                      });
+                                    }}
+                                    className="py-1 px-2 border border-brand-hover text-brand-gray hover:text-white rounded text-[9px] cursor-pointer"
+                                  >
+                                    Desfazer
+                                  </button>
+                                )}
+
+                                {/* Excluir/Restaurar */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (isDeleted) {
+                                      setStemsToDelete(prev => prev.filter(id => id !== stem.StemId));
+                                    } else {
+                                      setStemsToDelete(prev => [...prev, stem.StemId]);
                                     }
                                   }}
-                                  className="hidden"
-                                />
-                              </label>
-                            )}
-
-                            {/* Desfazer substituição */}
-                            {isReplaced && !isDeleted && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setStemsToReplace(prev => {
-                                    const copy = { ...prev };
-                                    delete copy[stem.StemId];
-                                    return copy;
-                                  });
-                                }}
-                                className="py-1 px-2 border border-brand-hover text-brand-gray hover:text-white rounded text-[9px] cursor-pointer"
-                              >
-                                Desfazer
-                              </button>
-                            )}
-
-                            {/* Excluir/Restaurar */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (isDeleted) {
-                                  setStemsToDelete(prev => prev.filter(id => id !== stem.StemId));
-                                } else {
-                                  setStemsToDelete(prev => [...prev, stem.StemId]);
-                                }
-                              }}
-                              className={`p-1 rounded cursor-pointer transition-colors ${
-                                isDeleted 
-                                  ? 'bg-brand-hover text-brand-gray hover:text-white' 
-                                  : 'hover:bg-red-950 hover:text-red-400 text-brand-gray'
-                              }`}
-                              title={isDeleted ? 'Restaurar Stem' : 'Deletar Stem'}
-                            >
-                              {isDeleted ? <RefreshCw className="w-3.5 h-3.5" /> : <Trash2 className="w-3.5 h-3.5" />}
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-center py-4 text-xs italic text-brand-gray">Nenhuma stem encontrada.</div>
-                  )}
-                </div>
-              </div>
-
-              {/* Adicionar novas stems */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Adicionar Novas Stems (Áudios ou ZIP)</label>
-                <div className="border border-dashed border-brand-hover rounded p-4 text-center bg-black/20 flex flex-col gap-2">
-                  <input 
-                    type="file"
-                    accept="audio/*,.zip"
-                    multiple
-                    disabled={isSaving}
-                    onChange={e => {
-                      const files = Array.from(e.target.files || []);
-                      if (files.length > 0) {
-                        setNewStemsFiles(prev => [...prev, ...files]);
-                      }
-                    }}
-                    className="text-xs text-brand-gray file:mr-3 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-bold file:bg-brand-hover file:text-white hover:file:bg-brand-hover/80 file:cursor-pointer"
-                  />
-                  <span className="text-[10px] text-brand-gray">Formatos suportados: MP3, WAV, FLAC, OGG, OPUS, ZIP</span>
-                </div>
-
-                {newStemsFiles.length > 0 && (
-                  <div className="flex flex-col gap-1.5 border border-brand-hover rounded p-2 bg-black/40">
-                    <span className="text-[9px] text-brand-green font-bold uppercase tracking-wider">Arquivos adicionais pendentes:</span>
-                    <div className="flex flex-col gap-1 max-h-24 overflow-y-auto">
-                      {newStemsFiles.map((file, idx) => (
-                        <div key={idx} className="flex justify-between items-center bg-black p-1.5 rounded text-[10px]">
-                          <span className="text-white truncate max-w-[250px]">{file.name}</span>
-                          <button
-                            type="button"
-                            onClick={() => setNewStemsFiles(prev => prev.filter((_, i) => i !== idx))}
-                            className="text-red-400 hover:underline text-[9px] font-bold cursor-pointer"
-                          >
-                            Remover
-                          </button>
-                        </div>
-                      ))}
+                                  className={`p-1 rounded cursor-pointer transition-colors ${
+                                    isDeleted 
+                                      ? 'bg-brand-hover text-brand-gray hover:text-white' 
+                                      : 'hover:bg-red-950 hover:text-red-400 text-brand-gray'
+                                  }`}
+                                  title={isDeleted ? 'Restaurar Stem' : 'Deletar Stem'}
+                                >
+                                  {isDeleted ? <RefreshCw className="w-3.5 h-3.5" /> : <Trash2 className="w-3.5 h-3.5" />}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="text-center py-4 text-xs italic text-brand-gray">Nenhuma stem encontrada.</div>
+                      )}
                     </div>
                   </div>
-                )}
-              </div>
 
+                  {/* Adicionar novas stems */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Adicionar Novas Stems (Áudios ou ZIP)</label>
+                    <div className="border border-dashed border-brand-hover rounded p-4 text-center bg-black/20 flex flex-col gap-2">
+                      <input 
+                        type="file"
+                        accept="audio/*,.zip"
+                        multiple
+                        disabled={isSaving}
+                        onChange={e => {
+                          const files = Array.from(e.target.files || []);
+                          if (files.length > 0) {
+                            setNewStemsFiles(prev => [...prev, ...files]);
+                          }
+                        }}
+                        className="text-xs text-brand-gray file:mr-3 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-bold file:bg-brand-hover file:text-white hover:file:bg-brand-hover/80 file:cursor-pointer"
+                      />
+                      <span className="text-[10px] text-brand-gray">Formatos suportados: MP3, WAV, FLAC, OGG, OPUS, ZIP</span>
+                    </div>
+
+                    {newStemsFiles.length > 0 && (
+                      <div className="flex flex-col gap-1.5 border border-brand-hover rounded p-2 bg-black/40">
+                        <span className="text-[9px] text-brand-green font-bold uppercase tracking-wider">Arquivos adicionais pendentes:</span>
+                        <div className="flex flex-col gap-1 max-h-24 overflow-y-auto">
+                          {newStemsFiles.map((file, idx) => (
+                            <div key={idx} className="flex justify-between items-center bg-black p-1.5 rounded text-[10px]">
+                              <span className="text-white truncate max-w-[250px]">{file.name}</span>
+                              <button
+                                type="button"
+                                onClick={() => setNewStemsFiles(prev => prev.filter((_, i) => i !== idx))}
+                                className="text-red-400 hover:underline text-[9px] font-bold cursor-pointer"
+                              >
+                                Remover
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
 
             {saveError && (
