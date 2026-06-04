@@ -34,6 +34,8 @@ interface IPlaylistTrack {
   Duration: number;
   Visibility?: string;
   UploadedBy?: string;
+  UploadedByEmail?: string;
+  UploadedByUserName?: string;
   DeletionPending?: boolean;
   DeletionReason?: string;
 }
@@ -1546,6 +1548,11 @@ export const PlaylistDetail: React.FC = () => {
               <div className="flex flex-col truncate">
                 <span className="font-bold text-white text-sm truncate">{trackToReview.TrackTitle}</span>
                 <span className="text-xs text-brand-gray truncate">{trackToReview.ArtistName}</span>
+                {(trackToReview.UploadedByUserName || trackToReview.UploadedByEmail) && (
+                  <span className="text-[10px] text-brand-gray/70 truncate mt-0.5 select-text">
+                    Uploader: {trackToReview.UploadedByUserName ? `@${trackToReview.UploadedByUserName}` : ''} {trackToReview.UploadedByEmail ? `(${trackToReview.UploadedByEmail})` : ''}
+                  </span>
+                )}
               </div>
             </div>
 

@@ -17,6 +17,8 @@ export interface ITrack {
   Stems: IStem[];
   Visibility?: string;
   UploadedBy?: string;
+  UploadedByEmail?: string;
+  UploadedByUserName?: string;
   DeletionPending?: boolean;
   DeletionReason?: string;
 }
