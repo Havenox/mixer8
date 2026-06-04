@@ -151,7 +151,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
                 IsOwner = p.OwnerId == userId,
                 IsCollaborator = p.PlaylistCollaborators.Any(pc => pc.UserId == userId),
                 IsSaved = savedPlaylistIds.Contains(p.PlaylistId),
-                TracksCount = p.PlaylistTracks.Count,
+                TracksCount = p.PlaylistTracks.Count(pt => IsTrackVisible(pt.Track, p, userId, isAdmin)),
                 OwnerUserName = profile?.UserName,
                 OwnerFirstName = profile?.FirstName,
                 OwnerLastName = profile?.LastName,
@@ -236,6 +236,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             OwnerLastName = ownerProfile?.LastName,
             OwnerAvatarUrl = ownerProfile?.AvatarUrl,
             Tracks = playlist.PlaylistTracks
+                .Where(pt => IsTrackVisible(pt.Track, playlist, userId, isAdmin))
                 .OrderBy(pt => pt.Order)
                 .Select(pt => new PlaylistTrackResponseDto
                 {
@@ -248,6 +249,8 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
                     AddedAt = pt.AddedAt,
                     Order = pt.Order,
                     Duration = pt.Track.Duration,
+                    Visibility = pt.Track.Visibility,
+                    UploadedBy = pt.Track.UploadedBy,
                     Stems = pt.Track.Stems.Select(s => new PlaylistStemResponseDto
                     {
                         StemId = s.StemId,
@@ -626,6 +629,8 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
         if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
             return Unauthorized(new { ErrorMessage = "INVALID_TOKEN_CLAIMS" });
 
+        var isAdmin = User.IsInRole("Admin");
+
         var playlists = await dbContext.Playlists
             .Include(p => p.PlaylistTracks)
                 .ThenInclude(pt => pt.Track)
@@ -673,7 +678,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
                 IsOwner = false,
                 IsCollaborator = false,
                 IsSaved = savedPlaylistIds.Contains(p.PlaylistId),
-                TracksCount = p.PlaylistTracks.Count,
+                TracksCount = p.PlaylistTracks.Count(pt => IsTrackVisible(pt.Track, p, userId, isAdmin)),
                 OwnerUserName = profile?.UserName,
                 OwnerFirstName = profile?.FirstName,
                 OwnerLastName = profile?.LastName,
@@ -735,6 +740,19 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             Console.WriteLine($"[REORDER PLAYLIST ERROR] Falha ao reordenar playlist: {ex.Message}");
             return StatusCode(500, new { ErrorMessage = "REORDER_FAILED", Details = ex.Message });
         }
+    }
+
+    private static bool IsTrackVisible(Track track, Playlist playlist, Guid? userId, bool isAdmin)
+    {
+        if (track.Visibility == "Public") return true;
+        if (userId == null) return false;
+        if (track.UploadedBy == userId.Value || isAdmin) return true;
+        if (track.Visibility == "Unlisted")
+        {
+            return playlist.OwnerId == userId.Value || 
+                   playlist.PlaylistCollaborators.Any(pc => pc.UserId == userId.Value);
+        }
+        return false;
     }
 }
 
@@ -823,6 +841,8 @@ public class PlaylistTrackResponseDto
     public DateTime AddedAt { get; set; }
     public int Order { get; set; }
     public int Duration { get; set; }
+    public string Visibility { get; set; } = null!;
+    public Guid UploadedBy { get; set; }
     public List<PlaylistStemResponseDto> Stems { get; set; } = new();
 }
 

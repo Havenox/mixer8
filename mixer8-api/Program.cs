@@ -197,6 +197,29 @@ using (var scope = app.Services.CreateScope())
             Console.WriteLine("[DB SEED] Usuários semente gravados com sucesso!");
         }
 
+        // Auto-reparo para visibilidade padrão de faixas e álbuns legados
+        var legacyTracks = db.Tracks.Where(t => t.Visibility == "" || t.Visibility == null).ToList();
+        if (legacyTracks.Count > 0)
+        {
+            foreach (var t in legacyTracks)
+            {
+                t.Visibility = "Public";
+            }
+            db.SaveChanges();
+            Console.WriteLine($"[DB REPAIR] Atualizada visibilidade de {legacyTracks.Count} faixas legadas para 'Public'.");
+        }
+
+        var legacyAlbums = db.Albums.Where(a => a.Visibility == "" || a.Visibility == null).ToList();
+        if (legacyAlbums.Count > 0)
+        {
+            foreach (var a in legacyAlbums)
+            {
+                a.Visibility = "Public";
+            }
+            db.SaveChanges();
+            Console.WriteLine($"[DB REPAIR] Atualizada visibilidade de {legacyAlbums.Count} álbuns legados para 'Public'.");
+        }
+
         // Auto-reparo para usuários existentes migrados
         var allUsers = db.Users.Include(u => u.UserRole).Include(u => u.UserProfile).ToList();
         bool repairNeeded = false;

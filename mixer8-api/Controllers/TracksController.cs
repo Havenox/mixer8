@@ -27,8 +27,18 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] int? page, [FromQuery] int? limit)
     {
+        Guid? userId = null;
+        bool isAdmin = false;
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userIdClaim != null && Guid.TryParse(userIdClaim, out var parsedUserId))
+        {
+            userId = parsedUserId;
+            isAdmin = User.IsInRole("Admin");
+        }
+
         var query = dbContext.Tracks
             .Include(t => t.Stems)
+            .Where(t => t.Visibility == "Public" || (userId != null && (t.UploadedBy == userId || isAdmin)))
             .OrderByDescending(t => t.CreatedAt);
 
         if (page.HasValue && limit.HasValue)
@@ -810,6 +820,19 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             track.TrackTitle = request.TrackTitle.Trim();
             track.ArtistName = request.ArtistName.Trim();
 
+            if (!string.IsNullOrWhiteSpace(request.Visibility))
+            {
+                var visibility = request.Visibility.Trim();
+                if (visibility == "Public" || visibility == "Private" || visibility == "Unlisted")
+                {
+                    track.Visibility = visibility;
+                }
+                else
+                {
+                    return BadRequest(new { ErrorMessage = "INVALID_VISIBILITY_VALUE" });
+                }
+            }
+
             var stemsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "stems");
             var trackDir = Path.Combine(stemsDir, id.ToString());
             if (!Directory.Exists(trackDir))
@@ -1237,4 +1260,5 @@ public class UpdateTrackRequest
     public string? DeleteStemIds { get; set; }
     public List<IFormFile> Files { get; set; } = new();
     public string? CoverUrl { get; set; }
+    public string? Visibility { get; set; }
 }

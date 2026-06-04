@@ -13,6 +13,7 @@ public class Album
     public string ArtistName { get; set; } = null!;
     public DateTime ReleaseDate { get; set; }
     public string? CoverUrl { get; set; }
+    public string Visibility { get; set; } = "Public";
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public long PlayCount { get; set; } = 0;
 
