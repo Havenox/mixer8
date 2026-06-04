@@ -419,14 +419,12 @@ export const Dashboard: React.FC = () => {
                 key={track.TrackId} 
                 className="bg-brand-card border border-brand-hover p-4 rounded-md hover:bg-brand-hover group transition-all relative cursor-pointer"
                 onContextMenu={(e) => {
-                  if (track.ExtractionStatus === 'Pronto') {
-                    e.preventDefault();
-                    setContextMenu({
-                      x: e.clientX,
-                      y: e.clientY,
-                      track
-                    });
-                  }
+                  e.preventDefault();
+                  setContextMenu({
+                    x: e.clientX,
+                    y: e.clientY,
+                    track
+                  });
                 }}
               >
                 {/* Botão rápido de adicionar à playlist no hover */}
@@ -637,20 +635,24 @@ export const Dashboard: React.FC = () => {
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={e => e.stopPropagation()}
         >
-          <button
-            onClick={() => {
-              openAddToPlaylist(contextMenu.track.TrackId, contextMenu.track.TrackTitle, contextMenu.track.ArtistName);
-              setContextMenu(null);
-            }}
-            className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-brand-green"
-          >
-            <Plus className="w-4 h-4 text-brand-green shrink-0" />
-            <span>Adicionar à playlist</span>
-          </button>
+          {contextMenu.track.ExtractionStatus === 'Pronto' && (
+            <button
+              onClick={() => {
+                openAddToPlaylist(contextMenu.track.TrackId, contextMenu.track.TrackTitle, contextMenu.track.ArtistName);
+                setContextMenu(null);
+              }}
+              className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-brand-green"
+            >
+              <Plus className="w-4 h-4 text-brand-green shrink-0" />
+              <span>Adicionar à playlist</span>
+            </button>
+          )}
 
           {CurrentUser?.UserRole === 'Admin' && (
             <>
-              <div className="h-[1px] bg-brand-hover my-1" />
+              {contextMenu.track.ExtractionStatus === 'Pronto' && (
+                <div className="h-[1px] bg-brand-hover my-1" />
+              )}
               <button
                 onClick={() => {
                   setTrackToEdit(contextMenu.track);
