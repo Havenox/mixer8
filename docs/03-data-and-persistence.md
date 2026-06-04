@@ -33,6 +33,7 @@ erDiagram
         String ArtistName
         Guid UploadedBy FK
         String ExtractionStatus "Aguardando, Processando, Pronto, Falhou"
+        String Visibility "Public, Private, Unlisted"
         DateTime CreatedAt
         Int Duration
         Long PlayCount
@@ -72,6 +73,7 @@ erDiagram
         Guid AlbumId PK
         String Title
         String ArtistName
+        String Visibility "Public, Private, Unlisted"
         DateTime ReleaseDate
         String CoverUrl
         DateTime CreatedAt

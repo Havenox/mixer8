@@ -110,4 +110,30 @@ Para permitir o controle total do ciclo de vida das faixas no ecossistema Mixer8
 - **Exclusão Completa**: A exclusão definitiva de uma faixa remove todos os registros associados no banco de dados e limpa os diretórios de stems em disco, evitando dados órfãos ou arquivos temporários não utilizados.
 - **Restrição de Playlist**: Faixas que não estão prontas (ou que falharam no processamento de stems) não exibem a opção "Adicionar à playlist" no menu de contexto, prevenindo quebras e erros no reprodutor de áudio multi-stem.
 
+---
+
+## 6. Controle de Visibilidade e Privacidade (Tracks e Albums)
+
+Para suportar diferentes níveis de privacidade no compartilhamento de conteúdo, a plataforma estende o modelo de dados de `Track` e `Album` para incluir um controle de visibilidade (`Visibility`), com as seguintes opções e regras de negócio:
+
+### A. Níveis de Visibilidade
+1. **Public (Pública)**: Visível globalmente para todos os usuários (autenticados ou anônimos). Aparece em pesquisas, listagens gerais, tops, biblioteca de músicas e em qualquer playlist.
+2. **Unlisted (Não Listada)**: Ocultada de pesquisas globais, tops e biblioteca pública.
+   - **Regras em Playlists**: Se adicionada a uma playlist pública ou de outro criador, a música só será renderizada e tocável para:
+     * O uploader da música (`UploadedBy`).
+     * O dono da playlist (`OwnerId`).
+     * Colaboradores autorizados da playlist.
+     * Administradores do sistema.
+   - **Visualização**: Usuários autorizados que visualizarem a música verão uma sutil tag indicativa `Não Listada` acompanhada de um tooltip informativo explicativo.
+3. **Private (Privada)**: Visível e tocável exclusivamente por quem fez o upload da faixa (`UploadedBy`) e administradores.
+   - **Regras em Playlists**: Mesmo que seja adicionada a uma playlist pública ou de outro criador, a música só aparecerá na listagem e na contagem de faixas para o seu uploader ou administradores. Para outros usuários, ela é filtrada e ocultada completamente.
+   - **Visualização**: O uploader verá a música marcada com uma tag indicativa `Privada` e um tooltip explicativo.
+
+### B. Mapeamento de DTOs e Filtragem no Backend
+- A API (.NET) valida e filtra as consultas do banco de dados interceptando as Claims de Identidade (`UserId`) do usuário requisitante:
+  * Consultas globais (`GetAll`) filtram para retornar apenas músicas `Public` OU músicas cujo `UploadedBy` seja o usuário logado (admins ignoram o filtro).
+  * O carregamento de playlists (`GetPlaylistById`) filtra as faixas associadas dinamicamente usando a regra `IsTrackVisible(track, playlist, userId, isAdmin)`.
+  * As contagens de músicas (`TracksCount`) mostradas nos cabeçalhos de playlists e cards são computadas dinamicamente refletindo apenas a quantidade de músicas que o usuário logado de fato tem permissão para visualizar.
+
+
 
