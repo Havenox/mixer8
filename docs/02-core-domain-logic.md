@@ -106,6 +106,8 @@ Para assegurar a integridade dos contadores de execuções (`PlayCount`) e preve
 Para permitir o controle total do ciclo de vida das faixas no ecossistema Mixer8, a aplicação permite a edição e exclusão de qualquer música da biblioteca, independentemente de seu status de extração (`Aguardando`, `Processando`, `Falhou`, `Pronto`).
 
 - **Edição de Metadados**: A edição de metadados (como título e nome do artista) é permitida para qualquer música. No frontend, o modal de edição é resiliente e lida de forma segura caso a faixa ainda não tenha stems processadas.
+- **Edição de Capa com URLs Customizadas**: Tanto faixas quanto playlists suportam a definição de imagens de capa por meio de URLs externas ou caminhos físicos existentes. Isso otimiza o uso de armazenamento em disco, evitando re-upload de capas idênticas para músicas de um mesmo álbum.
 - **Exclusão Completa**: A exclusão definitiva de uma faixa remove todos os registros associados no banco de dados e limpa os diretórios de stems em disco, evitando dados órfãos ou arquivos temporários não utilizados.
 - **Restrição de Playlist**: Faixas que não estão prontas (ou que falharam no processamento de stems) não exibem a opção "Adicionar à playlist" no menu de contexto, prevenindo quebras e erros no reprodutor de áudio multi-stem.
+
 

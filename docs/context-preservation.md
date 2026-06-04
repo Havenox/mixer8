@@ -79,6 +79,9 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
     * Habilitado o menu de contexto personalizado do Mixer8 para todas as faixas (independentemente do status de extração: `Aguardando`, `Processando...`, `Falhou`, `Pronto`), evitando a exibição do menu padrão do navegador.
     * O editor de metadados e o fluxo relacional/físico de exclusão em cascata do backend foram validados para funcionar perfeitamente em faixas sem stems ou com processamento interrompido.
     * A injeção em playlists de músicas não prontas permanece bloqueada na interface de usuário.
+17. **Suporte a URLs de Capas Personalizadas**:
+    * Adicionado o campo "Ou URL Externa da Imagem" nos modais de edição de músicas e de playlists.
+    * O backend foi estendido para receber CoverUrl nos payloads de atualização, limpando fisicamente as capas locais anteriores ao atualizar para URLs de terceiros, garantindo integridade de disco e prevenindo arquivos órfãos.
 
 ---
 
