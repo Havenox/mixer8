@@ -38,7 +38,10 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
 
         var query = dbContext.Tracks
             .Include(t => t.Stems)
-            .Where(t => t.Visibility == "Public" || (userId != null && (t.UploadedBy == userId || isAdmin)))
+            .Where(t => 
+                (t.DeletionPending && isAdmin) ||
+                (!t.DeletionPending && (t.Visibility == "Public" || (userId != null && (t.UploadedBy == userId || isAdmin))))
+            )
             .OrderByDescending(t => t.CreatedAt);
 
         if (page.HasValue && limit.HasValue)
@@ -746,7 +749,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         return 0;
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(Guid id)
     {
@@ -757,6 +760,28 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         if (track == null)
         {
             return NotFound(new { ErrorMessage = "TRACK_NOT_FOUND" });
+        }
+
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { ErrorMessage = "INVALID_TOKEN_CLAIMS" });
+        }
+
+        var isAdmin = User.IsInRole("Admin");
+        var isUploader = track.UploadedBy == userId;
+
+        if (!isUploader && !isAdmin)
+        {
+            return Forbid();
+        }
+
+        if (!isAdmin)
+        {
+            // Uploader comum apenas marca para exclusão (exclusão lógica para moderação)
+            track.DeletionPending = true;
+            await dbContext.SaveChangesAsync();
+            return NoContent();
         }
 
         using var transaction = await dbContext.Database.BeginTransactionAsync();
@@ -799,7 +824,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         }
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize]
     [HttpPut("{id}")]
     [DisableRequestSizeLimit]
     public async Task<IActionResult> Update(Guid id, [FromForm] UpdateTrackRequest request)
@@ -811,6 +836,21 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         if (track == null)
         {
             return NotFound(new { ErrorMessage = "TRACK_NOT_FOUND" });
+        }
+
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { ErrorMessage = "INVALID_TOKEN_CLAIMS" });
+        }
+
+        var isAdmin = User.IsInRole("Admin");
+        var isModerator = User.IsInRole("Moderator");
+
+        var isUploader = track.UploadedBy == userId;
+        if (!isUploader && !isAdmin && !isModerator)
+        {
+            return Forbid();
         }
 
         using var transaction = await dbContext.Database.BeginTransactionAsync();
@@ -878,135 +918,163 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                 track.CoverUrl = string.IsNullOrWhiteSpace(request.CoverUrl) ? null : request.CoverUrl.Trim();
             }
 
-            // 3. Deletar stems selecionadas
+            // 3. Modificações de Stems (restrito a Admin e Moderator)
             var deletedStemIds = new List<Guid>();
-            if (!string.IsNullOrWhiteSpace(request.DeleteStemIds))
+            if (isAdmin || isModerator)
             {
-                deletedStemIds = request.DeleteStemIds.Split(',')
-                    .Select(s => s.Trim())
-                    .Where(s => Guid.TryParse(s, out _))
-                    .Select(Guid.Parse)
-                    .ToList();
-
-                foreach (var stemId in deletedStemIds)
+                if (!string.IsNullOrWhiteSpace(request.DeleteStemIds))
                 {
-                    var stem = track.Stems.FirstOrDefault(s => s.StemId == stemId);
-                    if (stem != null)
+                    deletedStemIds = request.DeleteStemIds.Split(',')
+                        .Select(s => s.Trim())
+                        .Where(s => Guid.TryParse(s, out _))
+                        .Select(Guid.Parse)
+                        .ToList();
+
+                    foreach (var stemId in deletedStemIds)
                     {
-                        var physicalPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", stem.AudioUrl.TrimStart('/'));
-                        if (System.IO.File.Exists(physicalPath))
+                        var stem = track.Stems.FirstOrDefault(s => s.StemId == stemId);
+                        if (stem != null)
                         {
-                            System.IO.File.Delete(physicalPath);
-                        }
-                        dbContext.Stems.Remove(stem);
-                    }
-                }
-            }
-
-            // Calcular se o total final de stems é faixa única para decidir a regra de mono
-            int existingStemsCountAfterDelete = track.Stems.Count(s => !deletedStemIds.Contains(s.StemId));
-            int newStemsCount = 0;
-            if (request.Files != null)
-            {
-                foreach (var file in request.Files)
-                {
-                    if (file.Length == 0) continue;
-                    var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-                    if (ext == ".zip")
-                    {
-                        using var archiveStream = file.OpenReadStream();
-                        using var archive = new ZipArchive(archiveStream, ZipArchiveMode.Read);
-                        newStemsCount += archive.Entries.Count(entry => 
-                            !string.IsNullOrEmpty(entry.Name) && 
-                            entry.Length > 0 && 
-                            AllowedMediaExtensions.Contains(Path.GetExtension(entry.Name).ToLowerInvariant()));
-                    }
-                    else if (AllowedMediaExtensions.Contains(ext))
-                    {
-                        newStemsCount++;
-                    }
-                }
-            }
-            int totalStemsCount = existingStemsCountAfterDelete + newStemsCount;
-            bool isSingleTrack = totalStemsCount <= 1;
-
-            // 4. Processar Substituições de Stems Individuais (Chave: ReplaceStem_{stemId})
-            foreach (var file in Request.Form.Files)
-            {
-                if (file.Name.StartsWith("ReplaceStem_"))
-                {
-                    var stemIdStr = file.Name.Substring("ReplaceStem_".Length);
-                    if (Guid.TryParse(stemIdStr, out var stemId))
-                    {
-                        var oldStem = track.Stems.FirstOrDefault(s => s.StemId == stemId);
-                        if (oldStem != null && file.Length > 0)
-                        {
-                            var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-                            if (AllowedMediaExtensions.Contains(ext))
+                            var physicalPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", stem.AudioUrl.TrimStart('/'));
+                            if (System.IO.File.Exists(physicalPath))
                             {
-                                // Deleta o arquivo físico antigo
-                                var oldPhysicalPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", oldStem.AudioUrl.TrimStart('/'));
-                                if (System.IO.File.Exists(oldPhysicalPath))
+                                System.IO.File.Delete(physicalPath);
+                            }
+                            dbContext.Stems.Remove(stem);
+                        }
+                    }
+                }
+
+                // Calcular se o total final de stems é faixa única para decidir a regra de mono
+                int existingStemsCountAfterDelete = track.Stems.Count(s => !deletedStemIds.Contains(s.StemId));
+                int newStemsCount = 0;
+                if (request.Files != null)
+                {
+                    foreach (var file in request.Files)
+                    {
+                        if (file.Length == 0) continue;
+                        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+                        if (ext == ".zip")
+                        {
+                            using var archiveStream = file.OpenReadStream();
+                            using var archive = new ZipArchive(archiveStream, ZipArchiveMode.Read);
+                            newStemsCount += archive.Entries.Count(entry => 
+                                !string.IsNullOrEmpty(entry.Name) && 
+                                entry.Length > 0 && 
+                                AllowedMediaExtensions.Contains(Path.GetExtension(entry.Name).ToLowerInvariant()));
+                        }
+                        else if (AllowedMediaExtensions.Contains(ext))
+                        {
+                            newStemsCount++;
+                        }
+                    }
+                }
+                int totalStemsCount = existingStemsCountAfterDelete + newStemsCount;
+                bool isSingleTrack = totalStemsCount <= 1;
+
+                // 4. Processar Substituições de Stems Individuais (Chave: ReplaceStem_{stemId})
+                foreach (var file in Request.Form.Files)
+                {
+                    if (file.Name.StartsWith("ReplaceStem_"))
+                    {
+                        var stemIdStr = file.Name.Substring("ReplaceStem_".Length);
+                        if (Guid.TryParse(stemIdStr, out var stemId))
+                        {
+                            var oldStem = track.Stems.FirstOrDefault(s => s.StemId == stemId);
+                            if (oldStem != null && file.Length > 0)
+                            {
+                                var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+                                if (AllowedMediaExtensions.Contains(ext))
                                 {
-                                    System.IO.File.Delete(oldPhysicalPath);
-                                }
-
-                                var newStemId = Guid.NewGuid();
-                                var stemType = MapFileNameToStemType(file.FileName);
-                                var stemFileName = $"{stemType}_{newStemId}.opus";
-                                var stemPath = Path.Combine(trackDir, stemFileName);
-
-                                bool forceMono = ShouldForceMono(stemType, isSingleTrack);
-
-                                using (var stream = file.OpenReadStream())
-                                {
-                                    var success = await ConvertToOpusAsync(stream, stemPath, forceMono);
-                                    if (success)
+                                    // Deleta o arquivo físico antigo
+                                    var oldPhysicalPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", oldStem.AudioUrl.TrimStart('/'));
+                                    if (System.IO.File.Exists(oldPhysicalPath))
                                     {
-                                        oldStem.StemType = stemType;
-                                        oldStem.AudioUrl = $"/stems/{id}/{stemFileName}";
+                                        System.IO.File.Delete(oldPhysicalPath);
+                                    }
+
+                                    var newStemId = Guid.NewGuid();
+                                    var stemType = MapFileNameToStemType(file.FileName);
+                                    var stemFileName = $"{stemType}_{newStemId}.opus";
+                                    var stemPath = Path.Combine(trackDir, stemFileName);
+
+                                    bool forceMono = ShouldForceMono(stemType, isSingleTrack);
+
+                                    using (var stream = file.OpenReadStream())
+                                    {
+                                        var success = await ConvertToOpusAsync(stream, stemPath, forceMono);
+                                        if (success)
+                                        {
+                                            oldStem.StemType = stemType;
+                                            oldStem.AudioUrl = $"/stems/{id}/{stemFileName}";
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
-            }
 
-            // 5. Processar Adição de Novas Stems (gerais/novas via Files)
-            if (request.Files != null && request.Files.Count > 0)
-            {
-                foreach (var file in request.Files)
+                // 5. Processar Adição de Novas Stems (gerais/novas via Files)
+                if (request.Files != null && request.Files.Count > 0)
                 {
-                    if (file.Length == 0) continue;
-                    var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-
-                    if (ext == ".zip")
+                    foreach (var file in request.Files)
                     {
-                        using (var archiveStream = file.OpenReadStream())
+                        if (file.Length == 0) continue;
+                        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+
+                        if (ext == ".zip")
                         {
-                            using (var archive = new ZipArchive(archiveStream, ZipArchiveMode.Read))
+                            using (var archiveStream = file.OpenReadStream())
                             {
-                                foreach (var entry in archive.Entries)
+                                using (var archive = new ZipArchive(archiveStream, ZipArchiveMode.Read))
                                 {
-                                    if (string.IsNullOrEmpty(entry.Name) || entry.Length == 0) continue;
-
-                                    var entryExt = Path.GetExtension(entry.Name).ToLowerInvariant();
-                                    if (!AllowedMediaExtensions.Contains(entryExt)) continue;
-
-                                    var newStemId = Guid.NewGuid();
-                                    var stemType = MapFileNameToStemType(entry.Name);
-                                    var stemFileName = $"{stemType}_{newStemId}.opus";
-                                    var stemPath = Path.Combine(trackDir, stemFileName);
-
-                                    bool forceMono = ShouldForceMono(stemType, isSingleTrack);
-
-                                    using (var entryStream = entry.Open())
+                                    foreach (var entry in archive.Entries)
                                     {
-                                        var success = await ConvertToOpusAsync(entryStream, stemPath, forceMono);
-                                        if (!success) continue;
-                                    }
+                                        if (string.IsNullOrEmpty(entry.Name) || entry.Length == 0) continue;
 
+                                        var entryExt = Path.GetExtension(entry.Name).ToLowerInvariant();
+                                        if (!AllowedMediaExtensions.Contains(entryExt)) continue;
+
+                                        var newStemId = Guid.NewGuid();
+                                        var stemType = MapFileNameToStemType(entry.Name);
+                                        var stemFileName = $"{stemType}_{newStemId}.opus";
+                                        var stemPath = Path.Combine(trackDir, stemFileName);
+
+                                        bool forceMono = ShouldForceMono(stemType, isSingleTrack);
+
+                                        using (var entryStream = entry.Open())
+                                        {
+                                            var success = await ConvertToOpusAsync(entryStream, stemPath, forceMono);
+                                            if (!success) continue;
+                                        }
+
+                                        dbContext.Stems.Add(new Stem
+                                        {
+                                            StemId = newStemId,
+                                            TrackId = id,
+                                            StemType = stemType,
+                                            AudioUrl = $"/stems/{id}/{stemFileName}",
+                                            CreatedAt = DateTime.UtcNow
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        else if (AllowedMediaExtensions.Contains(ext))
+                        {
+                            var newStemId = Guid.NewGuid();
+                            var stemType = MapFileNameToStemType(file.FileName);
+                            var stemFileName = $"{stemType}_{newStemId}.opus";
+                            var stemPath = Path.Combine(trackDir, stemFileName);
+
+                            bool forceMono = ShouldForceMono(stemType, isSingleTrack);
+
+                            using (var stream = file.OpenReadStream())
+                            {
+                                var success = await ConvertToOpusAsync(stream, stemPath, forceMono);
+                                if (success)
+                                {
                                     dbContext.Stems.Add(new Stem
                                     {
                                         StemId = newStemId,
@@ -1019,55 +1087,30 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                             }
                         }
                     }
-                    else if (AllowedMediaExtensions.Contains(ext))
+                }
+
+                // Recalcular a duração das stems que restaram + novas
+                int maxDuration = 0;
+                var allStems = dbContext.Stems.Local.Where(s => s.TrackId == id && !deletedStemIds.Contains(s.StemId))
+                    .Concat(track.Stems.Where(s => !deletedStemIds.Contains(s.StemId)))
+                    .DistinctBy(s => s.StemId)
+                    .ToList();
+
+                foreach (var stem in allStems)
+                {
+                    var physicalPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", stem.AudioUrl.TrimStart('/'));
+                    if (System.IO.File.Exists(physicalPath))
                     {
-                        var newStemId = Guid.NewGuid();
-                        var stemType = MapFileNameToStemType(file.FileName);
-                        var stemFileName = $"{stemType}_{newStemId}.opus";
-                        var stemPath = Path.Combine(trackDir, stemFileName);
-
-                        bool forceMono = ShouldForceMono(stemType, isSingleTrack);
-
-                        using (var stream = file.OpenReadStream())
+                        var durationDouble = await GetAudioDurationAsync(physicalPath);
+                        var durationSecs = (int)Math.Round(durationDouble);
+                        if (durationSecs > maxDuration)
                         {
-                            var success = await ConvertToOpusAsync(stream, stemPath, forceMono);
-                            if (success)
-                            {
-                                dbContext.Stems.Add(new Stem
-                                {
-                                    StemId = newStemId,
-                                    TrackId = id,
-                                    StemType = stemType,
-                                    AudioUrl = $"/stems/{id}/{stemFileName}",
-                                    CreatedAt = DateTime.UtcNow
-                                });
-                            }
+                            maxDuration = durationSecs;
                         }
                     }
                 }
+                track.Duration = maxDuration;
             }
-
-            // Recalcular a duração das stems que restaram + novas
-            int maxDuration = 0;
-            var allStems = dbContext.Stems.Local.Where(s => s.TrackId == id && !deletedStemIds.Contains(s.StemId))
-                .Concat(track.Stems.Where(s => !deletedStemIds.Contains(s.StemId)))
-                .DistinctBy(s => s.StemId)
-                .ToList();
-
-            foreach (var stem in allStems)
-            {
-                var physicalPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", stem.AudioUrl.TrimStart('/'));
-                if (System.IO.File.Exists(physicalPath))
-                {
-                    var durationDouble = await GetAudioDurationAsync(physicalPath);
-                    var durationSecs = (int)Math.Round(durationDouble);
-                    if (durationSecs > maxDuration)
-                    {
-                        maxDuration = durationSecs;
-                    }
-                }
-            }
-            track.Duration = maxDuration;
 
             await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();

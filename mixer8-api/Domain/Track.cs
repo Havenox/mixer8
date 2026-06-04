@@ -16,6 +16,7 @@ public class Track
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public string? CoverUrl { get; set; }
     public string Visibility { get; set; } = "Public";
+    public bool DeletionPending { get; set; } = false;
 
     public int Duration { get; set; } // Duração em segundos
     public long PlayCount { get; set; } = 0; // Contador de reproduções

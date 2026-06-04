@@ -744,6 +744,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
 
     private static bool IsTrackVisible(Track track, Playlist playlist, Guid? userId, bool isAdmin)
     {
+        if (track.DeletionPending) return isAdmin;
         if (track.Visibility == "Public") return true;
 
         if (track.Visibility == "Unlisted")
