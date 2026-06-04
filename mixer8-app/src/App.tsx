@@ -448,20 +448,22 @@ const Explore: React.FC = () => {
                     <ListMusic className="w-12 h-12" />
                   )}
                   
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleToggleSavePlaylist(playlist);
-                    }}
-                    className={`absolute bottom-3 right-3 w-8 h-8 rounded-full bg-black/80 border flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-105 transition-all shadow-md cursor-pointer duration-200 ${
-                      playlist.IsSaved
-                        ? 'border-brand-green text-brand-green'
-                        : 'border-brand-hover hover:border-white text-brand-gray hover:text-white'
-                    }`}
-                    title={playlist.IsSaved ? "Remover da Biblioteca" : "Salvar na Biblioteca"}
-                  >
-                    <Heart className={`w-4.5 h-4.5 ${playlist.IsSaved ? 'fill-brand-green text-brand-green' : ''}`} />
-                  </button>
+                  {!playlist.IsOwner && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleSavePlaylist(playlist);
+                      }}
+                      className={`absolute bottom-3 right-3 w-8 h-8 rounded-full bg-black/80 border flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-105 transition-all shadow-md cursor-pointer duration-200 ${
+                        playlist.IsSaved
+                          ? 'border-brand-green text-brand-green'
+                          : 'border-brand-hover hover:border-white text-brand-gray hover:text-white'
+                      }`}
+                      title={playlist.IsSaved ? "Remover da Biblioteca" : "Salvar na Biblioteca"}
+                    >
+                      <Heart className={`w-4.5 h-4.5 ${playlist.IsSaved ? 'fill-brand-green text-brand-green' : ''}`} />
+                    </button>
+                  )}
                 </div>
                 
                 <div className="flex flex-col truncate">
