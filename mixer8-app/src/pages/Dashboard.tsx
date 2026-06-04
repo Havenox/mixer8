@@ -28,6 +28,7 @@ export const Dashboard: React.FC = () => {
   const [deleteCountdown, setDeleteCountdown] = useState(3);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [deletionReasonInput, setDeletionReasonInput] = useState('');
 
   // Estados para Edição de Músicas (Admin)
   const [trackToEdit, setTrackToEdit] = useState<ITrack | null>(null);
@@ -141,6 +142,7 @@ export const Dashboard: React.FC = () => {
     setDeleteCountdown(3);
     setDeleteError('');
     setIsDeleting(false);
+    setDeletionReasonInput('');
 
     const timer = setInterval(() => {
       setDeleteCountdown(prev => {
@@ -162,7 +164,7 @@ export const Dashboard: React.FC = () => {
     setDeleteError('');
 
     try {
-      const res = await fetch(`${API_URL}/Tracks/${trackToDelete.TrackId}`, {
+      const res = await fetch(`${API_URL}/Tracks/${trackToDelete.TrackId}?reason=${encodeURIComponent(deletionReasonInput)}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${Token}`
@@ -184,6 +186,27 @@ export const Dashboard: React.FC = () => {
       setDeleteError('Erro de conexão ao tentar excluir a música.');
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleRestoreTrack = async (trackId: string) => {
+    if (!Token) return;
+
+    try {
+      const res = await fetch(`${API_URL}/Tracks/${trackId}/Restore`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${Token}`
+        }
+      });
+
+      if (res.ok) {
+        fetchTracks(true);
+      } else {
+        alert('Falha ao restaurar a música.');
+      }
+    } catch {
+      alert('Erro de conexão ao tentar restaurar a música.');
     }
   };
 
@@ -506,9 +529,20 @@ export const Dashboard: React.FC = () => {
                     <span className="text-xs text-brand-gray truncate">{track.ArtistName}</span>
                     <div className="flex items-center gap-1 shrink-0">
                       {track.DeletionPending && (
-                        <span className="text-[8px] bg-red-950/60 text-red-400 border border-red-900/50 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider animate-pulse">
-                          Aguardando Exclusão
-                        </span>
+                        <div className="relative group/tooltip flex items-center gap-1 select-none">
+                          <span className="text-[8px] bg-red-950/60 text-red-400 border border-red-900/50 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider animate-pulse">
+                            Marcado pra Excluir
+                          </span>
+                          {CurrentUser?.UserRole === 'Admin' && track.DeletionReason && (
+                            <>
+                              <Info className="w-3.5 h-3.5 text-red-400/80 hover:text-red-400 cursor-pointer shrink-0" />
+                              <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-brand-card border border-brand-hover text-[10px] text-brand-gray rounded shadow-2xl invisible group-hover/tooltip:visible opacity-0 group-hover/tooltip:opacity-100 transition-all duration-200 z-50 pointer-events-none leading-relaxed normal-case text-left font-normal">
+                                <strong className="text-white block mb-0.5">Motivo da exclusão:</strong>
+                                {track.DeletionReason}
+                              </div>
+                            </>
+                          )}
+                        </div>
                       )}
                       {track.UploadedBy === CurrentUser?.UserId && CurrentUser?.UserRole !== 'Admin' && (
                         <span className="text-[8px] bg-emerald-950/40 text-emerald-400 border border-emerald-900/30 px-1 py-0.5 rounded font-bold uppercase tracking-wider">
@@ -742,6 +776,18 @@ export const Dashboard: React.FC = () => {
               
               {/* Mini sessão de exclusão da plataforma separada por travessão */}
               <div className="h-[1px] bg-brand-hover my-1" />
+              {CurrentUser?.UserRole === 'Admin' && contextMenu.track.DeletionPending && (
+                <button
+                  onClick={() => {
+                    handleRestoreTrack(contextMenu.track.TrackId);
+                    setContextMenu(null);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-brand-green mb-1"
+                >
+                  <RefreshCw className="w-4 h-4 text-brand-green shrink-0" />
+                  <span>Restaurar Música</span>
+                </button>
+              )}
               <button
                 onClick={() => {
                   setTrackToDelete(contextMenu.track);
@@ -809,6 +855,19 @@ export const Dashboard: React.FC = () => {
                 </>
               )}
             </p>
+
+            {CurrentUser?.UserRole !== 'Admin' && (
+              <div className="flex flex-col gap-1.5 mt-1">
+                <label className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Motivo da Exclusão (Opcional)</label>
+                <textarea
+                  value={deletionReasonInput}
+                  onChange={(e) => setDeletionReasonInput(e.target.value)}
+                  placeholder="Ex: Direitos autorais, arquivo incorreto, solicitação legal..."
+                  className="w-full bg-black border border-brand-hover rounded p-2 text-xs text-white focus:outline-none focus:border-brand-green h-16 resize-none"
+                  maxLength={1000}
+                />
+              </div>
+            )}
 
             {deleteError && (
               <div className="bg-red-500/10 border border-red-500/30 p-2.5 rounded text-xs text-red-400">

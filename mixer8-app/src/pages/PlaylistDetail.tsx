@@ -9,7 +9,7 @@ import {
   Loader2, ArrowLeft, Settings, Trash2,
   Clock, X, AlertTriangle, Plus, Minus,
   Lock, Globe, EyeOff, MoreHorizontal,
-  Heart, Share2, ListMusic, CheckCircle, Info
+  Heart, Share2, ListMusic, CheckCircle, Info, RefreshCw
 } from 'lucide-react';
 
 import { API_URL, SERVER_URL } from '../config';
@@ -35,6 +35,7 @@ interface IPlaylistTrack {
   Visibility?: string;
   UploadedBy?: string;
   DeletionPending?: boolean;
+  DeletionReason?: string;
 }
 
 interface IPlaylistCollaborator {
@@ -168,6 +169,13 @@ export const PlaylistDetail: React.FC = () => {
   const [deleteCountdown, setDeleteCountdown] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [deletionReasonInput, setDeletionReasonInput] = useState('');
+
+  useEffect(() => {
+    if (trackToDelete) {
+      setDeletionReasonInput('');
+    }
+  }, [trackToDelete]);
 
   // Timer regressivo para exclusão da música da plataforma (Admin)
   useEffect(() => {
@@ -444,7 +452,7 @@ export const PlaylistDetail: React.FC = () => {
     setIsDeleting(true);
     setDeleteError('');
     try {
-      const res = await fetch(`${API_URL}/Tracks/${trackToDelete.TrackId}`, {
+      const res = await fetch(`${API_URL}/Tracks/${trackToDelete.TrackId}?reason=${encodeURIComponent(deletionReasonInput)}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${Token}`
@@ -465,6 +473,27 @@ export const PlaylistDetail: React.FC = () => {
       setDeleteError('Erro de conexão ao tentar excluir música da plataforma.');
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleRestoreTrack = async (trackId: string) => {
+    if (!Token) return;
+
+    try {
+      const res = await fetch(`${API_URL}/Tracks/${trackId}/Restore`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${Token}`
+        }
+      });
+
+      if (res.ok) {
+        fetchPlaylistDetails();
+      } else {
+        alert('Falha ao restaurar a música.');
+      }
+    } catch {
+      alert('Erro de conexão ao tentar restaurar a música.');
     }
   };
 
@@ -1093,9 +1122,20 @@ export const PlaylistDetail: React.FC = () => {
                                   {t.TrackTitle}
                                 </span>
                                 {t.DeletionPending && (
-                                  <span className="text-[8px] bg-red-950/60 text-red-400 border border-red-900/50 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider animate-pulse shrink-0">
-                                    Aguardando Exclusão
-                                  </span>
+                                  <div className="relative group/tooltip flex items-center gap-1 select-none shrink-0 animate-pulse">
+                                    <span className="text-[8px] bg-red-950/60 text-red-400 border border-red-900/50 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                                      Marcado pra Excluir
+                                    </span>
+                                    {CurrentUser?.UserRole === 'Admin' && t.DeletionReason && (
+                                      <>
+                                        <Info className="w-3.5 h-3.5 text-red-400/80 hover:text-red-400 cursor-pointer shrink-0" />
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-brand-card border border-brand-hover text-[11px] text-brand-gray rounded shadow-2xl invisible group-hover/tooltip:visible opacity-0 group-hover/tooltip:opacity-100 transition-all duration-200 z-50 pointer-events-none leading-relaxed normal-case text-left font-normal">
+                                          <strong className="text-white block mb-0.5">Motivo da exclusão:</strong>
+                                          {t.DeletionReason}
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
                                 )}
                                 {t.Visibility === 'Private' && (
                                   <div className="relative group/tooltip shrink-0 flex items-center gap-1 select-none">
@@ -1250,9 +1290,20 @@ export const PlaylistDetail: React.FC = () => {
                           {t.TrackTitle}
                         </span>
                         {t.DeletionPending && (
-                          <span className="text-[7px] bg-red-950/60 text-red-400 border border-red-900/50 px-1 py-0.2 rounded font-bold uppercase tracking-wider animate-pulse shrink-0">
-                            Aguardando Exclusão
-                          </span>
+                          <div className="relative group/tooltip flex items-center gap-1 select-none shrink-0 animate-pulse">
+                            <span className="text-[7px] bg-red-950/60 text-red-400 border border-red-900/50 px-1 py-0.2 rounded font-bold uppercase tracking-wider">
+                              Marcado pra Excluir
+                            </span>
+                            {CurrentUser?.UserRole === 'Admin' && t.DeletionReason && (
+                              <>
+                                <Info className="w-2.5 h-2.5 text-red-400/80 hover:text-red-400 cursor-pointer shrink-0" />
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-brand-card border border-brand-hover text-[10px] text-brand-gray rounded shadow-2xl invisible group-hover/tooltip:visible opacity-0 group-hover/tooltip:opacity-100 transition-all duration-200 z-50 pointer-events-none leading-relaxed normal-case text-left font-normal">
+                                  <strong className="text-white block mb-0.5">Motivo da exclusão:</strong>
+                                  {t.DeletionReason}
+                                </div>
+                              </>
+                            )}
+                          </div>
                         )}
                         {t.Visibility === 'Private' && (
                           <div className="relative group/tooltip shrink-0 flex items-center gap-0.5 select-none">
@@ -1344,6 +1395,18 @@ export const PlaylistDetail: React.FC = () => {
           {(CurrentUser?.UserRole === 'Admin' || contextMenu.track.UploadedBy === CurrentUser?.UserId) && (
             <>
               <div className="h-[1px] bg-brand-hover my-1" />
+              {CurrentUser?.UserRole === 'Admin' && contextMenu.track.DeletionPending && (
+                <button
+                  onClick={() => {
+                    handleRestoreTrack(contextMenu.track.TrackId);
+                    setContextMenu(null);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-brand-green mb-1"
+                >
+                  <RefreshCw className="w-4 h-4 text-brand-green shrink-0" />
+                  <span>Restaurar Música</span>
+                </button>
+              )}
               <button
                 onClick={() => {
                   setTrackToDelete(contextMenu.track);
@@ -1413,6 +1476,19 @@ export const PlaylistDetail: React.FC = () => {
                 </>
               )}
             </p>
+
+            {CurrentUser?.UserRole !== 'Admin' && (
+              <div className="flex flex-col gap-1.5 mt-1">
+                <label className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Motivo da Exclusão (Opcional)</label>
+                <textarea
+                  value={deletionReasonInput}
+                  onChange={(e) => setDeletionReasonInput(e.target.value)}
+                  placeholder="Ex: Direitos autorais, arquivo incorreto, solicitação legal..."
+                  className="w-full bg-black border border-brand-hover rounded p-2 text-xs text-white focus:outline-none focus:border-brand-green h-16 resize-none"
+                  maxLength={1000}
+                />
+              </div>
+            )}
 
             {deleteError && (
               <div className="bg-red-500/10 border border-red-500/30 p-2.5 rounded text-xs text-red-400">

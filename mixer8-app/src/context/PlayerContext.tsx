@@ -18,6 +18,7 @@ export interface ITrack {
   Visibility?: string;
   UploadedBy?: string;
   DeletionPending?: boolean;
+  DeletionReason?: string;
 }
 
 interface IPlayerContext {
