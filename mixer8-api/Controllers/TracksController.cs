@@ -751,7 +751,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
 
     [Authorize]
     [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(Guid id)
+    public async Task<IActionResult> Delete(Guid id, [FromQuery] string? reason)
     {
         var track = await dbContext.Tracks
             .Include(t => t.Stems)
@@ -780,6 +780,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         {
             // Uploader comum apenas marca para exclusão (exclusão lógica para moderação)
             track.DeletionPending = true;
+            track.DeletionReason = reason?.Trim();
             await dbContext.SaveChangesAsync();
             return NoContent();
         }
@@ -822,6 +823,26 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             Console.WriteLine($"[DELETE TRACK ERROR] Falha ao excluir música: {ex.Message}");
             return StatusCode(500, new { ErrorMessage = "DELETE_FAILED", Details = ex.Message });
         }
+    }
+
+    [Authorize(Roles = "Admin")]
+    [HttpPost("{id}/Restore")]
+    public async Task<IActionResult> Restore(Guid id)
+    {
+        var track = await dbContext.Tracks
+            .Include(t => t.Stems)
+            .FirstOrDefaultAsync(t => t.TrackId == id);
+
+        if (track == null)
+        {
+            return NotFound(new { ErrorMessage = "TRACK_NOT_FOUND" });
+        }
+
+        track.DeletionPending = false;
+        track.DeletionReason = null;
+        await dbContext.SaveChangesAsync();
+
+        return Ok(track);
     }
 
     [Authorize]
