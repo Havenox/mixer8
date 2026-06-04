@@ -15,6 +15,7 @@ erDiagram
     Users ||--o{ MixingPresets : "Salva"
     Tracks ||--|{ Stems : "Contém (1 a 5)"
     Tracks ||--o{ MixingPresets : "Mapeia"
+    Tracks ||--o{ TrackPlays : "Registra"
     Playlists ||--o{ PlaylistTracks : "Agrupa"
     Tracks ||--o{ PlaylistTracks : "Pertence"
     Albums ||--o{ Tracks : "Agrupa"
@@ -38,9 +39,16 @@ erDiagram
         DateTime CreatedAt
         Int Duration
         Long PlayCount
+        Long WeekPlayCount
         Guid AlbumId FK
         Int TrackNumber
         Int DiscNumber
+    }
+
+    TrackPlays {
+        Guid TrackPlayId PK
+        Guid TrackId FK
+        DateTime PlayedAt
     }
 
     Stems {
@@ -149,6 +157,7 @@ A aplicação possui rotinas de background agendadas (Cron Jobs / Hosted Service
 1. **Limpeza de Arquivos Temporários**: Uma tarefa diária que varre a pasta `/app/downloads` temporária da API e do Extractor, removendo arquivos originais de upload e ZIPs antigos já descompactados cujos dados já foram persistidos nos storages de CDN, liberando espaço em disco na VPS.
 2. **Consolidação de Estatísticas de Audiência**: Agregador que contabiliza as execuções de tracks em lote a cada hora (evitando que requisições HTTP individuais do player inflem acessos simultâneos no banco de dados principal de forma síncrona).
 3. **Monitoramento de Flags de Depuração (Extractor)**: O Worker C# executa uma thread paralela em background que monitora continuamente a criação do arquivo `take_screenshot.flag` no diretório de configuração. Ao detectar a flag, ela aciona uma captura de tela do navegador headless ativo (`screenshot_live.png`) para diagnóstico e exclui o arquivo flag em seguida.
+4. **Limpeza e Recálculo Semanal de Audiência (WeeklyPlayCleanupWorker)**: Serviço hospedado (`BackgroundService`) executado a cada 1 hora. Realiza a purga de logs da tabela `TrackPlays` mais antigos que 7 dias e sincroniza a coluna de cache de tendências `WeekPlayCount` em todas as faixas (`Tracks`) via query SQL nativa em lote de alta performance.
 
 ---
 

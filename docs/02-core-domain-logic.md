@@ -94,10 +94,11 @@ Executar uma DAW complexa em contêineres sem aceleração gráfica física exp�
 ### B. Algoritmo de Validação e Rate-Limit de Audiência (Plays)
 Para assegurar a integridade dos contadores de execuções (`PlayCount`) e prevenir spams baseados em cliques sequenciais, estruturamos uma proteção em duas barreiras:
 1. **Frontend (Limiar de Escuta)**: O Player possui um acumulador em tempo de execução (`listeningAccumulatorRef`). O disparo para registrar a reprodução (`POST /api/Tracks/{id}/RecordPlay`) é inibido na inicialização da faixa e só é executado quando o usuário escuta de forma acumulativa 30 segundos (ou 50% de músicas curtas).
-2. **Backend (Janela de Cooldown)**: Ao receber a requisição, o servidor identifica o cliente pelo `UserId` (se logado) ou `RemoteIpAddress` (se anônimo) e valida o play contra o `IMemoryCache`:
-   - **Tracks**: O cooldown dura `Math.Max(track.Duration - 5, 30)` segundos.
+2. **Backend (Janela de Cooldown e Engine de Contagem Semanal)**: Ao receber a requisição, o servidor identifica o cliente pelo `UserId` (se logado) ou `RemoteIpAddress` (se anônimo) e valida o play contra o `IMemoryCache`:
+   - **Tracks**: O cooldown dura `Math.Max(track.Duration - 5, 30)` segundos. Se validado, incrementa o total `PlayCount`, o acumulador semanal `WeekPlayCount`, e insere um log em `TrackPlays` contendo o timestamp `PlayedAt`.
    - **Playlists/Álbuns**: O cooldown dura 5 minutos.
-   Se a chamada ocorrer dentro da janela de cooldown do respectivo usuário/IP para aquela entidade, ela é ignorada silenciosamente (sem incrementar o contador do banco).
+   Se a chamada ocorrer dentro da janela de cooldown do respectivo usuário/IP para aquela entidade, ela é ignorada silenciosamente (sem incrementar os contadores do banco).
+   - **Expirador de Tendências**: Um worker em background purga os logs de reprodução (`TrackPlays`) com mais de 7 dias e reconsolida o `WeekPlayCount` de todas as faixas a cada 1 hora para manter as listagens de tendências sempre corretas e performáticas.
 
 ---
 
