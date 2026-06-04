@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   Play, UploadCloud, CheckCircle, Clock, FileAudio, 
-  Sparkles, ShieldAlert, Disc, AlertTriangle, Plus, Trash2, X, Music, Loader2, Settings, RefreshCw, Image
+  Sparkles, ShieldAlert, Disc, AlertTriangle, Plus, Trash2, X, Music, Loader2, Settings, RefreshCw, Image, Info
 } from 'lucide-react';
 
 import { usePlayer } from '../context/PlayerContext';
@@ -39,6 +39,7 @@ export const Dashboard: React.FC = () => {
   const [stemsToDelete, setStemsToDelete] = useState<string[]>([]); // IDs das stems a deletar
   const [stemsToReplace, setStemsToReplace] = useState<Record<string, File>>({}); // ID -> Arquivo
   const [newStemsFiles, setNewStemsFiles] = useState<File[]>([]);
+  const [editVisibility, setEditVisibility] = useState('Public');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
 
@@ -49,6 +50,7 @@ export const Dashboard: React.FC = () => {
       setEditCoverFile(null);
       setEditCoverPreview(trackToEdit.CoverUrl ? (trackToEdit.CoverUrl.startsWith('http') ? trackToEdit.CoverUrl : `${SERVER_URL}${trackToEdit.CoverUrl}`) : '');
       setEditCoverUrl(trackToEdit.CoverUrl || '');
+      setEditVisibility(trackToEdit.Visibility || 'Public');
       setStemsToDelete([]);
       setStemsToReplace({});
       setNewStemsFiles([]);
@@ -74,6 +76,7 @@ export const Dashboard: React.FC = () => {
       formData.append('TrackTitle', editTitle.trim());
       formData.append('ArtistName', editArtist.trim());
       formData.append('CoverUrl', editCoverUrl.trim());
+      formData.append('Visibility', editVisibility);
       
       if (editCoverFile) {
         formData.append('CoverFile', editCoverFile);
@@ -465,7 +468,31 @@ export const Dashboard: React.FC = () => {
 
                 <div className="flex flex-col gap-1 mb-2">
                   <span className="font-bold text-sm text-white truncate">{track.TrackTitle}</span>
-                  <span className="text-xs text-brand-gray truncate">{track.ArtistName}</span>
+                  <div className="flex items-center justify-between gap-2 min-w-0">
+                    <span className="text-xs text-brand-gray truncate">{track.ArtistName}</span>
+                    {track.Visibility === 'Private' && (
+                      <div className="relative group/tooltip shrink-0 flex items-center gap-1 select-none">
+                        <span className="text-[8px] bg-red-950/40 text-red-400 border border-red-900/30 px-1 py-0.5 rounded font-bold uppercase tracking-wider">
+                          Privada
+                        </span>
+                        <Info className="w-3 h-3 text-red-400/80 hover:text-red-400 cursor-pointer shrink-0" />
+                        <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-brand-card border border-brand-hover text-[10px] text-brand-gray rounded shadow-2xl invisible group-hover/tooltip:visible opacity-0 group-hover/tooltip:opacity-100 transition-all duration-200 z-50 pointer-events-none leading-relaxed font-normal normal-case text-left">
+                          Essa musica é privada e só aparece para quem fez o upload dela.
+                        </div>
+                      </div>
+                    )}
+                    {track.Visibility === 'Unlisted' && (
+                      <div className="relative group/tooltip shrink-0 flex items-center gap-1 select-none">
+                        <span className="text-[8px] bg-yellow-950/40 text-yellow-500 border border-yellow-900/30 px-1 py-0.5 rounded font-bold uppercase tracking-wider">
+                          Não Listada
+                        </span>
+                        <Info className="w-3 h-3 text-yellow-500/80 hover:text-yellow-500 cursor-pointer shrink-0" />
+                        <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-brand-card border border-brand-hover text-[10px] text-brand-gray rounded shadow-2xl invisible group-hover/tooltip:visible opacity-0 group-hover/tooltip:opacity-100 transition-all duration-200 z-50 pointer-events-none leading-relaxed font-normal normal-case text-left">
+                          Essa musica só aparece para quem fez o upload dela, pra quem é dono da playlist e pra quem é colaborador da playlist, e nao aparecerá pro resto do publico.
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between mt-3 pt-2 border-t border-brand-hover text-[10px] font-bold">
@@ -874,6 +901,21 @@ export const Dashboard: React.FC = () => {
                   />
                   <Image className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-gray" />
                 </div>
+              </div>
+
+              {/* Privacidade e Visibilidade */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Visibilidade</label>
+                <select
+                  value={editVisibility}
+                  onChange={e => setEditVisibility(e.target.value)}
+                  disabled={isSaving}
+                  className="w-full bg-black border border-brand-hover rounded p-2 text-xs text-white focus:outline-none focus:border-brand-green"
+                >
+                  <option value="Public">Pública</option>
+                  <option value="Private">Privada</option>
+                  <option value="Unlisted">Não Listada</option>
+                </select>
               </div>
 
               {/* Gerenciamento das Stems Reais */}

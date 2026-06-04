@@ -15,6 +15,8 @@ export interface ITrack {
   CreatedAt: string;
   CoverUrl?: string;
   Stems: IStem[];
+  Visibility?: string;
+  UploadedBy?: string;
 }
 
 interface IPlayerContext {

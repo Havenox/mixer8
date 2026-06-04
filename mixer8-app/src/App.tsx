@@ -116,6 +116,7 @@ const Explore: React.FC = () => {
   const [stemsToDelete, setStemsToDelete] = useState<string[]>([]); // IDs das stems a deletar
   const [stemsToReplace, setStemsToReplace] = useState<Record<string, File>>({}); // ID -> Arquivo
   const [newStemsFiles, setNewStemsFiles] = useState<File[]>([]);
+  const [editVisibility, setEditVisibility] = useState('Public');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
 
@@ -126,6 +127,7 @@ const Explore: React.FC = () => {
       setEditCoverFile(null);
       setEditCoverPreview(trackToEdit.CoverUrl ? (trackToEdit.CoverUrl.startsWith('http') ? trackToEdit.CoverUrl : `${SERVER_URL}${trackToEdit.CoverUrl}`) : '');
       setEditCoverUrl(trackToEdit.CoverUrl || '');
+      setEditVisibility(trackToEdit.Visibility || 'Public');
       setStemsToDelete([]);
       setStemsToReplace({});
       setNewStemsFiles([]);
@@ -151,6 +153,7 @@ const Explore: React.FC = () => {
       formData.append('TrackTitle', editTitle.trim());
       formData.append('ArtistName', editArtist.trim());
       formData.append('CoverUrl', editCoverUrl.trim());
+      formData.append('Visibility', editVisibility);
       
       if (editCoverFile) {
         formData.append('CoverFile', editCoverFile);
@@ -713,6 +716,21 @@ const Explore: React.FC = () => {
                   />
                   <Image className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-gray" />
                 </div>
+              </div>
+
+              {/* Privacidade e Visibilidade */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">Visibilidade</label>
+                <select
+                  value={editVisibility}
+                  onChange={e => setEditVisibility(e.target.value)}
+                  disabled={isSaving}
+                  className="w-full bg-black border border-brand-hover rounded p-2 text-xs text-white focus:outline-none focus:border-brand-green"
+                >
+                  <option value="Public">Pública</option>
+                  <option value="Private">Privada</option>
+                  <option value="Unlisted">Não Listada</option>
+                </select>
               </div>
 
               {/* Gerenciamento das Stems Reais */}

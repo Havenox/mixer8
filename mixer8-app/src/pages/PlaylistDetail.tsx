@@ -9,7 +9,7 @@ import {
   Loader2, ArrowLeft, Settings, Trash2,
   Clock, X, AlertTriangle, Plus, Minus,
   Lock, Globe, EyeOff, MoreHorizontal,
-  Heart, Share2, ListMusic, CheckCircle
+  Heart, Share2, ListMusic, CheckCircle, Info
 } from 'lucide-react';
 
 import { API_URL, SERVER_URL } from '../config';
@@ -32,6 +32,8 @@ interface IPlaylistTrack {
   Stems: IPlaylistStem[];
   Order: number;
   Duration: number;
+  Visibility?: string;
+  UploadedBy?: string;
 }
 
 interface IPlaylistCollaborator {
@@ -1078,15 +1080,39 @@ export const PlaylistDetail: React.FC = () => {
                               )}
                             </div>
                             <div className="flex flex-col truncate">
-                              <span 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  // Future: navigate(`/tracks/${t.TrackId}`)
-                                }}
-                                className={`font-bold truncate text-sm hover:underline cursor-pointer ${isCurrentTrack ? 'text-brand-green' : 'text-white'}`}
-                              >
-                                {t.TrackTitle}
-                              </span>
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    // Future: navigate(`/tracks/${t.TrackId}`)
+                                  }}
+                                  className={`font-bold truncate text-sm hover:underline cursor-pointer ${isCurrentTrack ? 'text-brand-green' : 'text-white'}`}
+                                >
+                                  {t.TrackTitle}
+                                </span>
+                                {t.Visibility === 'Private' && (
+                                  <div className="relative group/tooltip shrink-0 flex items-center gap-1 select-none">
+                                    <span className="text-[8px] bg-red-950/40 text-red-400 border border-red-900/30 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                                      Privada
+                                    </span>
+                                    <Info className="w-3 h-3 text-red-400/80 hover:text-red-400 cursor-pointer shrink-0" />
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-brand-card border border-brand-hover text-[11px] text-brand-gray rounded shadow-2xl invisible group-hover/tooltip:visible opacity-0 group-hover/tooltip:opacity-100 transition-all duration-200 z-50 pointer-events-none leading-relaxed font-normal normal-case text-left">
+                                      Essa musica é privada e só aparece para quem fez o upload dela.
+                                    </div>
+                                  </div>
+                                )}
+                                {t.Visibility === 'Unlisted' && (
+                                  <div className="relative group/tooltip shrink-0 flex items-center gap-1 select-none">
+                                    <span className="text-[8px] bg-yellow-950/40 text-yellow-500 border border-yellow-900/30 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                                      Não Listada
+                                    </span>
+                                    <Info className="w-3 h-3 text-yellow-500/80 hover:text-yellow-500 cursor-pointer shrink-0" />
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-brand-card border border-brand-hover text-[11px] text-brand-gray rounded shadow-2xl invisible group-hover/tooltip:visible opacity-0 group-hover/tooltip:opacity-100 transition-all duration-200 z-50 pointer-events-none leading-relaxed font-normal normal-case text-left">
+                                      Essa musica só aparece para quem fez o upload dela, pra quem é dono da playlist e pra quem é colaborador da playlist, e nao aparecerá pro resto do publico.
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                               <span 
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -1204,17 +1230,41 @@ export const PlaylistDetail: React.FC = () => {
 
                     {/* Título & Artista */}
                     <div className="flex-1 min-w-0 flex flex-col justify-center">
-                      <span 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Future: navigate(`/tracks/${t.TrackId}`)
-                        }}
-                        className={`font-bold text-sm truncate hover:underline cursor-pointer leading-tight ${
-                          isCurrentTrack ? 'text-brand-green' : 'text-white'
-                        }`}
-                      >
-                        {t.TrackTitle}
-                      </span>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Future: navigate(`/tracks/${t.TrackId}`)
+                          }}
+                          className={`font-bold text-sm truncate hover:underline cursor-pointer leading-tight ${
+                            isCurrentTrack ? 'text-brand-green' : 'text-white'
+                          }`}
+                        >
+                          {t.TrackTitle}
+                        </span>
+                        {t.Visibility === 'Private' && (
+                          <div className="relative group/tooltip shrink-0 flex items-center gap-0.5 select-none">
+                            <span className="text-[7px] bg-red-950/40 text-red-400 border border-red-900/30 px-1 py-0.2 rounded font-bold uppercase tracking-wider">
+                              Privada
+                            </span>
+                            <Info className="w-2.5 h-2.5 text-red-400/80 shrink-0" />
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-brand-card border border-brand-hover text-[10px] text-brand-gray rounded shadow-2xl invisible group-hover/tooltip:visible opacity-0 group-hover/tooltip:opacity-100 transition-all duration-200 z-50 pointer-events-none leading-relaxed font-normal normal-case text-left">
+                              Essa musica é privada e só aparece para quem fez o upload dela.
+                            </div>
+                          </div>
+                        )}
+                        {t.Visibility === 'Unlisted' && (
+                          <div className="relative group/tooltip shrink-0 flex items-center gap-0.5 select-none">
+                            <span className="text-[7px] bg-yellow-950/40 text-yellow-500 border border-yellow-900/30 px-1 py-0.2 rounded font-bold uppercase tracking-wider">
+                              Não Listada
+                            </span>
+                            <Info className="w-2.5 h-2.5 text-yellow-500/80 shrink-0" />
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-brand-card border border-brand-hover text-[10px] text-brand-gray rounded shadow-2xl invisible group-hover/tooltip:visible opacity-0 group-hover/tooltip:opacity-100 transition-all duration-200 z-50 pointer-events-none leading-relaxed font-normal normal-case text-left">
+                              Essa musica só aparece para quem fez o upload dela, pra quem é dono da playlist e pra quem é colaborador da playlist, e nao aparecerá pro resto do publico.
+                            </div>
+                          </div>
+                        )}
+                      </div>
                       <span 
                         onClick={(e) => {
                           e.stopPropagation();
