@@ -1,7 +1,7 @@
 # Context Preservation (Save State) - Mixer8 Ecosystem
 
 **Data da Última Atualização:** 05/06/2026  
-Status do Projeto: Purga de Mocks Concluída, Player Multi-Stems Ativo, Uploader Direto Implementado, Conteinerização/Conversão Opus Concluída, Recursos Premium/Shuffle/Repeat Dinâmicos, Barra de Progresso Premium, Extrator Headless E2E via Playwright, Menu de Contexto Irrestrito Ativos, e Acesso Anônimo com Endpoints de Segurança e Modal de Login Globais Integrados.
+Status do Projeto: Purga de Mocks Concluída, Player Multi-Stems Ativo, Uploader Direto Implementado, Conteinerização/Conversão Opus Concluída, Recursos Premium/Shuffle/Repeat Dinâmicos, Barra de Progresso Premium, Extrator Headless E2E via Playwright, Menu de Contexto Irrestrito Ativos, Acesso Anônimo com Endpoints de Segurança e Modal de Login Globais Integrados, Remoção de Cookies/Testes de Sessão Legados Concluída, e Unificação de Login/Cadastro em Modal Único (Eliminação de Rotas Dedicadas).
 
 ---
 
@@ -20,9 +20,9 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
 
 1. **Geração Física de Migrations**: Criada e aplicada a primeira migração física `InitialCreate` mapeando a estrutura relacional real (`Users`, `Tracks`, `Stems`).
 2. **Autenticação RBAC e BCrypt**: Senhas criptografadas com hash adaptativo BCrypt. Usuários semente (`admin`, `moderator`, `paiduser`, `user`) registrados com a senha `mixer8` e claims injetados nos tokens JWT.
-3. **Importação e Validação de Cookies Headless**:
-   * O painel administrativo persistente grava fisicamente o JSONEditThisCookie no banco de dados.
-   * Criado o teste de conexão activa que valida os cookies diretamente nos servidores da plataforma externa de IA de stems (`https://studio.external-stems-ai.com/`), retornando se a sessão está ativa ou expirada (evitando simulações no frontend).
+3. **Automação Headless Baseada em Credenciais Locais (Desacoplamento de Cookies)**:
+   * Removido o sistema legado de importação de cookies (`auth.json`) e testes de conexão do painel administrativo e do backend.
+   * O bot/worker realiza a autenticação de forma 100% independente utilizando credenciais de ambiente (`.env`) e persistência nativa de sessão via perfil do navegador Playwright (`user_profile`), eliminando o armazenamento de cookies de terceiros no banco de dados.
 4. **Portas Dinâmicas**: Configuração unificada via `.env` na raiz do projeto.
 5. **Purga Completa de Mocks**:
    * **Página Explorar**: Dados de Queen, Santana e Eagles fictícios removidos por completo. O catálogo consome faixas reais via `/api/Tracks` e oculta seções de gêneros caso não existam músicas prontas.
@@ -88,6 +88,10 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
     * Adicionado filtro robusto no `/api/SystemSettings` para expor somente configurações públicas (`PremiumFeature_`), impedindo o vazamento de tokens sensíveis (`MoisesSession_AuthJson`).
     * Criado modal de autenticação global dinâmico (`LoginModal`) integrado ao `AuthContext` para interceptar cliques de usuários anônimos em ações que necessitem de privilégios.
     * Otimizado o carregamento de playlists com lazy loading reativo no `PlaylistContext` (eliminando a chamada inicial no mount geral).
+19. **Unificação do Fluxo de Autenticação via Modal Global (Eliminação de Rotas Dedicadas)**:
+    * As rotas `/login` e `/register` foram completamente removidas da SPA, e suas respectivas páginas deletadas.
+    * Todas as ações e links que redirecionavam para o login foram alteradas para acionar o modal global de login reativamente.
+    * Configurado o `ProtectedRoute` para redirecionar usuários não autenticados para a home com o parâmetro `?showLogin=true`, o qual é interceptado pelo layout do app para acionar o modal e limpar a URL de forma imediata e transparente.
 
 ---
 
