@@ -83,6 +83,66 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         return Ok(tracks);
     }
 
+    [HttpGet("WeeklyTrends")]
+    public async Task<IActionResult> GetWeeklyTrends([FromQuery] int? page, [FromQuery] int? limit)
+    {
+        Guid? userId = null;
+        bool isAdmin = false;
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userIdClaim != null && Guid.TryParse(userIdClaim, out var parsedUserId))
+        {
+            userId = parsedUserId;
+            isAdmin = User.IsInRole("Admin");
+        }
+
+        var query = dbContext.Tracks
+            .Include(t => t.Stems)
+            .Where(t => 
+                (t.DeletionPending && isAdmin) ||
+                (!t.DeletionPending && (t.Visibility == "Public" || (userId != null && (t.UploadedBy == userId || isAdmin))))
+            )
+            .OrderByDescending(t => t.WeekPlayCount);
+
+        List<Track> tracks;
+        if (page.HasValue && limit.HasValue)
+        {
+            var p = page.Value;
+            var l = limit.Value;
+            if (p < 1) p = 1;
+            if (l < 1) l = 10;
+
+            tracks = await query
+                .Skip((p - 1) * l)
+                .Take(l)
+                .ToListAsync();
+        }
+        else
+        {
+            tracks = await query.ToListAsync();
+        }
+
+        if (isAdmin && tracks.Any())
+        {
+            var uploaderIds = tracks.Select(t => t.UploadedBy).Distinct().ToList();
+            var usersMap = await dbContext.Users
+                .Include(u => u.UserProfile)
+                .Where(u => uploaderIds.Contains(u.UserId))
+                .ToDictionaryAsync(u => u.UserId, u => new { u.Email, u.UserProfile?.UserName });
+
+            foreach (var track in tracks)
+            {
+                if (usersMap.TryGetValue(track.UploadedBy, out var uInfo))
+                {
+                    track.UploadedByEmail = uInfo.Email;
+                    track.UploadedByUserName = uInfo.UserName;
+                }
+            }
+        }
+
+        return Ok(tracks);
+    }
+
+
     [Authorize]
     [HttpPost("Upload")]
     public async Task<IActionResult> Upload([FromForm] UploadTrackRequest request)

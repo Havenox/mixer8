@@ -639,7 +639,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
     }
 
     [HttpGet("Popular")]
-    public async Task<IActionResult> GetPopularPlaylists()
+    public async Task<IActionResult> GetPopularPlaylists([FromQuery] int? page, [FromQuery] int? limit)
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
@@ -647,15 +647,27 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
 
         var isAdmin = User.IsInRole("Admin");
 
-        var playlists = await dbContext.Playlists
+        var query = dbContext.Playlists
             .Include(p => p.PlaylistTracks)
                 .ThenInclude(pt => pt.Track)
             .Include(p => p.PlaylistCollaborators)
             .AsSplitQuery()
             .Where(p => p.Visibility == "Public")
-            .OrderByDescending(p => p.PlaylistTracks.Count)
-            .Take(10)
-            .ToListAsync();
+            .OrderByDescending(p => p.PlayCount);
+
+        List<Playlist> playlists;
+        if (page.HasValue && limit.HasValue)
+        {
+            var p = page.Value;
+            var l = limit.Value;
+            if (p < 1) p = 1;
+            if (l < 1) l = 10;
+            playlists = await query.Skip((p - 1) * l).Take(l).ToListAsync();
+        }
+        else
+        {
+            playlists = await query.Take(10).ToListAsync();
+        }
 
         var userIds = playlists.Select(p => p.OwnerId).Distinct().ToList();
         var userEmails = await dbContext.Users
