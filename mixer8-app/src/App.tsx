@@ -29,7 +29,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 // Página de Explorar (Home / Catálogo de Destaque)
 const Explore: React.FC = () => {
-  const { CurrentUser, Token } = useAuth();
+  const { CurrentUser, Token, IsAuthenticated, openLoginModal } = useAuth();
   const { loadTrack, currentTrack } = usePlayer();
   const { openAddToPlaylist } = usePlaylists();
   const [tracks, setTracks] = useState<ITrack[]>([]);
@@ -49,13 +49,12 @@ const Explore: React.FC = () => {
   };
 
   const fetchPopularPlaylists = async () => {
-    if (!Token) return;
     try {
-      const res = await fetch(`${API_URL}/Playlists/Popular?limit=6`, {
-        headers: {
-          'Authorization': `Bearer ${Token}`
-        }
-      });
+      const headers: Record<string, string> = {};
+      if (Token) {
+        headers['Authorization'] = `Bearer ${Token}`;
+      }
+      const res = await fetch(`${API_URL}/Explore/PopularPlaylists`, { headers });
       if (res.ok) {
         const data = await res.json();
         setPopularPlaylists(data);
@@ -68,7 +67,10 @@ const Explore: React.FC = () => {
   };
 
   const handleToggleSavePlaylist = async (playlist: any) => {
-    if (!Token) return;
+    if (!IsAuthenticated || !Token) {
+      openLoginModal();
+      return;
+    }
     const isSaved = playlist.IsSaved;
     const url = `${API_URL}/Playlists/${playlist.PlaylistId}/Save`;
     
@@ -211,7 +213,7 @@ const Explore: React.FC = () => {
       if (Token) {
         headers['Authorization'] = `Bearer ${Token}`;
       }
-      const res = await fetch(`${API_URL}/Tracks/WeeklyTrends?limit=6`, { headers });
+      const res = await fetch(`${API_URL}/Explore/WeeklyTrends`, { headers });
       if (res.ok) {
         const data = await res.json();
         // Exibe apenas as tracks com extração concluída
@@ -226,9 +228,7 @@ const Explore: React.FC = () => {
 
   useEffect(() => {
     fetchTracks();
-    if (Token) {
-      fetchPopularPlaylists();
-    }
+    fetchPopularPlaylists();
   }, [Token]);
 
   // Gerenciador do timer de contagem regressiva para exclusão física
@@ -1000,7 +1000,7 @@ export const App: React.FC = () => {
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
                 
-                <Route path="/" element={<ProtectedRoute><Explore /></ProtectedRoute>} />
+                <Route path="/" element={<Explore />} />
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                 <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
                 <Route path="/upload-direto" element={<ProtectedRoute><UploadDireto /></ProtectedRoute>} />

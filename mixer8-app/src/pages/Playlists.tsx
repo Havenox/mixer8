@@ -14,6 +14,12 @@ export const Playlists: React.FC = () => {
   const { playlists, openCreatePlaylist, openEditPlaylist, openDeletePlaylist, fetchPlaylists } = usePlaylists();
   const { CurrentUser, Token } = useAuth();
 
+  useEffect(() => {
+    if (Token) {
+      fetchPlaylists();
+    }
+  }, [Token]);
+
   const [layoutMode, setLayoutMode] = useState<'grid' | 'list'>(
     () => (localStorage.getItem('mixer8:layout-preference') as 'grid' | 'list') || 'grid'
   );

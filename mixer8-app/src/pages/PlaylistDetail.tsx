@@ -68,7 +68,7 @@ interface IPlaylistDetail {
 
 export const PlaylistDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const { Token, CurrentUser, IsAuthenticated } = useAuth();
+  const { Token, CurrentUser, IsAuthenticated, openLoginModal } = useAuth();
   const { loadTrack, currentTrack, isPlaying, togglePlay, downloadTrackForOffline, isTrackDownloaded, removeTrackOffline, isPremium } = usePlayer();
   const { fetchPlaylists, openEditPlaylist, openAddToPlaylist } = usePlaylists();
   const navigate = useNavigate();
@@ -588,7 +588,11 @@ export const PlaylistDetail: React.FC = () => {
   };
 
   const handleToggleSavePlaylist = async () => {
-    if (!Token || !playlist) return;
+    if (!IsAuthenticated || !Token) {
+      openLoginModal();
+      return;
+    }
+    if (!playlist) return;
     const isCurrentlySaved = playlist.IsSaved;
     try {
       const res = await fetch(`${API_URL}/Playlists/${playlist.PlaylistId}/Save`, {
@@ -710,7 +714,10 @@ export const PlaylistDetail: React.FC = () => {
 
   const handleTrackContextMenu = (e: React.MouseEvent, track: IPlaylistTrack) => {
     e.preventDefault();
-    if (!IsAuthenticated) return; // Desativa menu de contexto para usuários anônimos
+    if (!IsAuthenticated) {
+      openLoginModal();
+      return;
+    }
     setContextMenu({
       x: e.clientX,
       y: e.clientY,
@@ -831,19 +838,17 @@ export const PlaylistDetail: React.FC = () => {
 
         {/* Ações Desktop (Configurações, Download, Curtir, Compartilhar) - Oculto no Mobile */}
         <div className="hidden md:flex gap-3 self-end justify-end mt-0 shrink-0 items-center w-auto">
-          {IsAuthenticated && (
-            <button
-              onClick={handleToggleSavePlaylist}
-              className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shadow hover:scale-105 active:scale-95 ${
-                playlist.IsSaved
-                  ? 'bg-brand-green text-black border-none'
-                  : 'bg-transparent border border-brand-gray/30 text-brand-gray hover:text-white hover:border-white'
-              }`}
-              title={playlist.IsSaved ? "Remover da Biblioteca" : "Salvar na Biblioteca"}
-            >
-              <Heart className={`w-4 h-4 ${playlist.IsSaved ? 'fill-current text-black' : ''}`} />
-            </button>
-          )}
+          <button
+            onClick={handleToggleSavePlaylist}
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shadow hover:scale-105 active:scale-95 ${
+              playlist.IsSaved
+                ? 'bg-brand-green text-black border-none'
+                : 'bg-transparent border border-brand-gray/30 text-brand-gray hover:text-white hover:border-white'
+            }`}
+            title={playlist.IsSaved ? "Remover da Biblioteca" : "Salvar na Biblioteca"}
+          >
+            <Heart className={`w-4 h-4 ${playlist.IsSaved ? 'fill-current text-black' : ''}`} />
+          </button>
 
           <button
             onClick={handleSharePlaylist}
@@ -896,17 +901,15 @@ export const PlaylistDetail: React.FC = () => {
       <div className="flex md:hidden items-center justify-between px-2 py-1 select-none w-full shrink-0">
         <div className="flex items-center gap-6">
           {/* Botão de Salvar/Gostar da Playlist na Biblioteca */}
-          {IsAuthenticated && (
-            <button
-              onClick={handleToggleSavePlaylist}
-              className="text-brand-gray hover:text-brand-green active:scale-90 transition-all cursor-pointer p-1"
-              title={playlist.IsSaved ? "Remover da Biblioteca" : "Salvar na Biblioteca"}
-            >
-              <Heart 
-                className={`w-6 h-6 ${playlist.IsSaved ? 'fill-brand-green text-brand-green' : 'text-brand-gray hover:text-white'}`} 
-              />
-            </button>
-          )}
+          <button
+            onClick={handleToggleSavePlaylist}
+            className="text-brand-gray hover:text-brand-green active:scale-90 transition-all cursor-pointer p-1"
+            title={playlist.IsSaved ? "Remover da Biblioteca" : "Salvar na Biblioteca"}
+          >
+            <Heart 
+              className={`w-6 h-6 ${playlist.IsSaved ? 'fill-brand-green text-brand-green' : 'text-brand-gray hover:text-white'}`} 
+            />
+          </button>
 
           {/* Botão de Compartilhar Playlist */}
           <button
@@ -1328,7 +1331,11 @@ export const PlaylistDetail: React.FC = () => {
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
-                        setMobileTrackMenu(t);
+                        if (!IsAuthenticated) {
+                          openLoginModal();
+                        } else {
+                          setMobileTrackMenu(t);
+                        }
                       }}
                       className="p-2 text-brand-gray hover:text-white transition-colors cursor-pointer shrink-0"
                     >

@@ -55,7 +55,7 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
   onPlaylistContextMenu,
   onToggleSavePlaylist
 }) => {
-  const { CurrentUser } = useAuth();
+  const { CurrentUser, IsAuthenticated, openLoginModal } = useAuth();
   const { loadTrack, currentTrack, isPlaying } = usePlayer();
   const { openAddToPlaylist } = usePlaylists();
   const navigate = useNavigate();
@@ -149,7 +149,13 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
         </h2>
         {viewAllRoute && (
           <button
-            onClick={() => navigate(viewAllRoute)}
+            onClick={() => {
+              if (!IsAuthenticated) {
+                openLoginModal();
+              } else {
+                navigate(viewAllRoute);
+              }
+            }}
             className="text-xs text-brand-green hover:underline font-bold cursor-pointer bg-transparent border-0"
           >
             Ver todas
@@ -174,7 +180,11 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
                   }`}
                   onContextMenu={(e) => {
                     e.preventDefault();
-                    onTrackContextMenu?.(e, track);
+                    if (!IsAuthenticated) {
+                      openLoginModal();
+                    } else {
+                      onTrackContextMenu?.(e, track);
+                    }
                   }}
                   onClick={() => handlePlayClick(track)}
                 >
@@ -183,7 +193,11 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        openAddToPlaylist(track.TrackId, track.TrackTitle, track.ArtistName);
+                        if (!IsAuthenticated) {
+                          openLoginModal();
+                        } else {
+                          openAddToPlaylist(track.TrackId, track.TrackTitle, track.ArtistName);
+                        }
                       }}
                       className="absolute top-6 right-6 z-20 w-8 h-8 rounded-full bg-black/75 border border-brand-hover hover:border-brand-green text-brand-green hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-105 transition-all shadow-md cursor-pointer duration-200"
                       title="Adicionar à Playlist"
@@ -263,6 +277,11 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
                   className="bg-brand-card border border-brand-hover p-4 rounded-md hover:bg-brand-hover transition-all flex flex-col gap-3 group shadow-lg relative cursor-pointer select-none"
                   onClick={() => handlePlaylistClick(playlist.PlaylistId)}
                   onContextMenu={(e) => {
+                    if (!IsAuthenticated) {
+                      e.preventDefault();
+                      openLoginModal();
+                      return;
+                    }
                     if (canContext) {
                       e.preventDefault();
                       onPlaylistContextMenu?.(e, playlist);
@@ -270,7 +289,7 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
                   }}
                 >
                   {/* Botão de opções */}
-                  {canContext && (
+                  {canContext ? (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -280,7 +299,18 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
                     >
                       <MoreVertical className="w-4 h-4" />
                     </button>
-                  )}
+                  ) : !IsAuthenticated ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openLoginModal();
+                      }}
+                      className="absolute top-6 right-6 z-20 w-8 h-8 rounded-full bg-black/75 border border-brand-hover hover:border-brand-green text-brand-gray hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-105 transition-all shadow-md cursor-pointer duration-200"
+                      title="Opções da Playlist"
+                    >
+                      <MoreVertical className="w-4 h-4" />
+                    </button>
+                  ) : null}
 
                   <div className="w-full aspect-square bg-gradient-to-br from-brand-card to-black/60 border border-brand-hover rounded mb-1 flex items-center justify-center relative overflow-hidden group shadow-md shrink-0">
                     {playlist.CoverUrl ? (
@@ -298,11 +328,15 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
                       <Play className="w-6 h-6 fill-current translate-x-[1px]" />
                     </div>
 
-                    {!playlist.IsOwner && onToggleSavePlaylist && (
+                    {(!playlist.IsOwner || !IsAuthenticated) && onToggleSavePlaylist && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onToggleSavePlaylist(playlist);
+                          if (!IsAuthenticated) {
+                            openLoginModal();
+                          } else {
+                            onToggleSavePlaylist(playlist);
+                          }
                         }}
                         className={`absolute bottom-3 right-3 w-8 h-8 rounded-full bg-black/80 border flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-105 transition-all shadow-md cursor-pointer duration-200 ${
                           playlist.IsSaved ? 'border-brand-green text-brand-green' : 'border-brand-hover hover:border-white text-brand-gray'
@@ -372,7 +406,11 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
                   }`}
                   onContextMenu={(e) => {
                     e.preventDefault();
-                    onTrackContextMenu?.(e, track);
+                    if (!IsAuthenticated) {
+                      openLoginModal();
+                    } else {
+                      onTrackContextMenu?.(e, track);
+                    }
                   }}
                   onClick={() => handlePlayClick(track)}
                 >
@@ -409,7 +447,11 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        onTrackContextMenu?.(e, track);
+                        if (!IsAuthenticated) {
+                          openLoginModal();
+                        } else {
+                          onTrackContextMenu?.(e, track);
+                        }
                       }}
                       className="w-6 h-6 rounded-full hover:bg-brand-hover hover:text-white text-brand-gray flex items-center justify-center transition-all cursor-pointer"
                     >
@@ -430,6 +472,11 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
                   className="bg-brand-card/30 border border-brand-hover p-2.5 rounded-md hover:bg-brand-hover/60 hover:border-brand-green/30 hover:scale-[1.02] transition-all duration-200 cursor-pointer flex items-center gap-3 relative group select-none min-w-0"
                   onClick={() => handlePlaylistClick(playlist.PlaylistId)}
                   onContextMenu={(e) => {
+                    if (!IsAuthenticated) {
+                      e.preventDefault();
+                      openLoginModal();
+                      return;
+                    }
                     if (canContext) {
                       e.preventDefault();
                       onPlaylistContextMenu?.(e, playlist);
@@ -463,7 +510,7 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
                   </div>
 
                   {/* Botão de Ações no Hover */}
-                  {canContext && (
+                  {canContext ? (
                     <div className="flex items-center shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
                       <button
                         onClick={(e) => {
@@ -475,7 +522,20 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
                         <MoreVertical className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                  )}
+                  ) : !IsAuthenticated ? (
+                    <div className="flex items-center shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openLoginModal();
+                        }}
+                        className="w-6 h-6 rounded-full hover:bg-brand-hover hover:text-white text-brand-gray flex items-center justify-center transition-all cursor-pointer"
+                        title="Opções da Playlist"
+                      >
+                        <MoreVertical className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               );
             })

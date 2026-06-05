@@ -124,11 +124,9 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
-  // Carrega as playlists e mapeia as faixas de cada uma para verificação de duplicidade rápida
+  // Reseta as playlists locais quando o usuário for desconectado
   useEffect(() => {
-    if (IsAuthenticated && Token) {
-      fetchPlaylists();
-    } else {
+    if (!IsAuthenticated || !Token) {
       setPlaylists([]);
     }
   }, [IsAuthenticated, Token]);
@@ -156,9 +154,26 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setMessage('');
     setError('');
 
+    let currentPlaylists = playlists;
+    if (playlists.length === 0 && Token) {
+      try {
+        const res = await fetch(`${API_URL}/Playlists`, {
+          headers: {
+            'Authorization': `Bearer ${Token}`
+          }
+        });
+        if (res.ok) {
+          currentPlaylists = await res.json();
+          setPlaylists(currentPlaylists);
+        }
+      } catch (err) {
+        console.error('Erro ao buscar playlists para adição:', err);
+      }
+    }
+
     // Preenche o mapeamento para saber em quais a música já está
     const map: Record<string, string[]> = {};
-    for (const p of playlists) {
+    for (const p of currentPlaylists) {
       const trackIds = await fetchPlaylistTrackIds(p.PlaylistId);
       map[p.PlaylistId] = trackIds;
     }
