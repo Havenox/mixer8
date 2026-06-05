@@ -3,12 +3,15 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   Play, UploadCloud, CheckCircle, Clock, FileAudio, 
-  Sparkles, ShieldAlert, Disc, AlertTriangle, Plus, Trash2, X, Music, Loader2, Settings, RefreshCw, Image, Info
+  Sparkles, ShieldAlert, Disc, AlertTriangle, Plus, Trash2, X, Music, Loader2, Settings, RefreshCw, Image, Info,
+  LayoutGrid, List
 } from 'lucide-react';
 
 import { usePlayer } from '../context/PlayerContext';
 import { usePlaylists } from '../context/PlaylistContext';
 import type { ITrack } from '../context/PlayerContext';
+import { TrackListing } from '../components/TrackListing';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
 import { API_URL, SERVER_URL } from '../config';
 
@@ -20,6 +23,9 @@ export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   
   const [tracks, setTracks] = useState<ITrack[]>([]);
+  const [layoutMode, setLayoutMode] = useState<'grid' | 'list'>(
+    () => (localStorage.getItem('mixer8:layout-preference') as 'grid' | 'list') || 'grid'
+  );
   const [isLoadingTracks, setIsLoadingTracks] = useState(true);
   const [error, setError] = useState('');
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; track: ITrack } | null>(null);
@@ -254,55 +260,13 @@ export const Dashboard: React.FC = () => {
     fetchTracks(true);
   }, [Token]);
 
-  // Monitora o scroll do container de PersistentLayout (.overflow-y-auto) para scroll infinito
-  useEffect(() => {
-    const handleScroll = () => {
-      const scrollContainer = document.querySelector('.overflow-y-auto');
-      if (!scrollContainer) return;
+  const handleLayoutToggle = (mode: 'grid' | 'list') => {
+    setLayoutMode(mode);
+    localStorage.setItem('mixer8:layout-preference', mode);
+  };
 
-      const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
-      if (scrollHeight - scrollTop - clientHeight < 100 && hasMore && !isFetchingMore && !isLoadingTracks) {
-        fetchTracks(false);
-      }
-    };
-
-    const scrollContainer = document.querySelector('.overflow-y-auto');
-    if (scrollContainer) {
-      scrollContainer.addEventListener('scroll', handleScroll);
-    }
-
-    return () => {
-      if (scrollContainer) {
-        scrollContainer.removeEventListener('scroll', handleScroll);
-      }
-    };
-  }, [hasMore, isFetchingMore, isLoadingTracks, page]);
-
-  // Preenche a tela automaticamente caso a resolução seja grande e não gere scrollbar
-  useEffect(() => {
-    if (!hasMore || isFetchingMore || isLoadingTracks) return;
-
-    const checkAndFillPage = () => {
-      const scrollContainer = document.querySelector('.overflow-y-auto');
-      if (!scrollContainer) return;
-
-      const { scrollHeight, clientHeight } = scrollContainer;
-      if (scrollHeight > 0 && scrollHeight <= clientHeight + 50) {
-        fetchTracks(false);
-      }
-    };
-
-    // Delay de 300ms para permitir render completo do grid e imagens
-    const timer = setTimeout(checkAndFillPage, 300);
-
-    // Adiciona listener de redimensionamento da janela
-    window.addEventListener('resize', checkAndFillPage);
-
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('resize', checkAndFillPage);
-    };
-  }, [tracks, hasMore, isFetchingMore, isLoadingTracks]);
+  // Hook de Infinite Scroll reutilizável
+  useInfiniteScroll(hasMore, isFetchingMore, isLoadingTracks, () => fetchTracks(false));
 
   // 2. Pooling do progresso real da conversão do Worker na VPS
   useEffect(() => {
@@ -429,15 +393,39 @@ export const Dashboard: React.FC = () => {
           <p className="text-sm text-brand-gray">Escolha um áudio completo para ouvir ou gerencie as stems mixáveis.</p>
         </div>
         
-        {hasAccessToUpload && (
-          <button 
-            onClick={() => navigate('/dashboard?action=upload')}
-            className="flex items-center gap-2 px-5 py-2.5 bg-brand-green text-black font-bold text-sm rounded-full hover:scale-105 active:scale-95 transition-all shadow-md cursor-pointer"
-          >
-            <UploadCloud className="w-5 h-5" />
-            Nova Extração de Stems
-          </button>
-        )}
+        <div className="flex items-center gap-4">
+          {/* Seletor de visualização (Grade vs Lista) */}
+          <div className="flex items-center bg-black/60 border border-brand-hover p-1 rounded-md">
+            <button
+              onClick={() => handleLayoutToggle('grid')}
+              className={`p-1.5 rounded transition-all cursor-pointer ${
+                layoutMode === 'grid' ? 'bg-brand-green text-black' : 'text-brand-gray hover:text-white'
+              }`}
+              title="Visualização em Grade"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => handleLayoutToggle('list')}
+              className={`p-1.5 rounded transition-all cursor-pointer ${
+                layoutMode === 'list' ? 'bg-brand-green text-black' : 'text-brand-gray hover:text-white'
+              }`}
+              title="Visualização em Lista"
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+
+          {hasAccessToUpload && (
+            <button 
+              onClick={() => navigate('/dashboard?action=upload')}
+              className="flex items-center gap-2 px-5 py-2.5 bg-brand-green text-black font-bold text-sm rounded-full hover:scale-105 active:scale-95 transition-all shadow-md cursor-pointer shrink-0"
+            >
+              <UploadCloud className="w-5 h-5" />
+              Nova Extração de Stems
+            </button>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -447,145 +435,23 @@ export const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Grid de Tracks */}
-      {isLoadingTracks ? (
-        <div className="text-xs text-brand-gray animate-pulse font-semibold">
-          Carregando...
-        </div>
-      ) : tracks.length === 0 ? (
+      {/* Renderizador de Listagem */}
+      {tracks.length === 0 && !isLoadingTracks ? (
         <div className="text-xs text-brand-gray font-semibold">
           Nenhuma música disponível. Faça um upload para extrair as stems!
         </div>
       ) : (
-        <div className="flex flex-col gap-6 select-none w-full animate-in fade-in duration-300">
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,220px))] gap-4">
-            {tracks.map((track) => (
-              <div 
-                key={track.TrackId} 
-                className="bg-brand-card border border-brand-hover p-4 rounded-md hover:bg-brand-hover group transition-all relative cursor-pointer"
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setContextMenu({
-                    x: e.clientX,
-                    y: e.clientY,
-                    track
-                  });
-                }}
-              >
-                {/* Botão rápido de adicionar à playlist no hover */}
-                {track.ExtractionStatus === 'Pronto' && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openAddToPlaylist(track.TrackId, track.TrackTitle, track.ArtistName);
-                    }}
-                    className="absolute top-6 right-6 z-20 w-8 h-8 rounded-full bg-black/75 border border-brand-hover hover:border-brand-green text-brand-green hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-105 transition-all shadow-md cursor-pointer duration-200"
-                    title="Adicionar à Playlist"
-                  >
-                    <Plus className="w-4.5 h-4.5" />
-                  </button>
-                )}
-
-                <div className="w-full aspect-square bg-black border border-brand-hover rounded mb-4 flex items-center justify-center relative overflow-hidden group shadow-md">
-                  {track.CoverUrl ? (
-                    <img 
-                      src={track.CoverUrl.startsWith('http') ? track.CoverUrl : `${SERVER_URL}${track.CoverUrl}`} 
-                      alt="Capa" 
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <Disc className="w-16 h-16 text-brand-green/20 group-hover:text-brand-green/40 transition-colors" />
-                  )}
-                  <button 
-                    disabled={track.ExtractionStatus !== 'Pronto'}
-                    onClick={() => loadTrack(track, undefined, undefined, tracks)}
-                    className="absolute w-12 h-12 rounded-full bg-brand-green text-black flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 hover:scale-105 transition-all shadow-lg duration-250 cursor-pointer disabled:opacity-30 disabled:scale-100"
-                  >
-                    <Play className="w-6 h-6 fill-current translate-x-[1px]" />
-                  </button>
-                </div>
-
-                <div className="flex flex-col gap-1 mb-2">
-                  <span className="font-bold text-sm text-white truncate">{track.TrackTitle}</span>
-                  <div className="flex items-center justify-between gap-2 min-w-0">
-                    <span className="text-xs text-brand-gray truncate">{track.ArtistName}</span>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {track.DeletionPending && (
-                        <div className="relative group/tooltip flex items-center gap-1 select-none">
-                          <span className="text-[8px] bg-red-950/60 text-red-400 border border-red-900/50 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider animate-pulse">
-                            Marcado pra Excluir
-                          </span>
-                          {CurrentUser?.UserRole === 'Admin' && track.DeletionReason && (
-                            <>
-                              <Info className="w-3.5 h-3.5 text-red-400/80 hover:text-red-400 cursor-pointer shrink-0" />
-                              <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-brand-card border border-brand-hover text-[10px] text-brand-gray rounded shadow-2xl invisible group-hover/tooltip:visible opacity-0 group-hover/tooltip:opacity-100 transition-all duration-200 z-50 pointer-events-none leading-relaxed normal-case text-left font-normal">
-                                <strong className="text-white block mb-0.5">Motivo da exclusão:</strong>
-                                {track.DeletionReason}
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      )}
-                      {track.UploadedBy === CurrentUser?.UserId && CurrentUser?.UserRole !== 'Admin' && (
-                        <span className="text-[8px] bg-emerald-950/40 text-emerald-400 border border-emerald-900/30 px-1 py-0.5 rounded font-bold uppercase tracking-wider">
-                          Minha
-                        </span>
-                      )}
-                      {track.Visibility === 'Private' && (
-                        <div className="relative group/tooltip flex items-center gap-1 select-none">
-                          <span className="text-[8px] bg-red-950/40 text-red-400 border border-red-900/30 px-1 py-0.5 rounded font-bold uppercase tracking-wider">
-                            Privada
-                          </span>
-                          <Info className="w-3 h-3 text-red-400/80 hover:text-red-400 cursor-pointer shrink-0" />
-                          <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-brand-card border border-brand-hover text-[10px] text-brand-gray rounded shadow-2xl invisible group-hover/tooltip:visible opacity-0 group-hover/tooltip:opacity-100 transition-all duration-200 z-50 pointer-events-none leading-relaxed font-normal normal-case text-left font-normal">
-                            Essa musica é privada e só aparece para quem fez o upload dela.
-                          </div>
-                        </div>
-                      )}
-                      {track.Visibility === 'Unlisted' && (
-                        <div className="relative group/tooltip flex items-center gap-1 select-none">
-                          <span className="text-[8px] bg-yellow-950/40 text-yellow-500 border border-yellow-900/30 px-1 py-0.5 rounded font-bold uppercase tracking-wider">
-                            Não Listada
-                          </span>
-                          <Info className="w-3 h-3 text-yellow-500/80 hover:text-yellow-500 cursor-pointer shrink-0" />
-                          <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-brand-card border border-brand-hover text-[10px] text-brand-gray rounded shadow-2xl invisible group-hover/tooltip:visible opacity-0 group-hover/tooltip:opacity-100 transition-all duration-200 z-50 pointer-events-none leading-relaxed font-normal normal-case text-left font-normal">
-                            Essa musica só aparece para quem fez o upload dela, pra quem é dono da playlist e pra quem é colaborador da playlist, e nao aparecerá pro resto do publico.
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between mt-3 pt-2 border-t border-brand-hover text-[10px] font-bold">
-                  <span className="text-brand-gray uppercase">Stems: {track.Stems?.length || 0} faixas</span>
-                  
-                  {track.ExtractionStatus === 'Pronto' ? (
-                    <span className="text-brand-green flex items-center gap-1">
-                      <CheckCircle className="w-3.5 h-3.5" /> MIX PRONTO
-                    </span>
-                  ) : track.ExtractionStatus.startsWith('Processando') ? (
-                    <span className="text-yellow-500 flex items-center gap-1 animate-pulse">
-                      <Clock className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '3s' }} /> EXTRAINDO
-                    </span>
-                  ) : track.ExtractionStatus === 'Falhou' ? (
-                    <span className="text-red-400">FALHOU</span>
-                  ) : (
-                    <span className="text-brand-gray flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5" /> AGUARDANDO
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-          {isFetchingMore && (
-            <div className="flex items-center justify-center gap-2 text-xs text-brand-gray py-4">
-              <Loader2 className="w-5 h-5 animate-spin text-brand-green animate-infinite" />
-              <span>Carregando mais faixas...</span>
-            </div>
-          )}
-        </div>
+        <TrackListing 
+          tracks={tracks}
+          layoutMode={layoutMode}
+          isLoading={isLoadingTracks}
+          isFetchingMore={isFetchingMore}
+          showUploaderInfo={CurrentUser?.UserRole === 'Admin'}
+          onTrackContextMenu={(e, track) => {
+            setContextMenu({ x: e.clientX, y: e.clientY, track });
+          }}
+          tracksQueue={tracks}
+        />
       )}
 
       {/* MODAL DE UPLOAD / SIMULADOR DO PLAYWRIGHT Headless */}

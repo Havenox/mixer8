@@ -14,6 +14,10 @@ import { PlaylistDetail } from './pages/PlaylistDetail';
 import { Playlists } from './pages/Playlists';
 import { Settings as SettingsPage } from './pages/Settings';
 import { PublicProfile } from './pages/PublicProfile';
+import { WeeklyTrends } from './pages/WeeklyTrends';
+import { PopularPlaylists } from './pages/PopularPlaylists';
+import { TrackListing } from './components/TrackListing';
+import { PlaylistListing } from './components/PlaylistListing';
 import { Play, Sparkles, Disc, Flame, Music, Radio, Loader2, Plus, Trash2, AlertTriangle, X, Settings, RefreshCw, ListMusic, Clock, User, Heart, Image, Info, ShieldAlert } from 'lucide-react';
 
 import { API_URL, SERVER_URL } from './config';
@@ -60,7 +64,7 @@ const Explore: React.FC = () => {
   const fetchPopularPlaylists = async () => {
     if (!Token) return;
     try {
-      const res = await fetch(`${API_URL}/Playlists/Popular`, {
+      const res = await fetch(`${API_URL}/Playlists/Popular?limit=6`, {
         headers: {
           'Authorization': `Bearer ${Token}`
         }
@@ -220,7 +224,7 @@ const Explore: React.FC = () => {
       if (Token) {
         headers['Authorization'] = `Bearer ${Token}`;
       }
-      const res = await fetch(`${API_URL}/Tracks`, { headers });
+      const res = await fetch(`${API_URL}/Tracks/WeeklyTrends?limit=6`, { headers });
       if (res.ok) {
         const data = await res.json();
         // Exibe apenas as tracks com extração concluída
@@ -318,11 +322,19 @@ const Explore: React.FC = () => {
         </div>
       </div>
 
-      {/* Destaques Semanais */}
+      {/* Tendências da Semana */}
       <div className="flex flex-col gap-4">
-        <h2 className="text-xl font-bold text-white m-0 flex items-center gap-2">
-          <Flame className="w-5 h-5 text-orange-500 fill-current" /> Tendências Semanais
-        </h2>
+        <div className="flex justify-between items-center">
+          <h2 className="text-xl font-bold text-white m-0 flex items-center gap-2">
+            <Flame className="w-5 h-5 text-orange-500 fill-current" /> Tendências da Semana
+          </h2>
+          <button
+            onClick={() => navigate('/weekly-trends')}
+            className="text-xs text-brand-green hover:underline font-bold cursor-pointer bg-transparent border-0"
+          >
+            Ver todas
+          </button>
+        </div>
         
         {loading ? (
           <div className="flex items-center gap-2 text-xs text-brand-gray font-semibold py-4">
@@ -334,91 +346,33 @@ const Explore: React.FC = () => {
             Nenhuma música disponível no momento. Faça upload na sua biblioteca!
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {tracks.slice(0, 3).map((track, idx) => (
-              <div 
-                key={track.TrackId} 
-                className="bg-brand-card border border-brand-hover p-5 rounded-md hover:bg-brand-hover transition-all flex items-center justify-between group shadow-lg relative cursor-pointer"
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setContextMenu({
-                    x: e.clientX,
-                    y: e.clientY,
-                    track
-                  });
-                }}
-              >
-                <div className="flex items-center gap-4 truncate">
-                  <div className="w-12 h-12 bg-black border border-brand-hover rounded flex items-center justify-center text-brand-green shadow-md shrink-0 overflow-hidden relative">
-                    {track.CoverUrl ? (
-                      <img 
-                        src={track.CoverUrl.startsWith('http') ? track.CoverUrl : `${SERVER_URL}${track.CoverUrl}`} 
-                        alt="Capa" 
-                        className="w-full h-full object-cover"
-                      />
-                    ) : idx === 0 ? (
-                      <Disc className="w-6 h-6 animate-spin" style={{ animationDuration: '6s' }} />
-                    ) : idx === 1 ? (
-                      <Music className="w-6 h-6" />
-                    ) : (
-                      <Radio className="w-6 h-6" />
-                    )}
-                  </div>
-                  <div className="flex flex-col truncate">
-                   <span className="font-bold text-sm text-white truncate">{track.TrackTitle}</span>
-                   <div className="flex items-center gap-2 min-w-0">
-                     <span className="text-xs text-brand-gray truncate">{track.ArtistName}</span>
-                     {track.DeletionPending && (
-                       <div className="relative group/tooltip flex items-center gap-1 select-none shrink-0">
-                         <span className="text-[8px] bg-red-950/60 text-red-400 border border-red-900/50 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider animate-pulse">
-                           Marcado pra Excluir
-                         </span>
-                         {CurrentUser?.UserRole === 'Admin' && track.DeletionReason && (
-                           <>
-                             <Info className="w-3.5 h-3.5 text-red-400/80 hover:text-red-400 cursor-pointer shrink-0" />
-                             <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-brand-card border border-brand-hover text-[10px] text-brand-gray rounded shadow-2xl invisible group-hover/tooltip:visible opacity-0 group-hover/tooltip:opacity-100 transition-all duration-200 z-50 pointer-events-none leading-relaxed normal-case text-left font-normal">
-                               <strong className="text-white block mb-0.5">Motivo da exclusão:</strong>
-                               {track.DeletionReason}
-                             </div>
-                           </>
-                         )}
-                       </div>
-                     )}
-                   </div>
-                 </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {/* Botão rápido no hover */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openAddToPlaylist(track.TrackId, track.TrackTitle, track.ArtistName);
-                    }}
-                    className="w-8 h-8 rounded-full bg-black/60 border border-brand-hover hover:border-brand-green text-brand-green hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-105 transition-all shadow-md cursor-pointer duration-200"
-                    title="Adicionar à Playlist"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-
-                  <button 
-                    onClick={() => loadTrack(track)}
-                    className="w-9 h-9 rounded-full bg-brand-green text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all scale-95 group-hover:scale-100 hover:scale-105 shadow-md cursor-pointer shrink-0"
-                  >
-                    <Play className="w-4 h-4 fill-current translate-x-[0.5px]" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+          <TrackListing
+            tracks={tracks}
+            layoutMode="grid"
+            onTrackContextMenu={(e, track) => {
+              setContextMenu({
+                x: e.clientX,
+                y: e.clientY,
+                track
+              });
+            }}
+          />
         )}
       </div>
 
       {/* Playlists Populares */}
       <div className="flex flex-col gap-4 animate-in fade-in duration-200">
-        <h2 className="text-xl font-bold text-white m-0 flex items-center gap-2">
-          <ListMusic className="w-5 h-5 text-brand-green" /> Playlists Populares
-        </h2>
+        <div className="flex justify-between items-center">
+          <h2 className="text-xl font-bold text-white m-0 flex items-center gap-2">
+            <ListMusic className="w-5 h-5 text-brand-green" /> Playlists Populares
+          </h2>
+          <button
+            onClick={() => navigate('/popular-playlists')}
+            className="text-xs text-brand-green hover:underline font-bold cursor-pointer bg-transparent border-0"
+          >
+            Ver todas
+          </button>
+        </div>
         
         {loadingPopular ? (
           <div className="flex items-center gap-2 text-xs text-brand-gray font-semibold py-4">
@@ -430,78 +384,12 @@ const Explore: React.FC = () => {
             Nenhuma playlist popular disponível no momento.
           </div>
         ) : (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,220px))] gap-4">
-            {popularPlaylists.map((playlist) => (
-              <div 
-                key={playlist.PlaylistId} 
-                className="bg-brand-card border border-brand-hover p-4 rounded-md hover:bg-brand-hover transition-all flex flex-col gap-3 group shadow-lg relative cursor-pointer"
-                onClick={() => navigate(`/playlists/${playlist.PlaylistId}`)}
-              >
-                <div className="aspect-square bg-black border border-brand-hover rounded flex items-center justify-center text-brand-green shadow-md overflow-hidden relative shrink-0">
-                  {playlist.CoverUrl ? (
-                    <img 
-                      src={playlist.CoverUrl.startsWith('http') ? playlist.CoverUrl : `${SERVER_URL}${playlist.CoverUrl}`} 
-                      alt={playlist.Name} 
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <ListMusic className="w-12 h-12" />
-                  )}
-                  
-                  {!playlist.IsOwner && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleToggleSavePlaylist(playlist);
-                      }}
-                      className={`absolute bottom-3 right-3 w-8 h-8 rounded-full bg-black/80 border flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-105 transition-all shadow-md cursor-pointer duration-200 ${
-                        playlist.IsSaved
-                          ? 'border-brand-green text-brand-green'
-                          : 'border-brand-hover hover:border-white text-brand-gray hover:text-white'
-                      }`}
-                      title={playlist.IsSaved ? "Remover da Biblioteca" : "Salvar na Biblioteca"}
-                    >
-                      <Heart className={`w-4.5 h-4.5 ${playlist.IsSaved ? 'fill-brand-green text-brand-green' : ''}`} />
-                    </button>
-                  )}
-                </div>
-                
-                <div className="flex flex-col truncate">
-                  <span className="font-bold text-sm text-white truncate">{playlist.Name}</span>
-                  
-                  {/* Foto + Nome/Nickname do Criador */}
-                  <div className="flex items-center gap-2 mt-1 select-none">
-                    {playlist.OwnerAvatarUrl ? (
-                      <img 
-                        src={playlist.OwnerAvatarUrl.startsWith('http') ? playlist.OwnerAvatarUrl : `${SERVER_URL}${playlist.OwnerAvatarUrl}`} 
-                        alt="Criador" 
-                        className="w-4 h-4 rounded-full object-cover border border-brand-green/20" 
-                      />
-                    ) : (
-                      <div className="w-4 h-4 rounded-full bg-brand-hover border border-brand-green/20 flex items-center justify-center text-brand-green shrink-0">
-                        <User className="w-2.5 h-2.5" />
-                      </div>
-                    )}
-                    <span className="text-[10px] text-brand-gray truncate">
-                      {playlist.OwnerFirstName?.trim() 
-                        ? `${playlist.OwnerFirstName} ${playlist.OwnerLastName || ''}`.trim() 
-                        : (playlist.OwnerUserName ? `@${playlist.OwnerUserName}` : playlist.OwnerEmail)}
-                    </span>
-                  </div>
-                  
-                  {/* Qtd Músicas • Reloginho Duração */}
-                  <div className="flex items-center gap-1.5 text-[10px] text-brand-green font-semibold mt-1 select-none leading-none">
-                    <span>{playlist.TracksCount} {playlist.TracksCount === 1 ? 'música' : 'músicas'}</span>
-                    <span className="text-brand-gray/40 font-normal select-none">•</span>
-                    <div className="flex items-center gap-1 text-brand-gray font-normal leading-none h-3.5">
-                      <Clock className="w-3 h-3 text-brand-gray/60 shrink-0" />
-                      <span>{getPlaylistTotalDuration(playlist.PlaylistId, playlist.TracksCount)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          <PlaylistListing
+            playlists={popularPlaylists}
+            layoutMode="grid"
+            onToggleSavePlaylist={handleToggleSavePlaylist}
+            onPlaylistContextMenu={() => {}}
+          />
         )}
       </div>
 
@@ -1147,6 +1035,8 @@ export const App: React.FC = () => {
                 <Route path="/upload-direto" element={<ProtectedRoute><UploadDireto /></ProtectedRoute>} />
                 <Route path="/playlists/:id" element={<PlaylistDetail />} />
                 <Route path="/playlists" element={<ProtectedRoute><Playlists /></ProtectedRoute>} />
+                <Route path="/weekly-trends" element={<ProtectedRoute><WeeklyTrends /></ProtectedRoute>} />
+                <Route path="/popular-playlists" element={<ProtectedRoute><PopularPlaylists /></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
                 <Route path="/playlist/:id" element={<PlaylistRedirect />} />
                 
