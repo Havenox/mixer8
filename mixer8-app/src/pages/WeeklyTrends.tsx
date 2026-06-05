@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { usePlayer, ITrack } from '../context/PlayerContext';
+import type { ITrack } from '../context/PlayerContext';
 import { usePlaylists } from '../context/PlaylistContext';
 import { 
-  Flame, LayoutGrid, List, ArrowLeft, Loader2, Sparkles, AlertTriangle, Plus, Settings, Trash2, X, Music, CheckCircle, Clock, Info, ShieldAlert, Image
+  Flame, LayoutGrid, List, ArrowLeft, AlertTriangle, Plus, Settings, Trash2, X, Music, ShieldAlert
 } from 'lucide-react';
 import { TrackListing } from '../components/TrackListing';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
@@ -12,7 +12,6 @@ import { API_URL, SERVER_URL } from '../config';
 
 export const WeeklyTrends: React.FC = () => {
   const { CurrentUser, Token } = useAuth();
-  const { loadTrack, currentTrack } = usePlayer();
   const { openAddToPlaylist } = usePlaylists();
   const navigate = useNavigate();
 
@@ -41,7 +40,6 @@ export const WeeklyTrends: React.FC = () => {
   const [editTitle, setEditTitle] = useState('');
   const [editArtist, setEditArtist] = useState('');
   const [editCoverFile, setEditCoverFile] = useState<File | null>(null);
-  const [editCoverPreview, setEditCoverPreview] = useState('');
   const [editCoverUrl, setEditCoverUrl] = useState('');
   const [editVisibility, setEditVisibility] = useState('Public');
   const [isSaving, setIsSaving] = useState(false);
@@ -160,7 +158,6 @@ export const WeeklyTrends: React.FC = () => {
       setEditTitle(trackToEdit.TrackTitle);
       setEditArtist(trackToEdit.ArtistName);
       setEditCoverFile(null);
-      setEditCoverPreview(trackToEdit.CoverUrl ? (trackToEdit.CoverUrl.startsWith('http') ? trackToEdit.CoverUrl : `${SERVER_URL}${trackToEdit.CoverUrl}`) : '');
       setEditCoverUrl(trackToEdit.CoverUrl || '');
       setEditVisibility(trackToEdit.Visibility || 'Public');
       setSaveError('');

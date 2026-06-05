@@ -1,40 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { usePlaylists } from '../context/PlaylistContext';
 import type { IPlaylist } from '../context/PlaylistContext';
 import { useAuth } from '../context/AuthContext';
 import { 
-  ListMusic, PlusCircle, Lock, Globe, EyeOff, Play, Edit, Trash2, MoreVertical, Clock, AlertTriangle,
+  ListMusic, PlusCircle, Edit, Trash2, AlertTriangle,
   LayoutGrid, List
 } from 'lucide-react';
 
 import { PlaylistListing } from '../components/PlaylistListing';
-import { API_URL, SERVER_URL } from '../config';
-
-const getPlaylistTotalDuration = (playlistId: string, tracksCount: number) => {
-  if (tracksCount === 0) return '0 min';
-  let sum = 0;
-  for (let i = 0; i < playlistId.length; i++) {
-    sum += playlistId.charCodeAt(i);
-  }
-  let totalSeconds = 0;
-  for (let idx = 0; idx < tracksCount; idx++) {
-    const trackSeed = (sum + idx) % 120;
-    totalSeconds += 180 + trackSeed;
-  }
-  const totalMinutes = Math.floor(totalSeconds / 60);
-  if (totalMinutes >= 60) {
-    const hours = Math.floor(totalMinutes / 60);
-    const mins = totalMinutes % 60;
-    return `${hours}h ${mins}m`;
-  }
-  return `${totalMinutes} min`;
-};
+import { API_URL } from '../config';
 
 export const Playlists: React.FC = () => {
   const { playlists, openCreatePlaylist, openEditPlaylist, openDeletePlaylist, fetchPlaylists } = usePlaylists();
   const { CurrentUser, Token } = useAuth();
-  const navigate = useNavigate();
 
   const [layoutMode, setLayoutMode] = useState<'grid' | 'list'>(
     () => (localStorage.getItem('mixer8:layout-preference') as 'grid' | 'list') || 'grid'

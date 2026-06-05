@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
-  Play, UploadCloud, CheckCircle, Clock, FileAudio, 
-  Sparkles, ShieldAlert, Disc, AlertTriangle, Plus, Trash2, X, Music, Loader2, Settings, RefreshCw, Image, Info,
+  UploadCloud, FileAudio, 
+  Sparkles, ShieldAlert, AlertTriangle, Plus, Trash2, X, Music, Loader2, Settings, RefreshCw, Image,
   LayoutGrid, List
 } from 'lucide-react';
 

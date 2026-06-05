@@ -4,7 +4,6 @@ import {
   ListMusic, Lock, Globe, EyeOff, Play, MoreVertical, Clock, Heart, User, Loader2 
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { usePlaylists } from '../context/PlaylistContext';
 import { SERVER_URL } from '../config';
 
 interface PlaylistListingProps {

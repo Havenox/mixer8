@@ -1,8 +1,9 @@
 import React from 'react';
 import { 
-  Play, Pause, Disc, Music, Radio, Plus, Loader2, Info, CheckCircle, Clock, MoreVertical 
+  Play, Pause, Disc, Music, Plus, Loader2, Info, CheckCircle, Clock, MoreVertical 
 } from 'lucide-react';
-import { usePlayer, ITrack } from '../context/PlayerContext';
+import { usePlayer } from '../context/PlayerContext';
+import type { ITrack } from '../context/PlayerContext';
 import { usePlaylists } from '../context/PlaylistContext';
 import { useAuth } from '../context/AuthContext';
 import { SERVER_URL } from '../config';
@@ -208,7 +209,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
 
                 {/* Ações */}
                 <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
-                  {track.ExtractionStatus === 'Pronto' && onAddToPlaylist && (
+                  {track.ExtractionStatus === 'Pronto' && openAddToPlaylist && (
                     <button
                       onClick={() => openAddToPlaylist(track.TrackId, track.TrackTitle, track.ArtistName)}
                       className="w-7 h-7 rounded-full bg-black/60 border border-brand-hover hover:border-brand-green text-brand-green hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-105 transition-all shadow-md cursor-pointer duration-200"
@@ -245,7 +246,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
   return (
     <div className="flex flex-col gap-6 select-none w-full animate-in fade-in duration-300">
       <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,220px))] gap-4">
-        {tracks.map((track, idx) => {
+        {tracks.map((track) => {
           const isPlay = isCurrentPlaying(track);
           const isLoaded = isCurrentLoaded(track);
           

@@ -18,29 +18,9 @@ import { WeeklyTrends } from './pages/WeeklyTrends';
 import { PopularPlaylists } from './pages/PopularPlaylists';
 import { TrackListing } from './components/TrackListing';
 import { PlaylistListing } from './components/PlaylistListing';
-import { Play, Sparkles, Disc, Flame, Music, Radio, Loader2, Plus, Trash2, AlertTriangle, X, Settings, RefreshCw, ListMusic, Clock, User, Heart, Image, Info, ShieldAlert } from 'lucide-react';
+import { Sparkles, Flame, Music, Loader2, Plus, Trash2, AlertTriangle, X, Settings, RefreshCw, ListMusic, Image, ShieldAlert } from 'lucide-react';
 
 import { API_URL, SERVER_URL } from './config';
-
-const getPlaylistTotalDuration = (playlistId: string, tracksCount: number) => {
-  if (tracksCount === 0) return '0 min';
-  let sum = 0;
-  for (let i = 0; i < playlistId.length; i++) {
-    sum += playlistId.charCodeAt(i);
-  }
-  let totalSeconds = 0;
-  for (let idx = 0; idx < tracksCount; idx++) {
-    const trackSeed = (sum + idx) % 120;
-    totalSeconds += 180 + trackSeed;
-  }
-  const totalMinutes = Math.floor(totalSeconds / 60);
-  if (totalMinutes >= 60) {
-    const hours = Math.floor(totalMinutes / 60);
-    const mins = totalMinutes % 60;
-    return `${hours}h ${mins}m`;
-  }
-  return `${totalMinutes} min`;
-};
 
 // Rota protegida por autenticação
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {

@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { usePlaylists } from '../context/PlaylistContext';
 import { 
-  ListMusic, LayoutGrid, List, ArrowLeft, Loader2, AlertTriangle, Edit, Trash2, Clock 
+  ListMusic, LayoutGrid, List, ArrowLeft, AlertTriangle, Edit, Trash2 
 } from 'lucide-react';
 import { PlaylistListing } from '../components/PlaylistListing';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
-import { API_URL, SERVER_URL } from '../config';
+import { API_URL } from '../config';
 
 export const PopularPlaylists: React.FC = () => {
   const { CurrentUser, Token } = useAuth();
