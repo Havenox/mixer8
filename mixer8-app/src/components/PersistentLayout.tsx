@@ -13,7 +13,7 @@ import {
 import { SERVER_URL } from '../config';
 
 export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { IsAuthenticated, CurrentUser, Logout } = useAuth();
+  const { IsAuthenticated, CurrentUser, Logout, openLoginModal } = useAuth();
   const { currentTrack } = usePlayer();
   const location = useLocation();
   const navigate = useNavigate();
@@ -58,15 +58,20 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
-  if ((!IsAuthenticated || !CurrentUser) && isAuthPage) {
-    return <>{children}</>; // Renderiza cru para telas de login/cadastro
-  }
+  // Se houver redirect com ?showLogin=true, abre o modal
+  const showLogin = new URLSearchParams(location.search).get('showLogin');
+  useEffect(() => {
+    if (showLogin === 'true' && !IsAuthenticated) {
+      openLoginModal();
+      // Limpa a query string para não ficar abrindo toda hora ao navegar de volta
+      navigate(location.pathname, { replace: true });
+    }
+  }, [showLogin, IsAuthenticated]);
 
   const handleLogout = () => {
     Logout();
     setIsMenuOpen(false);
-    navigate('/login');
+    navigate('/');
   };
 
   const displayName = CurrentUser?.FirstName?.trim() 
@@ -137,9 +142,12 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
               )}
             </div>
           ) : (
-            <Link to="/login" className="py-1 px-3 bg-brand-green text-black font-bold rounded text-xs">
+            <button 
+              onClick={openLoginModal} 
+              className="py-1 px-3 bg-brand-green text-black font-bold rounded text-xs cursor-pointer"
+            >
               Entrar
-            </Link>
+            </button>
           )}
         </div>
       </div>
@@ -197,7 +205,7 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
               </Link>
             ) : (
               <div 
-                onClick={() => navigate('/login')}
+                onClick={openLoginModal}
                 className={`flex items-center justify-between rounded-md font-semibold text-sm text-brand-gray/40 cursor-pointer hover:text-white/80 transition-all group ${
                   isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'py-2 px-3 w-full'
                 }`}
@@ -224,7 +232,7 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
               </Link>
             ) : (
               <div 
-                onClick={() => navigate('/login')}
+                onClick={openLoginModal}
                 className={`flex items-center justify-between rounded-md font-semibold text-sm text-brand-gray/40 cursor-pointer hover:text-white/80 transition-all group ${
                   isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'py-2 px-3 w-full'
                 }`}
@@ -312,7 +320,7 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
             ) : (
               <>
                 <div 
-                  onClick={() => navigate('/login')}
+                  onClick={openLoginModal}
                   className={`flex items-center justify-between rounded-md font-semibold text-sm text-brand-gray/40 cursor-pointer hover:text-white/80 transition-all group ${
                     isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'py-2 px-3 w-full'
                   }`}
@@ -325,7 +333,7 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
                   {!isSidebarCollapsed && <Lock className="w-3.5 h-3.5 text-brand-gray/40 group-hover:text-brand-green shrink-0" />}
                 </div>
                 <div 
-                  onClick={() => navigate('/login')}
+                  onClick={openLoginModal}
                   className={`flex items-center justify-between rounded-md font-semibold text-sm text-brand-gray/40 cursor-pointer hover:text-white/80 transition-all group ${
                     isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'py-2 px-3 w-full'
                   }`}
@@ -445,9 +453,9 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
               </div>
             </>
           ) : (
-            <Link 
-              to="/login"
-              className={`flex items-center justify-center bg-brand-green text-black font-bold rounded hover:scale-105 active:scale-95 transition-all shadow select-none duration-200 ${
+            <button 
+              onClick={openLoginModal}
+              className={`flex items-center justify-center bg-brand-green text-black font-bold rounded hover:scale-105 active:scale-95 transition-all shadow select-none duration-200 cursor-pointer ${
                 isSidebarCollapsed ? 'w-10 h-10 rounded-full' : 'w-full py-2.5 px-4 text-xs'
               }`}
               title="Entrar / Criar Conta"
@@ -457,7 +465,7 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
               ) : (
                 <span>Entrar / Criar Conta</span>
               )}
-            </Link>
+            </button>
           )}
         </div>
       </div>

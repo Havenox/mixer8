@@ -5,8 +5,6 @@ import { PlayerProvider, usePlayer } from './context/PlayerContext';
 import { PlaylistProvider, usePlaylists } from './context/PlaylistContext';
 import type { ITrack } from './context/PlayerContext';
 import { PersistentLayout } from './components/PersistentLayout';
-import { Login } from './pages/Login';
-import { Register } from './pages/Register';
 import { Dashboard } from './pages/Dashboard';
 import { Admin } from './pages/Admin';
 import { UploadDireto } from './pages/UploadDireto';
@@ -24,7 +22,7 @@ import { API_URL, SERVER_URL } from './config';
 // Rota protegida por autenticação
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { IsAuthenticated } = useAuth();
-  return IsAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
+  return IsAuthenticated ? <>{children}</> : <Navigate to="/?showLogin=true" replace />;
 };
 
 // Página de Explorar (Home / Catálogo de Destaque)
@@ -997,8 +995,6 @@ export const App: React.FC = () => {
             <PersistentLayout>
               <Routes>
                 {/* Rotas Públicas */}
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
                 
                 <Route path="/" element={<Explore />} />
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
