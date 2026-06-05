@@ -1,7 +1,7 @@
 # Context Preservation (Save State) - Mixer8 Ecosystem
 
-**Data da Última Atualização:** 03/06/2026  
-Status do Projeto: Purga de Mocks Concluída, Player Multi-Stems Ativo, Uploader Direto Implementado, Conteinerização/Conversão Opus Concluída, Recursos Premium/Shuffle/Repeat Dinâmicos, Barra de Progresso Premium, Extrator Headless E2E via Playwright e Menu de Contexto Irrestrito Ativos.
+**Data da Última Atualização:** 05/06/2026  
+Status do Projeto: Purga de Mocks Concluída, Player Multi-Stems Ativo, Uploader Direto Implementado, Conteinerização/Conversão Opus Concluída, Recursos Premium/Shuffle/Repeat Dinâmicos, Barra de Progresso Premium, Extrator Headless E2E via Playwright, Menu de Contexto Irrestrito Ativos, e Acesso Anônimo com Endpoints de Segurança e Modal de Login Globais Integrados.
 
 ---
 
@@ -82,6 +82,12 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
 17. **Suporte a URLs de Capas Personalizadas**:
     * Adicionado o campo "Ou URL Externa da Imagem" nos modais de edição de músicas e de playlists.
     * O backend foi estendido para receber CoverUrl nos payloads de atualização, limpando fisicamente as capas locais anteriores ao atualizar para URLs de terceiros, garantindo integridade de disco e prevenindo arquivos órfãos.
+18. **Acesso Público, Endpoints Seguros, Lazy Playlists e Blindagem do SystemSettings**:
+    * A rota raiz `/` (Explorar) tornou-se pública para visitantes deslogados, com play de faixas e playlists ativo anonimamente.
+    * Criado o `ExploreController` no backend com endpoints especializados públicos (`/api/Explore/WeeklyTrends` e `/api/Explore/PopularPlaylists`) rigidamente limitados a 6 registros para prevenir scraping.
+    * Adicionado filtro robusto no `/api/SystemSettings` para expor somente configurações públicas (`PremiumFeature_`), impedindo o vazamento de tokens sensíveis (`MoisesSession_AuthJson`).
+    * Criado modal de autenticação global dinâmico (`LoginModal`) integrado ao `AuthContext` para interceptar cliques de usuários anônimos em ações que necessitem de privilégios.
+    * Otimizado o carregamento de playlists com lazy loading reativo no `PlaylistContext` (eliminando a chamada inicial no mount geral).
 
 ---
 
@@ -93,5 +99,3 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
 
 ## ❓ Perguntas Abertas / Notas
 * O banco de dados PostgreSQL continua rodando de forma externa no homelab (`192.168.18.110`), mantendo-se comentado no compose para preservar a consistência relacional prévia.
-
-
