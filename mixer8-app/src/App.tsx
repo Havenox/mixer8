@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { PlayerProvider, usePlayer } from './context/PlayerContext';
 import { PlaylistProvider, usePlaylists } from './context/PlaylistContext';
@@ -16,9 +16,8 @@ import { Settings as SettingsPage } from './pages/Settings';
 import { PublicProfile } from './pages/PublicProfile';
 import { WeeklyTrends } from './pages/WeeklyTrends';
 import { PopularPlaylists } from './pages/PopularPlaylists';
-import { TrackListing } from './components/TrackListing';
-import { PlaylistListing } from './components/PlaylistListing';
-import { Sparkles, Flame, Music, Loader2, Plus, Trash2, AlertTriangle, X, Settings, RefreshCw, ListMusic, Image, ShieldAlert } from 'lucide-react';
+import { ExploreShelf } from './components/ExploreShelf';
+import { Sparkles, Flame, Music, Loader2, Plus, Trash2, AlertTriangle, X, Settings, RefreshCw, ListMusic, Image, ShieldAlert, LayoutGrid, List } from 'lucide-react';
 
 import { API_URL, SERVER_URL } from './config';
 
@@ -37,9 +36,17 @@ const Explore: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; track: ITrack } | null>(null);
 
-  const navigate = useNavigate();
   const [popularPlaylists, setPopularPlaylists] = useState<any[]>([]);
   const [loadingPopular, setLoadingPopular] = useState(true);
+
+  const [layoutMode, setLayoutMode] = useState<'grid' | 'compact-list'>(
+    () => (localStorage.getItem('mixer8:explore-layout-preference') as 'grid' | 'compact-list') || 'grid'
+  );
+
+  const handleLayoutToggle = (mode: 'grid' | 'compact-list') => {
+    setLayoutMode(mode);
+    localStorage.setItem('mixer8:explore-layout-preference', mode);
+  };
 
   const fetchPopularPlaylists = async () => {
     if (!Token) return;
@@ -302,76 +309,60 @@ const Explore: React.FC = () => {
         </div>
       </div>
 
-      {/* Tendências da Semana */}
-      <div className="flex flex-col gap-4">
-        <div className="flex justify-between items-center">
-          <h2 className="text-xl font-bold text-white m-0 flex items-center gap-2">
-            <Flame className="w-5 h-5 text-orange-500 fill-current" /> Tendências da Semana
-          </h2>
+      {/* Seletor de layout global para as estantes do Explorar */}
+      <div className="flex justify-end items-center -mb-2">
+        <div className="flex items-center bg-black/60 border border-brand-hover p-1 rounded-md">
           <button
-            onClick={() => navigate('/weekly-trends')}
-            className="text-xs text-brand-green hover:underline font-bold cursor-pointer bg-transparent border-0"
+            onClick={() => handleLayoutToggle('grid')}
+            className={`p-1.5 rounded transition-all cursor-pointer ${
+              layoutMode === 'grid' ? 'bg-brand-green text-black' : 'text-brand-gray hover:text-white'
+            }`}
+            title="Visualização em Grade"
           >
-            Ver todas
+            <LayoutGrid className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => handleLayoutToggle('compact-list')}
+            className={`p-1.5 rounded transition-all cursor-pointer ${
+              layoutMode === 'compact-list' ? 'bg-brand-green text-black' : 'text-brand-gray hover:text-white'
+            }`}
+            title="Visualização em Lista Compacta"
+          >
+            <List className="w-4 h-4" />
           </button>
         </div>
-        
-        {loading ? (
-          <div className="flex items-center gap-2 text-xs text-brand-gray font-semibold py-4">
-            <Loader2 className="w-4 h-4 animate-spin text-brand-green" />
-            Carregando catálogo de músicas...
-          </div>
-        ) : tracks.length === 0 ? (
-          <div className="text-sm text-brand-gray bg-brand-card border border-brand-hover p-6 rounded-md text-center font-semibold shadow-lg">
-            Nenhuma música disponível no momento. Faça upload na sua biblioteca!
-          </div>
-        ) : (
-          <TrackListing
-            tracks={tracks}
-            layoutMode="grid"
-            onTrackContextMenu={(e, track) => {
-              setContextMenu({
-                x: e.clientX,
-                y: e.clientY,
-                track
-              });
-            }}
-          />
-        )}
       </div>
 
+      {/* Tendências da Semana */}
+      <ExploreShelf
+        title="Tendências da Semana"
+        icon={<Flame className="w-5 h-5 text-orange-500 fill-current" />}
+        viewAllRoute="/weekly-trends"
+        items={tracks}
+        type="tracks"
+        isLoading={loading}
+        layoutMode={layoutMode}
+        onTrackContextMenu={(e, track) => {
+          setContextMenu({
+            x: e.clientX,
+            y: e.clientY,
+            track
+          });
+        }}
+      />
+
       {/* Playlists Populares */}
-      <div className="flex flex-col gap-4 animate-in fade-in duration-200">
-        <div className="flex justify-between items-center">
-          <h2 className="text-xl font-bold text-white m-0 flex items-center gap-2">
-            <ListMusic className="w-5 h-5 text-brand-green" /> Playlists Populares
-          </h2>
-          <button
-            onClick={() => navigate('/popular-playlists')}
-            className="text-xs text-brand-green hover:underline font-bold cursor-pointer bg-transparent border-0"
-          >
-            Ver todas
-          </button>
-        </div>
-        
-        {loadingPopular ? (
-          <div className="flex items-center gap-2 text-xs text-brand-gray font-semibold py-4">
-            <Loader2 className="w-4 h-4 animate-spin text-brand-green" />
-            Carregando playlists populares...
-          </div>
-        ) : popularPlaylists.length === 0 ? (
-          <div className="text-sm text-brand-gray bg-brand-card border border-brand-hover p-6 rounded-md text-center font-semibold shadow-lg">
-            Nenhuma playlist popular disponível no momento.
-          </div>
-        ) : (
-          <PlaylistListing
-            playlists={popularPlaylists}
-            layoutMode="grid"
-            onToggleSavePlaylist={handleToggleSavePlaylist}
-            onPlaylistContextMenu={() => {}}
-          />
-        )}
-      </div>
+      <ExploreShelf
+        title="Playlists Populares"
+        icon={<ListMusic className="w-5 h-5 text-brand-green" />}
+        viewAllRoute="/popular-playlists"
+        items={popularPlaylists}
+        type="playlists"
+        isLoading={loadingPopular}
+        layoutMode={layoutMode}
+        onToggleSavePlaylist={handleToggleSavePlaylist}
+        onPlaylistContextMenu={() => {}}
+      />
 
       {/* MENU DE CONTEXTO EM EXPLORAR */}
       {contextMenu && (
