@@ -1,11 +1,15 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { IAuthState, IUser, UserRole } from '../types/Auth';
+import { LoginModal } from '../components/LoginModal';
 
 interface IAuthContext extends IAuthState {
   Login: (email: string, password: string) => Promise<boolean>;
   Register: (email: string, password: string, username: string) => Promise<{ success: boolean; error?: string }>;
   Logout: () => void;
   UpdateCurrentUser: (user: IUser) => void;
+  openLoginModal: () => void;
+  closeLoginModal: () => void;
+  isLoginModalOpen: boolean;
 }
 
 const AuthContext = createContext<IAuthContext | undefined>(undefined);
@@ -13,6 +17,10 @@ const AuthContext = createContext<IAuthContext | undefined>(undefined);
 import { API_URL } from '../config';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const openLoginModal = () => setIsLoginModalOpen(true);
+  const closeLoginModal = () => setIsLoginModalOpen(false);
+
   const [state, setState] = useState<IAuthState>({
     IsAuthenticated: false,
     CurrentUser: null,
@@ -186,8 +194,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ ...state, Login, Register, Logout, UpdateCurrentUser }}>
+    <AuthContext.Provider value={{ ...state, Login, Register, Logout, UpdateCurrentUser, openLoginModal, closeLoginModal, isLoginModalOpen }}>
       {!isLoading && children}
+      {isLoginModalOpen && <LoginModal onClose={closeLoginModal} />}
     </AuthContext.Provider>
   );
 };
