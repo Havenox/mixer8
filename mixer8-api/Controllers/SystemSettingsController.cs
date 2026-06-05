@@ -24,7 +24,9 @@ public class SystemSettingsController(Mixer8DbContext dbContext) : ControllerBas
     [HttpGet]
     public async Task<IActionResult> GetSettings()
     {
-        var dbSettings = await dbContext.SystemSettings.ToDictionaryAsync(s => s.Key, s => s.Value);
+        var dbSettings = await dbContext.SystemSettings
+            .Where(s => s.Key.StartsWith("PremiumFeature_"))
+            .ToDictionaryAsync(s => s.Key, s => s.Value);
         var result = new Dictionary<string, string>();
 
         // Carrega configurações padrões
