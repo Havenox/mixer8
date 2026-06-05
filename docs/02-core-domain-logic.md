@@ -81,6 +81,7 @@ Executar uma DAW complexa em contêineres sem aceleração gráfica física exp�
 
 * **Player Headless Persistente (Estilo Spotify)**: A interface do frontend é construída como um Single Page Application (SPA). O player de áudio sincronizado reside no rodapé do layout global. Quando o usuário navega entre as páginas (Explorar, Minha Biblioteca, Configurações), o áudio **nunca é interrompido** e o estado da mixagem permanece intacto.
 * **Presets Compartilhados**: Um usuário pode criar e salvar uma "Mixagem" de uma música (ex: mix "Voz + Piano" onde a bateria e o baixo estão zerados). Este preset é salvo na API e pode ser compartilhado com outros usuários através de links únicos, permitindo que diferentes ouvintes escutem versões customizadas da mesma obra.
+* **Componentização Unificada de Layouts (Grade/Lista)**: Para eliminar redundância de código e garantir uma experiência de visualização homogênea, todas as listagens de faixas e playlists foram delegadas aos componentes dedicados `TrackListing` e `PlaylistListing`. A escolha do layout do usuário é compartilhada de forma transparente e gravada no `localStorage` sob a chave `mixer8:layout-preference`, persistindo instantaneamente em todas as telas navegadas (Explorar, Biblioteca, Listas de Tendências e Playlists Populares).
 
 ---
 
