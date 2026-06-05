@@ -156,60 +156,8 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         IPage? page = null;
         try
         {
-            // Sincroniza cookies do Moises.ai a partir do banco PostgreSQL
-            await UpdateTrackStatusAsync(track.TrackId, "Processando: Sincronizando cookies do Moises.ai", db, stoppingToken);
-
-            var configDir = configuration["EXTRACTOR_CONFIG_DIR"] ?? "./mixer8-extractor/config";
-            if (!Path.IsPathRooted(configDir))
-            {
-                var baseDir = AppContext.BaseDirectory;
-                var resolved = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", configDir));
-                if (!Directory.Exists(resolved))
-                {
-                    resolved = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", configDir));
-                }
-                if (!Directory.Exists(resolved))
-                {
-                    resolved = Path.GetFullPath(Path.Combine(baseDir, "..", configDir));
-                }
-                if (!Directory.Exists(resolved))
-                {
-                    resolved = Path.GetFullPath(Path.Combine(baseDir, configDir));
-                }
-                configDir = resolved;
-            }
-
-            if (!Directory.Exists(configDir))
-            {
-                Directory.CreateDirectory(configDir);
-            }
-
-            var filePath = Path.Combine(configDir, "auth.json");
-
-            // Busca no banco o JSON de cookies mais atualizado
-            var sessionSetting = await db.SystemSettings.FindAsync("MoisesSession_AuthJson");
-            if (sessionSetting != null && !string.IsNullOrWhiteSpace(sessionSetting.Value))
-            {
-                bool precisaGravar = true;
-                if (File.Exists(filePath))
-                {
-                    var conteudoLocal = await File.ReadAllTextAsync(filePath, stoppingToken);
-                    if (conteudoLocal == sessionSetting.Value)
-                    {
-                        precisaGravar = false;
-                    }
-                }
-
-                if (precisaGravar)
-                {
-                    logger.LogInformation("[WORKER] Novo arquivo de cookies detectado no banco de dados. Sincronizando em disco...");
-                    await File.WriteAllTextAsync(filePath, sessionSetting.Value, stoppingToken);
-                }
-            }
-            else
-            {
-                logger.LogWarning("[WORKER WARNING] Nenhuma sessão ativa 'MoisesSession_AuthJson' foi encontrada na tabela SystemSettings do banco PostgreSQL.");
-            }
+            // Atualiza status de processamento da música
+            await UpdateTrackStatusAsync(track.TrackId, "Processando: Localizando arquivo original", db, stoppingToken);
 
             // 1. Resolução resiliente do diretório de downloads
             var downloadsDir = configuration["EXTRACTOR_DOWNLOADS_DIR"] ?? "./mixer8-extractor/downloads";
