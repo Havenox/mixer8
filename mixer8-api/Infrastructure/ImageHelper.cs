@@ -59,4 +59,48 @@ public static class ImageHelper
         // Salva a imagem processada de forma assíncrona no disco
         await image.SaveAsync(destinationPath, encoder);
     }
+
+    /// <summary>
+    /// Processa uma imagem recebida via Stream: executa o crop 1:1 centralizado,
+    /// comprime para o formato WebP com 80% de qualidade e salva no disco.
+    /// </summary>
+    /// <param name="inputStream">A stream contendo os bytes da imagem.</param>
+    /// <param name="destinationPath">O caminho físico absoluto onde o arquivo .webp comprimido será salvo.</param>
+    public static async Task ProcessAndSaveImageAsync(Stream inputStream, string destinationPath)
+    {
+        if (inputStream == null) throw new ArgumentNullException(nameof(inputStream));
+        if (string.IsNullOrWhiteSpace(destinationPath)) throw new ArgumentException("O caminho de destino não pode ser vazio.", nameof(destinationPath));
+
+        using var image = await Image.LoadAsync(inputStream);
+
+        // 1. Corte quadrado centralizado (crop 1:1)
+        int minDim = Math.Min(image.Width, image.Height);
+        int x = (image.Width - minDim) / 2;
+        int y = (image.Height - minDim) / 2;
+
+        image.Mutate(ctx => ctx.Crop(new Rectangle(x, y, minDim, minDim)));
+
+        // 2. Redimensionamento para limitar a resolução máxima a 500x500 pixels se for maior
+        if (image.Width > 500)
+        {
+            image.Mutate(ctx => ctx.Resize(500, 500));
+        }
+
+        // 3. Configuração do Encoder WebP com compressão Lossy (com perda) e 80% de qualidade
+        var encoder = new WebpEncoder
+        {
+            FileFormat = WebpFileFormatType.Lossy,
+            Quality = 80
+        };
+
+        // Garante a existência do diretório pai físico
+        var directory = Path.GetDirectoryName(destinationPath);
+        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        // Salva a imagem processada de forma assíncrona no disco
+        await image.SaveAsync(destinationPath, encoder);
+    }
 }

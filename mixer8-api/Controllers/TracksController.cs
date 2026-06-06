@@ -158,21 +158,13 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             return BadRequest(new { ErrorMessage = "FILE_REQUIRED" });
         }
 
-        if (string.IsNullOrWhiteSpace(request.TrackTitle) || string.IsNullOrWhiteSpace(request.ArtistName))
-        {
-            return BadRequest(new { ErrorMessage = "METADATA_REQUIRED" });
-        }
-
-        // Resolve o diretório de destino lendo a configuração do .env
+        // Resolve o diretório de downloads
         var downloadsDir = configuration["EXTRACTOR_DOWNLOADS_DIR"] ?? "./mixer8-extractor/downloads";
-        
-        // Se for caminhos relativos em desenvolvimento baremetal, resolve
         if (!Path.IsPathRooted(downloadsDir))
         {
             downloadsDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", downloadsDir));
         }
 
-        // Caso a pasta Downloads não exista fisicamente, cria
         if (!Directory.Exists(downloadsDir))
         {
             Directory.CreateDirectory(downloadsDir);
@@ -180,39 +172,126 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
 
         var trackId = Guid.NewGuid();
         var fileExtension = Path.GetExtension(request.File.FileName).ToLowerInvariant();
-        
+
         if (!AllowedMediaExtensions.Contains(fileExtension))
         {
             return BadRequest(new { ErrorMessage = "INVALID_AUDIO_FORMAT" });
         }
 
-        // O nome do arquivo no disco será o ID com extensão .opus
-        var fileName = $"{trackId}.opus";
-        var filePath = Path.Combine(downloadsDir, fileName);
+        // Salva a mídia física recebida temporariamente para extração de metadados
+        var tempFileName = $"temp_{trackId}{fileExtension}";
+        var tempFilePath = Path.Combine(downloadsDir, tempFileName);
 
-        // Extrai e converte a mídia em memória para Opus estéreo, salvando apenas o .opus leve no disco
-        using (var stream = request.File.OpenReadStream())
+        using (var fs = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
         {
-            var success = await ConvertToOpusAsync(stream, filePath, forceMono: false);
+            await request.File.CopyToAsync(fs);
+        }
+
+        // Tenta extrair título, artista e imagem de capa do arquivo usando TagLibSharp
+        string? extractedTitle = null;
+        string? extractedArtist = null;
+        byte[]? coverBytes = null;
+
+        try
+        {
+            using (var tagFile = TagLib.File.Create(tempFilePath))
+            {
+                extractedTitle = tagFile.Tag.Title;
+                extractedArtist = tagFile.Tag.FirstPerformer ?? tagFile.Tag.FirstAlbumArtist;
+                if (tagFile.Tag.Pictures != null && tagFile.Tag.Pictures.Length > 0)
+                {
+                    coverBytes = tagFile.Tag.Pictures[0].Data.Data;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[METADATA EXTRACTION EXCEPTION] {ex.Message}");
+        }
+
+        var finalTitle = !string.IsNullOrWhiteSpace(request.TrackTitle) ? request.TrackTitle.Trim() 
+                        : (!string.IsNullOrWhiteSpace(extractedTitle) ? extractedTitle.Trim() : Path.GetFileNameWithoutExtension(request.File.FileName));
+        
+        var finalArtist = !string.IsNullOrWhiteSpace(request.ArtistName) ? request.ArtistName.Trim() 
+                        : (!string.IsNullOrWhiteSpace(extractedArtist) ? extractedArtist.Trim() : "Desconhecido");
+
+        // Processa e salva a imagem de capa extraída se houver
+        string? coverUrl = null;
+        if (coverBytes != null && coverBytes.Length > 0)
+        {
+            var stemsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "stems");
+            var trackDir = Path.Combine(stemsDir, trackId.ToString());
+            if (!Directory.Exists(trackDir)) Directory.CreateDirectory(trackDir);
+            
+            var coverPath = Path.Combine(trackDir, "cover.webp");
+            try
+            {
+                using (var ms = new MemoryStream(coverBytes))
+                {
+                    await ImageHelper.ProcessAndSaveImageAsync(ms, coverPath);
+                }
+                coverUrl = $"/stems/{trackId}/cover.webp";
+                Console.WriteLine($"[METADATA] Capa extraída e salva com sucesso para a música {trackId}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[METADATA COVER EXCEPTION] Falha ao processar capa extraída: {ex.Message}");
+            }
+        }
+
+        // Garante a existência do diretório de destino da stem
+        var finalStemsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "stems", trackId.ToString());
+        if (!Directory.Exists(finalStemsDir))
+        {
+            Directory.CreateDirectory(finalStemsDir);
+        }
+        var completoFilePath = Path.Combine(finalStemsDir, "Completo.opus");
+
+        // Converte a mídia original para Opus Estéreo leve diretamente em wwwroot
+        using (var stream = System.IO.File.OpenRead(tempFilePath))
+        {
+            var success = await ConvertToOpusAsync(stream, completoFilePath, forceMono: false);
             if (!success)
             {
+                try { System.IO.File.Delete(tempFilePath); } catch {}
                 return StatusCode(500, new { ErrorMessage = "AUDIO_CONVERSION_FAILED" });
             }
         }
 
-        var durationDouble = await GetAudioDurationAsync(filePath);
+        try
+        {
+            System.IO.File.Delete(tempFilePath);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[CLEANUP ERROR] Falha ao deletar arquivo temporário: {ex.Message}");
+        }
+
+        // Calcula a duração de Completo.opus
+        var durationDouble = await GetAudioDurationAsync(completoFilePath);
         var durationSecs = (int)Math.Round(durationDouble);
 
         var track = new Track
         {
             TrackId = trackId,
-            TrackTitle = request.TrackTitle.Trim(),
-            ArtistName = request.ArtistName.Trim(),
+            TrackTitle = finalTitle,
+            ArtistName = finalArtist,
             UploadedBy = userId,
-            ExtractionStatus = "Aguardando", // Disponível para o Worker capturar
+            ExtractionStatus = "Processando: Aguardando Extração",
             CreatedAt = DateTime.UtcNow,
-            Duration = durationSecs
+            Duration = durationSecs,
+            CoverUrl = coverUrl
         };
+
+        var stem = new Stem
+        {
+            StemId = Guid.NewGuid(),
+            TrackId = trackId,
+            StemType = "Completo",
+            AudioUrl = $"/stems/{trackId}/Completo.opus",
+            CreatedAt = DateTime.UtcNow
+        };
+        track.Stems.Add(stem);
 
         dbContext.Tracks.Add(track);
         await dbContext.SaveChangesAsync();
@@ -253,6 +332,147 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         };
 
         dbContext.Tracks.Add(track);
+        await dbContext.SaveChangesAsync();
+
+        return Ok(track);
+    }
+
+    [AllowAnonymous]
+    [HttpPost("{id}/ImportCompleted")]
+    [DisableRequestSizeLimit]
+    public async Task<IActionResult> ImportCompleted(Guid id, [FromForm] IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest(new { ErrorMessage = "FILE_REQUIRED" });
+        }
+
+        var track = await dbContext.Tracks.Include(t => t.Stems).FirstOrDefaultAsync(t => t.TrackId == id);
+        if (track == null)
+        {
+            return NotFound(new { ErrorMessage = "TRACK_NOT_FOUND" });
+        }
+
+        // Resolve o diretório de downloads temporário para extração
+        var downloadsDir = configuration["EXTRACTOR_DOWNLOADS_DIR"] ?? "./mixer8-extractor/downloads";
+        if (!Path.IsPathRooted(downloadsDir))
+        {
+            downloadsDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", downloadsDir));
+        }
+
+        if (!Directory.Exists(downloadsDir))
+        {
+            Directory.CreateDirectory(downloadsDir);
+        }
+
+        var fileExtension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        var tempFileName = $"temp_{id}{fileExtension}";
+        var tempFilePath = Path.Combine(downloadsDir, tempFileName);
+
+        using (var fs = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
+        {
+            await file.CopyToAsync(fs);
+        }
+
+        // Tenta extrair imagem de capa do arquivo baixado usando TagLibSharp (caso o usuário não tenha enviado uma capa)
+        byte[]? coverBytes = null;
+        try
+        {
+            using (var tagFile = TagLib.File.Create(tempFilePath))
+            {
+                if (tagFile.Tag.Pictures != null && tagFile.Tag.Pictures.Length > 0)
+                {
+                    coverBytes = tagFile.Tag.Pictures[0].Data.Data;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[METADATA EXTRACTION EXCEPTION IN IMPORTCOMPLETED] {ex.Message}");
+        }
+
+        // Processa e salva a imagem de capa extraída se houver e a track não tiver uma capa ainda
+        string? coverUrl = track.CoverUrl;
+        if (string.IsNullOrEmpty(coverUrl) && coverBytes != null && coverBytes.Length > 0)
+        {
+            var stemsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "stems");
+            var trackDir = Path.Combine(stemsDir, id.ToString());
+            if (!Directory.Exists(trackDir)) Directory.CreateDirectory(trackDir);
+            
+            var coverPath = Path.Combine(trackDir, "cover.webp");
+            try
+            {
+                using (var ms = new MemoryStream(coverBytes))
+                {
+                    await ImageHelper.ProcessAndSaveImageAsync(ms, coverPath);
+                }
+                coverUrl = $"/stems/{id}/cover.webp";
+                Console.WriteLine($"[METADATA] Capa extraída e salva com sucesso no ImportCompleted para a música {id}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[METADATA COVER EXCEPTION IN IMPORTCOMPLETED] Falha ao processar capa extraída: {ex.Message}");
+            }
+        }
+
+        // Garante a existência do diretório de destino da stem
+        var finalStemsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "stems", id.ToString());
+        if (!Directory.Exists(finalStemsDir))
+        {
+            Directory.CreateDirectory(finalStemsDir);
+        }
+        var completoFilePath = Path.Combine(finalStemsDir, "Completo.opus");
+
+        // Converte a mídia original para Opus Estéreo leve diretamente em wwwroot
+        using (var stream = System.IO.File.OpenRead(tempFilePath))
+        {
+            var success = await ConvertToOpusAsync(stream, completoFilePath, forceMono: false);
+            if (!success)
+            {
+                try { System.IO.File.Delete(tempFilePath); } catch {}
+                return StatusCode(500, new { ErrorMessage = "AUDIO_CONVERSION_FAILED" });
+            }
+        }
+
+        try
+        {
+            System.IO.File.Delete(tempFilePath);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[CLEANUP ERROR] Falha ao deletar arquivo temporário no ImportCompleted: {ex.Message}");
+        }
+
+        // Calcula a duração de Completo.opus
+        var durationDouble = await GetAudioDurationAsync(completoFilePath);
+        var durationSecs = (int)Math.Round(durationDouble);
+
+        track.Duration = durationSecs;
+        track.ExtractionStatus = "Processando: Aguardando Extração";
+        if (!string.IsNullOrEmpty(coverUrl))
+        {
+            track.CoverUrl = coverUrl;
+        }
+
+        // Cria ou atualiza a stem "Completo"
+        var stem = track.Stems.FirstOrDefault(s => s.StemType == "Completo");
+        if (stem == null)
+        {
+            stem = new Stem
+            {
+                StemId = Guid.NewGuid(),
+                TrackId = id,
+                StemType = "Completo",
+                AudioUrl = $"/stems/{id}/Completo.opus",
+                CreatedAt = DateTime.UtcNow
+            };
+            track.Stems.Add(stem);
+        }
+        else
+        {
+            stem.AudioUrl = $"/stems/{id}/Completo.opus";
+        }
+
         await dbContext.SaveChangesAsync();
 
         return Ok(track);
@@ -613,128 +833,181 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
 
     [AllowAnonymous]
     [HttpPost("{id}/ProcessStemsZip")]
-    public async Task<IActionResult> ProcessStemsZip(Guid id)
+    [DisableRequestSizeLimit]
+    public async Task<IActionResult> ProcessStemsZip(Guid id, [FromForm] IFormFile? file)
     {
-        var track = await dbContext.Tracks.Include(t => t.Stems).FirstOrDefaultAsync(t => t.TrackId == id);
-        if (track == null)
-        {
-            return NotFound(new { ErrorMessage = "TRACK_NOT_FOUND" });
-        }
-
-        var downloadsDir = configuration["EXTRACTOR_DOWNLOADS_DIR"] ?? "./mixer8-extractor/downloads";
-        if (!Path.IsPathRooted(downloadsDir))
-        {
-            downloadsDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", downloadsDir));
-        }
-
-        var zipFileName = $"{id}_stems.zip";
-        var zipPath = Path.Combine(downloadsDir, zipFileName);
-
-        if (!System.IO.File.Exists(zipPath))
-        {
-            return BadRequest(new { ErrorMessage = "ZIP_FILE_NOT_FOUND" });
-        }
-
-        var stemsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "stems");
-        if (!Directory.Exists(stemsDir))
-        {
-            Directory.CreateDirectory(stemsDir);
-        }
-
-        var trackDir = Path.Combine(stemsDir, id.ToString());
-        if (!Directory.Exists(trackDir))
-        {
-            Directory.CreateDirectory(trackDir);
-        }
-
-        var stemsList = new List<Stem>();
-
-        // Extração em memória segura e validação
-        using (var archiveStream = System.IO.File.OpenRead(zipPath))
-        {
-            using (var archive = new ZipArchive(archiveStream, ZipArchiveMode.Read))
-            {
-                foreach (var entry in archive.Entries)
-                {
-                    if (string.IsNullOrEmpty(entry.Name) || entry.Length == 0) continue;
-
-                    var entryExt = Path.GetExtension(entry.Name).ToLowerInvariant();
-                    if (!AllowedMediaExtensions.Contains(entryExt)) continue;
-
-                    var stemType = MapFileNameToStemType(entry.Name);
-                    var stemFileName = $"{stemType}.opus";
-                    var stemPath = Path.Combine(trackDir, stemFileName);
-
-                    using (var entryStream = entry.Open())
-                    {
-                        var success = await ConvertToOpusAsync(entryStream, stemPath, ShouldForceMono(stemType, isSingleTrack: false));
-                        if (!success) continue;
-                    }
-
-                    var existing = stemsList.FirstOrDefault(s => s.StemType == stemType);
-                    if (existing != null)
-                    {
-                        stemsList.Remove(existing);
-                    }
-
-                    stemsList.Add(new Stem
-                    {
-                        StemId = Guid.NewGuid(),
-                        TrackId = id,
-                        StemType = stemType,
-                        AudioUrl = $"/stems/{id}/{stemFileName}",
-                        CreatedAt = DateTime.UtcNow
-                    });
-                }
-            }
-        }
-
-        if (stemsList.Count == 0)
-        {
-            if (Directory.Exists(trackDir) && Directory.GetFileSystemEntries(trackDir).Length == 0)
-            {
-                Directory.Delete(trackDir, true);
-            }
-            return BadRequest(new { ErrorMessage = "NO_VALID_AUDIO_FILES_IN_ZIP" });
-        }
-
-        int maxDuration = 0;
-        foreach (var stem in stemsList)
-        {
-            var physicalPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", stem.AudioUrl.TrimStart('/'));
-            if (System.IO.File.Exists(physicalPath))
-            {
-                var durationDouble = await GetAudioDurationAsync(physicalPath);
-                var durationSecs = (int)Math.Round(durationDouble);
-                if (durationSecs > maxDuration)
-                {
-                    maxDuration = durationSecs;
-                }
-            }
-        }
-
-        dbContext.Stems.AddRange(stemsList);
-        track.ExtractionStatus = "Pronto";
-        track.Duration = maxDuration;
-        await dbContext.SaveChangesAsync();
-
-        // Limpeza dos arquivos temporários de downloads para economizar armazenamento
+        using var transaction = await dbContext.Database.BeginTransactionAsync();
         try
         {
-            System.IO.File.Delete(zipPath);
-
-            var originalFiles = Directory.GetFiles(downloadsDir, $"{id}.*");
-            foreach (var origFile in originalFiles)
+            var track = await dbContext.Tracks.Include(t => t.Stems).FirstOrDefaultAsync(t => t.TrackId == id);
+            if (track == null)
             {
-                System.IO.File.Delete(origFile);
+                return NotFound(new { ErrorMessage = "TRACK_NOT_FOUND" });
             }
+
+            var downloadsDir = configuration["EXTRACTOR_DOWNLOADS_DIR"] ?? "./mixer8-extractor/downloads";
+            if (!Path.IsPathRooted(downloadsDir))
+            {
+                downloadsDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", downloadsDir));
+            }
+
+            var zipFileName = $"{id}_stems.zip";
+            var zipPath = Path.Combine(downloadsDir, zipFileName);
+
+            var stemsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "stems");
+            if (!Directory.Exists(stemsDir))
+            {
+                Directory.CreateDirectory(stemsDir);
+            }
+
+            var trackDir = Path.Combine(stemsDir, id.ToString());
+            if (!Directory.Exists(trackDir))
+            {
+                Directory.CreateDirectory(trackDir);
+            }
+
+            // --- Transação ACID: Remover stem Completo e Completo.opus físico ---
+            var completoStems = track.Stems.Where(s => s.StemType == "Completo").ToList();
+            foreach (var cs in completoStems)
+            {
+                dbContext.Stems.Remove(cs);
+                track.Stems.Remove(cs);
+            }
+
+            var completoOpusPath = Path.Combine(trackDir, "Completo.opus");
+            if (System.IO.File.Exists(completoOpusPath))
+            {
+                try
+                {
+                    System.IO.File.Delete(completoOpusPath);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[ACID CLEAR] Falha ao deletar Completo.opus: {ex.Message}");
+                }
+            }
+
+            var stemsList = new List<Stem>();
+
+            Stream archiveStream;
+            bool isTempZipFile = false;
+
+            if (file != null && file.Length > 0)
+            {
+                archiveStream = file.OpenReadStream();
+            }
+            else
+            {
+                if (!System.IO.File.Exists(zipPath))
+                {
+                    return BadRequest(new { ErrorMessage = "ZIP_FILE_NOT_FOUND" });
+                }
+                archiveStream = System.IO.File.OpenRead(zipPath);
+                isTempZipFile = true;
+            }
+
+            // Extração em memória segura e validação
+            using (archiveStream)
+            {
+                using (var archive = new ZipArchive(archiveStream, ZipArchiveMode.Read))
+                {
+                    foreach (var entry in archive.Entries)
+                    {
+                        if (string.IsNullOrEmpty(entry.Name) || entry.Length == 0) continue;
+
+                        var entryExt = Path.GetExtension(entry.Name).ToLowerInvariant();
+                        if (!AllowedMediaExtensions.Contains(entryExt)) continue;
+
+                        var stemType = MapFileNameToStemType(entry.Name);
+                        var stemFileName = $"{stemType}.opus";
+                        var stemPath = Path.Combine(trackDir, stemFileName);
+
+                        using (var entryStream = entry.Open())
+                        {
+                            var success = await ConvertToOpusAsync(entryStream, stemPath, ShouldForceMono(stemType, isSingleTrack: false));
+                            if (!success) continue;
+                        }
+
+                        var existing = stemsList.FirstOrDefault(s => s.StemType == stemType);
+                        if (existing != null)
+                        {
+                            stemsList.Remove(existing);
+                        }
+
+                        stemsList.Add(new Stem
+                        {
+                            StemId = Guid.NewGuid(),
+                            TrackId = id,
+                            StemType = stemType,
+                            AudioUrl = $"/stems/{id}/{stemFileName}",
+                            CreatedAt = DateTime.UtcNow
+                        });
+                    }
+                }
+            }
+
+            if (stemsList.Count == 0)
+            {
+                if (Directory.Exists(trackDir) && Directory.GetFileSystemEntries(trackDir).Length == 0)
+                {
+                    Directory.Delete(trackDir, true);
+                }
+                return BadRequest(new { ErrorMessage = "NO_VALID_AUDIO_FILES_IN_ZIP" });
+            }
+
+            int maxDuration = 0;
+            foreach (var stem in stemsList)
+            {
+                var physicalPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", stem.AudioUrl.TrimStart('/'));
+                if (System.IO.File.Exists(physicalPath))
+                {
+                    var durationDouble = await GetAudioDurationAsync(physicalPath);
+                    var durationSecs = (int)Math.Round(durationDouble);
+                    if (durationSecs > maxDuration)
+                    {
+                        maxDuration = durationSecs;
+                    }
+                }
+            }
+
+            foreach (var newStem in stemsList)
+            {
+                track.Stems.Add(newStem);
+            }
+
+            track.ExtractionStatus = "Pronto";
+            track.Duration = maxDuration;
+
+            await dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            // Limpeza dos arquivos temporários de downloads para economizar armazenamento
+            try
+            {
+                if (isTempZipFile && System.IO.File.Exists(zipPath))
+                {
+                    System.IO.File.Delete(zipPath);
+                }
+
+                var originalFiles = Directory.GetFiles(downloadsDir, $"{id}.*");
+                foreach (var origFile in originalFiles)
+                {
+                    System.IO.File.Delete(origFile);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CLEANUP ERROR] Falha ao excluir arquivos de downloads temporários: {ex.Message}");
+            }
+
+            return Ok(track);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[CLEANUP ERROR] Falha ao excluir arquivos de downloads temporários: {ex.Message}");
+            await transaction.RollbackAsync();
+            Console.WriteLine($"[PROCESS STEMS ZIP ERROR] Falha ao processar ZIP de stems: {ex.Message}");
+            return StatusCode(500, new { ErrorMessage = "PROCESS_STEMS_ZIP_FAILED", Details = ex.Message });
         }
-
-        return Ok(track);
     }
 
     private static bool ShouldForceMono(string stemType, bool isSingleTrack)
@@ -1414,8 +1687,8 @@ public class RecordPlayRequest
 public class UploadTrackRequest
 {
     public IFormFile File { get; set; } = null!;
-    public string TrackTitle { get; set; } = null!;
-    public string ArtistName { get; set; } = null!;
+    public string? TrackTitle { get; set; }
+    public string? ArtistName { get; set; }
 }
 
 public class UploadDirectRequest
