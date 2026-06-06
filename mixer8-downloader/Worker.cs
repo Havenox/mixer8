@@ -132,9 +132,20 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 }
                 else
                 {
-                    logger.LogError($"[DOWNLOADER] Falha no download ou no upload via HTTP para {track.TrackId}. Marcando como Falhou.");
-                    dbTrack.ExtractionStatus = "Falhou";
-                    await updateDb.SaveChangesAsync(stoppingToken);
+                    // Recarrega o status atual do banco de dados para evitar sobrescrever status concluídos em caso de retry
+                    updateDb.Entry(dbTrack).State = EntityState.Detached;
+                    dbTrack = await updateDb.Tracks.FindAsync(track.TrackId);
+
+                    if (dbTrack != null && (dbTrack.ExtractionStatus == "AguardandoDownload" || dbTrack.ExtractionStatus == "Processando: Baixando mídia"))
+                    {
+                        logger.LogError($"[DOWNLOADER] Falha no download ou no upload via HTTP para {track.TrackId}. Marcando como Falhou.");
+                        dbTrack.ExtractionStatus = "Falhou";
+                        await updateDb.SaveChangesAsync(stoppingToken);
+                    }
+                    else
+                    {
+                        logger.LogWarning($"[DOWNLOADER] Falha no upload para {track.TrackId}, mas o status no banco já mudou para '{dbTrack?.ExtractionStatus}'. Ignorando marcação de falha.");
+                    }
 
                     try
                     {
