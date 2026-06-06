@@ -152,7 +152,7 @@ export const Admin: React.FC = () => {
     <div className="flex flex-col gap-8 animate-in fade-in duration-300 select-none">
       
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-brand-hover pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-hover pb-5">
         <div className="flex flex-col gap-1">
           <h1 className="text-3xl font-black tracking-tight m-0 text-white flex items-center gap-2">
             <Shield className="w-8 h-8 text-brand-green" /> Painel de Controle CRM

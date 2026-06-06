@@ -212,7 +212,7 @@ export const WeeklyTrends: React.FC = () => {
     <div className="flex flex-col gap-6 select-none animate-in fade-in duration-300">
       
       {/* Cabeçalho */}
-      <div className="flex justify-between items-center border-b border-brand-hover pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-hover pb-5">
         <div className="flex items-center gap-4">
           <button 
             onClick={() => navigate('/')}
@@ -230,7 +230,7 @@ export const WeeklyTrends: React.FC = () => {
         </div>
 
         {/* Seletor de visualização (Grade vs Lista) */}
-        <div className="flex items-center bg-black/60 border border-brand-hover p-1 rounded-md">
+        <div className="flex items-center bg-black/60 border border-brand-hover p-1 rounded-md self-start sm:self-auto">
           <button
             onClick={() => handleLayoutToggle('grid')}
             className={`p-1.5 rounded transition-all cursor-pointer ${

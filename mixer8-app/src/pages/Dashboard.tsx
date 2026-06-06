@@ -450,7 +450,7 @@ export const Dashboard: React.FC = () => {
     <div className="flex flex-col gap-8 animate-in fade-in duration-300">
       
       {/* Header do Dashboard */}
-      <div className="flex items-center justify-between border-b border-brand-hover pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-hover pb-5">
         <div className="flex flex-col gap-1">
           <h1 className="text-3xl font-black tracking-tight m-0 text-white flex items-center gap-2">
             Biblioteca
@@ -458,7 +458,7 @@ export const Dashboard: React.FC = () => {
           <p className="text-sm text-brand-gray">Escolha um áudio completo para ouvir ou gerencie as stems mixáveis.</p>
         </div>
         
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end flex-wrap">
           {/* Seletor de visualização (Grade vs Lista) */}
           <div className="flex items-center bg-black/60 border border-brand-hover p-1 rounded-md">
             <button

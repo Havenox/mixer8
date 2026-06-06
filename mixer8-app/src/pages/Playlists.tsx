@@ -77,13 +77,13 @@ export const Playlists: React.FC = () => {
     <div className="flex flex-col gap-6 select-none animate-in fade-in duration-300">
       
       {/* Cabeçalho */}
-      <div className="flex justify-between items-center border-b border-brand-hover pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-hover pb-5">
         <div className="flex flex-col gap-1.5">
           <h1 className="text-3xl font-black tracking-tight text-white">Playlists</h1>
           <p className="text-sm text-brand-gray">Gerencie e ouça suas coleções personalizadas ou playlists públicas.</p>
         </div>
         
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end flex-wrap">
           {/* Seletor de visualização (Grade vs Lista) */}
           <div className="flex items-center bg-black/60 border border-brand-hover p-1 rounded-md">
             <button
