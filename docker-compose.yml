@@ -26,6 +26,25 @@ services:
       - "${EXTRACTOR_PORT:-5010}:5010"
 
   # =========================================================================
+  # 1.1 MICROSERVIÇO: Downloader (mixer8-downloader - .NET 10 yt-dlp Worker)
+  # =========================================================================
+  mixer8-downloader:
+    image: mixer8-downloader:latest
+    build:
+      context: ./mixer8-downloader
+      dockerfile: Dockerfile
+    container_name: mixer8_downloader
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - DOTNET_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
+      - EXTRACTOR_DOWNLOADS_DIR=/app/downloads
+    volumes:
+      # Shared volume de downloads para salvar os arquivos capturados pelo yt-dlp
+      - ${EXTRACTOR_DOWNLOADS_DIR:-./mixer8-extractor/downloads}:/app/downloads
+
+  # =========================================================================
   # 2. MICROSERVIÇO: Banco de Dados (PostgreSQL) - Externo (Comentado)
   # =========================================================================
   # db:
