@@ -78,10 +78,10 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
 
                 // Auto-reset da última track para facilitar teste contínuo
                 var lastTrack = tracks.FirstOrDefault();
-                if (lastTrack != null && (lastTrack.ExtractionStatus == "Falhou" || lastTrack.ExtractionStatus.StartsWith("Processando")))
+                if (lastTrack != null && (lastTrack.ExtractionStatus == "Falhou" || (lastTrack.ExtractionStatus.StartsWith("Processando") && lastTrack.ExtractionStatus != "Processando: Aguardando Extração")))
                 {
-                    Console.WriteLine($"[BOT-DEBUG] Resetando track ID: {lastTrack.TrackId} ({lastTrack.TrackTitle}) de '{lastTrack.ExtractionStatus}' para 'Aguardando'...");
-                    lastTrack.ExtractionStatus = "Aguardando";
+                    Console.WriteLine($"[BOT-DEBUG] Resetando track ID: {lastTrack.TrackId} ({lastTrack.TrackTitle}) de '{lastTrack.ExtractionStatus}' para 'Processando: Aguardando Extração'...");
+                    lastTrack.ExtractionStatus = "Processando: Aguardando Extração";
                     await db.SaveChangesAsync(stoppingToken);
                 }
             }
