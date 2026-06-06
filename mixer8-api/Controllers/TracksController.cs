@@ -327,7 +327,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             UploadedBy = userId,
             ExtractionStatus = "AguardandoDownload",
             CreatedAt = DateTime.UtcNow,
-            DownloadUrl = request.DownloadUrl.Trim(),
+            DownloadUrl = ExtractYouTubeVideoIdOrUrl(request.DownloadUrl),
             Duration = 0
         };
 
@@ -1008,6 +1008,69 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             Console.WriteLine($"[PROCESS STEMS ZIP ERROR] Falha ao processar ZIP de stems: {ex.Message}");
             return StatusCode(500, new { ErrorMessage = "PROCESS_STEMS_ZIP_FAILED", Details = ex.Message });
         }
+    }
+
+    private string ExtractYouTubeVideoIdOrUrl(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return url;
+
+        url = url.Trim();
+
+        // Se não começar com http:// ou https://, assumimos que já é o código/ID
+        if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && 
+            !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return url;
+        }
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            return url;
+        }
+
+        var host = uri.Host.ToLowerInvariant();
+        
+        // 1. youtu.be/VIDEO_ID
+        if (host == "youtu.be" || host == "www.youtu.be")
+        {
+            return uri.AbsolutePath.Trim('/');
+        }
+
+        // 2. youtube.com ou subdomínios
+        if (host.Contains("youtube.com"))
+        {
+            // Caso /watch?v=VIDEO_ID
+            if (uri.AbsolutePath.Equals("/watch", StringComparison.OrdinalIgnoreCase))
+            {
+                var query = uri.Query;
+                if (query.StartsWith("?")) query = query.Substring(1);
+                
+                var parts = query.Split('&');
+                foreach (var part in parts)
+                {
+                    var keyValue = part.Split('=');
+                    if (keyValue.Length >= 2 && keyValue[0].Equals("v", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return keyValue[1];
+                    }
+                }
+            }
+
+            // Caso /embed/VIDEO_ID ou /v/VIDEO_ID ou /shorts/VIDEO_ID
+            var segments = uri.Segments;
+            for (int i = 0; i < segments.Length - 1; i++)
+            {
+                var segment = segments[i].Trim('/');
+                if (segment.Equals("embed", StringComparison.OrdinalIgnoreCase) ||
+                    segment.Equals("v", StringComparison.OrdinalIgnoreCase) ||
+                    segment.Equals("shorts", StringComparison.OrdinalIgnoreCase))
+                {
+                    return segments[i + 1].Trim('/');
+                }
+            }
+        }
+
+        return url;
     }
 
     private static bool ShouldForceMono(string stemType, bool isSingleTrack)
