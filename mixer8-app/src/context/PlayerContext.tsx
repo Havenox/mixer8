@@ -14,6 +14,7 @@ export interface ITrack {
   ExtractionStatus: string;
   CreatedAt: string;
   CoverUrl?: string;
+  DownloadUrl?: string;
   Stems: IStem[];
   Visibility?: string;
   UploadedBy?: string;

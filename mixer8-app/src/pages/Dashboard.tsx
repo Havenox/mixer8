@@ -202,6 +202,8 @@ export const Dashboard: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [downloadUrl, setDownloadUrl] = useState('');
+  const [uploadTab, setUploadTab] = useState<'file' | 'link'>('file');
   const [songName, setSongName] = useState('');
   const [artistName, setArtistName] = useState('');
   const [newTrackId, setNewTrackId] = useState<string | null>(null);
@@ -379,6 +381,46 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  const startUrlImport = async () => {
+    if (!downloadUrl.trim() || !Token) return;
+
+    setIsUploading(true);
+    setUploadProgress([`[API] Solicitando download do link à API do Mixer8...`]);
+
+    try {
+      const res = await fetch(`${API_URL}/Tracks/ImportUrl`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${Token}`
+        },
+        body: JSON.stringify({
+          DownloadUrl: downloadUrl.trim(),
+          TrackTitle: songName || 'Sem Título',
+          ArtistName: artistName || 'Desconhecido'
+        })
+      });
+
+      if (res.ok) {
+        const createdTrack: ITrack = await res.json();
+        setNewTrackId(createdTrack.TrackId);
+        setUploadProgress(prev => [
+          ...prev, 
+          `[API OK] Link importado com sucesso. ID da Música: ${createdTrack.TrackId}`,
+          `[FILA] Link enviado para a fila de downloads do yt-dlp no PostgreSQL.`,
+          `[FILA] Aguardando o microsserviço de download capturar a tarefa...`
+        ]);
+      } else {
+        const errorData = await res.json();
+        setUploadProgress(prev => [...prev, `[ERRO API] Falha ao importar link: ${errorData.ErrorMessage || 'Erro Desconhecido'}`]);
+        setTimeout(() => setIsUploading(false), 4000);
+      }
+    } catch {
+      setUploadProgress(prev => [...prev, `[ERRO DE CONEXÃO] Não foi possível conectar com o servidor API.`]);
+      setTimeout(() => setIsUploading(false), 4000);
+    }
+  };
+
   const hasAccessToUpload = CurrentUser?.UserRole === 'PaidUser' || CurrentUser?.UserRole === 'Admin';
 
   return (
@@ -479,71 +521,153 @@ export const Dashboard: React.FC = () => {
             </div>
 
             {!isUploading ? (
-              <div className="flex flex-col gap-4">
-                <div className="border border-dashed border-brand-hover hover:border-brand-green bg-black rounded-lg p-8 flex flex-col items-center justify-center gap-3 transition-colors relative group">
-                  <UploadCloud className="w-12 h-12 text-brand-gray group-hover:text-brand-green transition-colors" />
-                  <div className="text-center flex flex-col gap-1">
-                    <span className="text-sm font-semibold text-white">Arraste seu arquivo de áudio</span>
-                    <span className="text-xs text-brand-gray">Suporta MP3, WAV ou M4A (Max: 50MB)</span>
-                  </div>
-                  
-                  <input 
-                    type="file" 
-                    accept="audio/*"
-                    onChange={handleFileChange}
-                    className="absolute inset-0 opacity-0 cursor-pointer"
-                  />
+              <div className="flex flex-col gap-4 animate-in fade-in duration-200">
+                <div className="flex border-b border-brand-hover">
+                  <button
+                    onClick={() => {
+                      setUploadTab('file');
+                      setSongName('');
+                      setArtistName('');
+                    }}
+                    className={`flex-1 py-2 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+                      uploadTab === 'file'
+                        ? 'border-brand-green text-white'
+                        : 'border-transparent text-brand-gray hover:text-white'
+                    }`}
+                  >
+                    Upload de Arquivo
+                  </button>
+                  <button
+                    onClick={() => {
+                      setUploadTab('link');
+                      setSongName('');
+                      setArtistName('');
+                      setDownloadUrl('');
+                    }}
+                    className={`flex-1 py-2 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+                      uploadTab === 'link'
+                        ? 'border-brand-green text-white'
+                        : 'border-transparent text-brand-gray hover:text-white'
+                    }`}
+                  >
+                    Link de Mídia (URL)
+                  </button>
                 </div>
 
-                {selectedFile && (
-                  <div className="bg-brand-hover/40 border border-brand-hover p-4 rounded flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <FileAudio className="w-8 h-8 text-brand-green" />
-                      <div className="flex flex-col text-xs text-brand-gray">
-                        <span className="font-bold text-white truncate max-w-[280px]">{selectedFile.name}</span>
-                        <span>{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</span>
+                {uploadTab === 'file' && (
+                  <div className="flex flex-col gap-4 animate-in fade-in duration-150">
+                    <div className="border border-dashed border-brand-hover hover:border-brand-green bg-black rounded-lg p-8 flex flex-col items-center justify-center gap-3 transition-colors relative group">
+                      <UploadCloud className="w-12 h-12 text-brand-gray group-hover:text-brand-green transition-colors" />
+                      <div className="text-center flex flex-col gap-1">
+                        <span className="text-sm font-semibold text-white">Arraste seu arquivo de áudio</span>
+                        <span className="text-xs text-brand-gray">Suporta MP3, WAV ou M4A (Max: 50MB)</span>
                       </div>
+                      
+                      <input 
+                        type="file" 
+                        accept="audio/*"
+                        onChange={handleFileChange}
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                      />
                     </div>
-                    
+
+                    {selectedFile && (
+                      <div className="bg-brand-hover/40 border border-brand-hover p-4 rounded flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <FileAudio className="w-8 h-8 text-brand-green" />
+                          <div className="flex flex-col text-xs text-brand-gray">
+                            <span className="font-bold text-white truncate max-w-[280px]">{selectedFile.name}</span>
+                            <span>{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</span>
+                          </div>
+                        </div>
+                        
+                        <button 
+                          onClick={() => setSelectedFile(null)}
+                          className="text-xs text-red-400 hover:underline cursor-pointer"
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    )}
+
+                    {selectedFile && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="flex flex-col gap-1 text-xs">
+                          <label className="font-semibold text-brand-gray">Nome da Música</label>
+                          <input 
+                            type="text" 
+                            value={songName}
+                            onChange={(e) => setSongName(e.target.value)}
+                            className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1 text-xs">
+                          <label className="font-semibold text-brand-gray">Nome do Artista</label>
+                          <input 
+                            type="text" 
+                            value={artistName}
+                            onChange={(e) => setArtistName(e.target.value)}
+                            className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green"
+                          />
+                        </div>
+                      </div>
+                    )}
+
                     <button 
-                      onClick={() => setSelectedFile(null)}
-                      className="text-xs text-red-400 hover:underline cursor-pointer"
+                      onClick={startExtraction}
+                      disabled={!selectedFile}
+                      className="w-full py-3 bg-brand-green text-black font-bold text-sm rounded hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed transition-all mt-2 cursor-pointer"
                     >
-                      Remover
+                      Iniciar Extração Headless (5 Stems)
                     </button>
                   </div>
                 )}
 
-                {selectedFile && (
-                  <div className="grid grid-cols-2 gap-3">
+                {uploadTab === 'link' && (
+                  <div className="flex flex-col gap-4 animate-in fade-in duration-150">
                     <div className="flex flex-col gap-1 text-xs">
-                      <label className="font-semibold text-brand-gray">Nome da Música</label>
+                      <label className="font-semibold text-brand-gray">Link de Mídia (YouTube, etc.)</label>
                       <input 
                         type="text" 
-                        value={songName}
-                        onChange={(e) => setSongName(e.target.value)}
-                        className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green"
+                        placeholder="https://www.youtube.com/watch?v=..."
+                        value={downloadUrl}
+                        onChange={(e) => setDownloadUrl(e.target.value)}
+                        className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green w-full"
                       />
                     </div>
-                    <div className="flex flex-col gap-1 text-xs">
-                      <label className="font-semibold text-brand-gray">Nome do Artista</label>
-                      <input 
-                        type="text" 
-                        value={artistName}
-                        onChange={(e) => setArtistName(e.target.value)}
-                        className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green"
-                      />
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex flex-col gap-1 text-xs">
+                        <label className="font-semibold text-brand-gray">Nome da Música</label>
+                        <input 
+                          type="text" 
+                          placeholder="Ex: Yesterday"
+                          value={songName}
+                          onChange={(e) => setSongName(e.target.value)}
+                          className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1 text-xs">
+                        <label className="font-semibold text-brand-gray">Nome do Artista</label>
+                        <input 
+                          type="text" 
+                          placeholder="Ex: The Beatles"
+                          value={artistName}
+                          onChange={(e) => setArtistName(e.target.value)}
+                          className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green"
+                        />
+                      </div>
                     </div>
+
+                    <button 
+                      onClick={startUrlImport}
+                      disabled={!downloadUrl.trim() || !songName.trim() || !artistName.trim()}
+                      className="w-full py-3 bg-brand-green text-black font-bold text-sm rounded hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed transition-all mt-2 cursor-pointer"
+                    >
+                      Iniciar Download e Extração (5 Stems)
+                    </button>
                   </div>
                 )}
-
-                <button 
-                  onClick={startExtraction}
-                  disabled={!selectedFile}
-                  className="w-full py-3 bg-brand-green text-black font-bold text-sm rounded hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed transition-all mt-2 cursor-pointer"
-                >
-                  Iniciar Extração Headless (5 Stems)
-                </button>
               </div>
             ) : (
               <div className="flex flex-col gap-4">
