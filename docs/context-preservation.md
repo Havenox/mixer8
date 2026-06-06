@@ -1,7 +1,7 @@
 # Context Preservation (Save State) - Mixer8 Ecosystem
 
 **Data da Última Atualização:** 06/06/2026  
-Status do Projeto: Purga de Mocks Concluída, Player Multi-Stems Ativo, Uploader Direto Implementado, Conteinerização/Conversão Opus Concluída, Recursos Premium/Shuffle/Repeat Dinâmicos, Barra de Progresso Premium, Extrator Headless E2E via Playwright, Menu de Contexto Irrestrito Ativos, Acesso Anônimo com Endpoints de Segurança e Modal de Login Globais Integrados, Remoção de Cookies/Testes de Sessão Legados Concluída, Unificação de Login/Cadastro em Modal Único (Eliminação de Rotas Dedicadas) e Microsserviço de Download Agnóstico (mixer8-downloader) com yt-dlp.
+Status do Projeto: Purga de Mocks Concluída, Player Multi-Stems Ativo, Uploader Direto Implementado, Conteinerização/Conversão Opus Concluída, Recursos Premium/Shuffle/Repeat Dinâmicos, Barra de Progresso Premium, Extrator Headless E2E via Playwright, Menu de Contexto Irrestrito Ativos, Acesso Anônimo com Endpoints de Segurança e Modal de Login Globais Integrados, Remoção de Cookies/Testes de Sessão Legados Concluída, Unificação de Login/Cadastro em Modal Único (Eliminação de Rotas Dedicadas), Microsserviço de Download Agnóstico (mixer8-downloader) com yt-dlp, e Overhaul de Upload & Prévia Imediata (1-Stem) com Workers 100% Desacoplados de Armazenamento via APIs HTTP Stateless.
 
 ---
 
@@ -47,11 +47,6 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
    * **Streaming Parcial (HTTP 206)**: Servidor estático configurado com cabeçalhos de `Cache-Control` (30 dias) e suporte nativo a HTTP Range Requests, transmitindo bytes progressivamente em chunks.
    * **Timeline com Drag-and-Release**: A linha de progresso do player agora é um input de controle real com marcador circular verde. O seek do áudio só é executado no soltar do mouse/toque, evitando múltiplos requests repetitivos e travamentos do player.
    * **Volume Master Real**: Integrado um nó de ganho master (`masterGainNode`) na Web Audio API vinculado ao fader de volume, alterando o ganho de todas as stems em tempo real de forma local e imediata.
-
----
-
-## 🛠️ Fundações Consolidadas (Entregas Atuais)
-
 10. **Ajustes e Edição Completa de Playlists (Capas Físicas, Descrições e Deleção Segura)**:
     * **Propriedade de Descrição**: Adicionada propriedade nullable `Description` no modelo `Playlist.cs`, com migração EF Core robusta aplicada com sucesso no banco relacional PostgreSQL do homelab.
     * **Upload de Capa e Persistência Física**: Suporte a upload de arquivo de imagem (`multipart/form-data`) para persistência de capas customizadas em `wwwroot/playlists/{id}/`.
@@ -98,13 +93,18 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
     * **Worker Downloader**: Criado o novo worker de background `mixer8-downloader` (.NET 10) que realiza polling seguro (`FOR UPDATE SKIP LOCKED`) na fila de download, executa o binário `yt-dlp` em processo pipe, converte o áudio diretamente para Opus (`.opus`), calcula a duração com `ffprobe` e atualiza o status para `Aguardando` para que o bot Playwright continue o fluxo de stems de forma retrocompatível.
     * **Dockerização**: Criado Dockerfile multi-stage com .NET 10, Python 3, `yt-dlp` e `ffmpeg` sob ambiente isolado `venv`. Atualizado o `docker-compose.yml` compartilhando o volume `/app/downloads`.
     * **Frontend SPA**: Adicionada aba de importação "Link de Mídia (URL)" no modal global de upload, controlando states de forma segura com concorrência blindada (botão desabilitado com carregamento visual) e contratos preservando **PascalCase**.
+21. **Overhaul do Fluxo de Upload e Prévia Imediata (1-Stem)**:
+    * **Prévia Imediata (Completo.opus)**: Faixas físicas e externas convertidas instantaneamente para Opus Estéreo leve (`Completo.opus`) em `wwwroot/stems/{id}/` e registradas sob uma stem temporária `"Completo"`. Ficam disponíveis imediatamente para play na SPA com faders bloqueados/ocultados e feedback visual informativo.
+    * **Leitura de Metadados Ricos (TagLibSharp)**: Integrado o pacote NuGet `TagLibSharp` para auto-extrair Título, Artista e Capa física embutida de uploads diretos. Capas físicas são processadas in-memory para WebP 500x500 (80% qualidade) e salvas no disco.
+    * **Workers 100% Stateless (Comunicação via APIs HTTP)**: Eliminada a dependência de volumes compartilhados em produção. O worker `mixer8-downloader` faz upload do áudio concluído via `POST /api/Tracks/{id}/ImportCompleted` e o worker `mixer8-extractor` baixa a prévia via `GET /stems/{id}/Completo.opus`, executa a automação Playwright e submete o ZIP final via `POST /api/Tracks/{id}/ProcessStemsZip`.
+    * **Transição Atômica (ACID Swap)**: O endpoint `ProcessStemsZip` executa dentro de uma transação do Entity Framework, excluindo permanentemente a stem temporária `"Completo"`, deletando o arquivo `Completo.opus` e salvando as stems finais no banco de dados e no disco de forma 100% íntegra.
 
 ---
 
 ## 🎯 Próximo Milestone: Ajustes de Fluxo e Segurança de Rede
-* Implementar mecanismos de exclusão/remoção de faixas da biblioteca pelo usuário proprietário.
-* Parametrizar tempos de expiração de token JWT com renovação (refresh token).
-* Passo 5 da evolução arquitetural: Casamento de Metadados (Metadata Matching) e suporte a plataformas DRM (Spotify, Deezer) localizando correspondências pelo ISRC no YouTube.
+* Implementar autenticação via Refresh Token e renovação automática na SPA.
+* Refinamento do worker de extração para suportar filas de prioridade (Premium vs Standard).
+* Implementação de cache distribuído (Redis) para reduzir I/O de banco e otimizar listagens de exploradores.
 
 ---
 
