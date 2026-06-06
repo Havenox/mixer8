@@ -205,7 +205,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         var startInfo = new System.Diagnostics.ProcessStartInfo
         {
             FileName = "yt-dlp",
-            Arguments = $"{cookiesArg}--no-playlist -x --audio-format opus --audio-quality 96K -o \"{outputPath}\" \"{downloadUrl}\"",
+            Arguments = $"{cookiesArg}--remote-components ejs:github --no-playlist -x --audio-format opus --audio-quality 96K -o \"{outputPath}\" \"{downloadUrl}\"",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,

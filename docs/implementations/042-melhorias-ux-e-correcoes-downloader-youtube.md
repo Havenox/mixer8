@@ -19,7 +19,7 @@ Abordamos essas questões em camadas de frontend, backend e infraestrutura:
 2. **Responsividade nos Títulos**: Ajustamos os estilos dos cabeçalhos nas views (`Admin`, `Playlists`, `PopularPlaylists`, `WeeklyTrends`) para flex-wrap e quebra inteligente de linha no mobile.
 3. **OEmbed Fetching & Botão Swap**: Integramos chamadas automáticas em background para a API do YouTube OEmbed a partir da URL inserida (com debounce de 500ms). Ao receber o título, separamos o nome do artista e da faixa via heurística (ex: separador `-` ou `|`) e populamos os campos. Um novo botão com ícone Lucide `ArrowLeftRight` (Swap) foi inserido para inverter instantaneamente os dois campos com um clique.
 4. **Resolução de Cookies Compartilhados**: Implementamos o suporte a arquivos de cookies Netscape no Downloader. O worker carrega o arquivo `youtube-cookies.txt` (se presente no volume compartilhado) e o injeta como argumento `--cookies` na execução do `yt-dlp`.
-5. **Runtime JS Moderno via Deno Estático**: Para resolver a descriptografia de assinaturas sem inchar a imagem Docker do downloader, copiamos o executável estático do Deno diretamente da imagem Docker oficial (`denoland/deno:bin`). Isso fornece um interpretador JavaScript v8 ultra veloz, moderno e compatível com as regras de descriptografia do `yt-dlp` com zero overhead de pacotes de gerenciadores do Linux.
+5. **Runtime JS Moderno via Deno Estático & Scripts EJS**: Para resolver a descriptografia de assinaturas sem inchar a imagem Docker do downloader, copiamos o executável estático do Deno diretamente da imagem Docker oficial (`denoland/deno:bin`). Além disso, como o `yt-dlp` necessita dos scripts oficiais de resolução do EJS (Extractor JavaScript) e restringe execuções remotas sem consentimento, instalamos o pacote `yt-dlp-ejs` nativamente via pip no contêiner e adicionamos o argumento `--remote-components ejs:github` na chamada do worker. Isso fornece um interpretador JavaScript v8 ultra veloz com os solucionadores de desafios de assinatura pré-carregados e autorizados.
 
 ## 🛠️ Implementação Técnica
 
@@ -29,12 +29,12 @@ Abordamos essas questões em camadas de frontend, backend e infraestrutura:
 - **OEmbed e Swap no Dashboard**: Modificado o formulário de upload de links em [Dashboard.tsx](file:///g:/DEV/mixer8/mixer8-app/src/pages/Dashboard.tsx) para escutar mudanças no link, realizar o fetch e permitir a inversão dos campos pelo botão Swap.
 
 ### Backend/Infraestrutura (`mixer8-downloader`)
-- **Atualização de Subprocesso** em [Worker.cs](file:///g:/DEV/mixer8/mixer8-downloader/Worker.cs): O método `RunYtdlpAsync` detecta a presença de cookies em `youtube-cookies.txt` na pasta de downloads e monta o argumento `--cookies "caminho"`.
-- **Dockerfile com Deno** em [Dockerfile](file:///g:/DEV/mixer8/mixer8-downloader/Dockerfile):
+- **Atualização de Subprocesso** em [Worker.cs](file:///g:/DEV/mixer8/mixer8-downloader/Worker.cs): O método `RunYtdlpAsync` detecta a presença de cookies em `youtube-cookies.txt` e monta o argumento `--cookies "caminho"`. Além disso, injeta o argumento `--remote-components ejs:github` para permitir a execução e atualização dos scripts de descriptografia via Deno.
+- **Dockerfile com Deno & EJS** em [Dockerfile](file:///g:/DEV/mixer8/mixer8-downloader/Dockerfile):
   ```dockerfile
   COPY --from=denoland/deno:bin /deno /usr/local/bin/deno
   ```
-  Isso monta o Deno diretamente em `/usr/local/bin/deno` e remove a instalação do `nodejs` obsoleto do `apt-get`.
+  Isso monta o Deno diretamente em `/usr/local/bin/deno` e remove a instalação do `nodejs` obsoleto do `apt-get`, instalando também o pacote `yt-dlp-ejs` via pip para empacotar os scripts de desafio localmente no ambiente virtual.
 
 ## 🎯 Impacto e Resultado
 * **UX Premium e Limpa**: Badges curtos evitam quebra de layout de cards e o spinner dinâmico conforta o usuário informando que a operação está em andamento.
