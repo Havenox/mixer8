@@ -1,7 +1,7 @@
 # Context Preservation (Save State) - Mixer8 Ecosystem
 
-**Data da Última Atualização:** 05/06/2026  
-Status do Projeto: Purga de Mocks Concluída, Player Multi-Stems Ativo, Uploader Direto Implementado, Conteinerização/Conversão Opus Concluída, Recursos Premium/Shuffle/Repeat Dinâmicos, Barra de Progresso Premium, Extrator Headless E2E via Playwright, Menu de Contexto Irrestrito Ativos, Acesso Anônimo com Endpoints de Segurança e Modal de Login Globais Integrados, Remoção de Cookies/Testes de Sessão Legados Concluída, e Unificação de Login/Cadastro em Modal Único (Eliminação de Rotas Dedicadas).
+**Data da Última Atualização:** 06/06/2026  
+Status do Projeto: Purga de Mocks Concluída, Player Multi-Stems Ativo, Uploader Direto Implementado, Conteinerização/Conversão Opus Concluída, Recursos Premium/Shuffle/Repeat Dinâmicos, Barra de Progresso Premium, Extrator Headless E2E via Playwright, Menu de Contexto Irrestrito Ativos, Acesso Anônimo com Endpoints de Segurança e Modal de Login Globais Integrados, Remoção de Cookies/Testes de Sessão Legados Concluída, Unificação de Login/Cadastro em Modal Único (Eliminação de Rotas Dedicadas) e Microsserviço de Download Agnóstico (mixer8-downloader) com yt-dlp.
 
 ---
 
@@ -92,12 +92,19 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
     * As rotas `/login` e `/register` foram completamente removidas da SPA, e suas respectivas páginas deletadas.
     * Todas as ações e links que redirecionavam para o login foram alteradas para acionar o modal global de login reativamente.
     * Configurado o `ProtectedRoute` para redirecionar usuários não autenticados para a home com o parâmetro `?showLogin=true`, o qual é interceptado pelo layout do app para acionar o modal e limpar a URL de forma imediata e transparente.
+20. **Microsserviço de Download Agnóstico (mixer8-downloader) com yt-dlp**:
+    * **Banco de Dados**: Coluna `DownloadUrl` adicionada à tabela `Tracks` com migration EF Core robusta aplicada com sucesso no PostgreSQL.
+    * **Backend API**: Adicionado endpoint `POST /api/Tracks/ImportUrl` (restrito a `Admin` e `PaidUser`) para registrar links externos e enfileirar downloads com status `AguardandoDownload`.
+    * **Worker Downloader**: Criado o novo worker de background `mixer8-downloader` (.NET 10) que realiza polling seguro (`FOR UPDATE SKIP LOCKED`) na fila de download, executa o binário `yt-dlp` em processo pipe, converte o áudio diretamente para Opus (`.opus`), calcula a duração com `ffprobe` e atualiza o status para `Aguardando` para que o bot Playwright continue o fluxo de stems de forma retrocompatível.
+    * **Dockerização**: Criado Dockerfile multi-stage com .NET 10, Python 3, `yt-dlp` e `ffmpeg` sob ambiente isolado `venv`. Atualizado o `docker-compose.yml` compartilhando o volume `/app/downloads`.
+    * **Frontend SPA**: Adicionada aba de importação "Link de Mídia (URL)" no modal global de upload, controlando states de forma segura com concorrência blindada (botão desabilitado com carregamento visual) e contratos preservando **PascalCase**.
 
 ---
 
 ## 🎯 Próximo Milestone: Ajustes de Fluxo e Segurança de Rede
 * Implementar mecanismos de exclusão/remoção de faixas da biblioteca pelo usuário proprietário.
 * Parametrizar tempos de expiração de token JWT com renovação (refresh token).
+* Passo 5 da evolução arquitetural: Casamento de Metadados (Metadata Matching) e suporte a plataformas DRM (Spotify, Deezer) localizando correspondências pelo ISRC no YouTube.
 
 ---
 

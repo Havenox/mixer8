@@ -98,7 +98,7 @@ graph TD
 
 ### Passo 4: Criação do Microsserviço Downloader (`mixer8-downloader`) para YouTube
 * **Foco**: Novo Microsserviço e Integração da API.
-* **Alteração**: Desenvolver o downloader leve utilizando `YoutubeExplode` e `ffmpeg`. Integrar à API para disparar a solicitação de download ao receber um link do YouTube. Ao finalizar, o downloader entrega a mídia para a API via requisição de upload padrão, acionando o fluxo unificado de 1-stem.
+* **Alteração**: Desenvolver o downloader leve utilizando `yt-dlp` e `ffmpeg`. Integrar à API para disparar a solicitação de download ao receber um link do YouTube. Ao finalizar, o downloader entrega a mídia para a API via requisição de upload padrão, acionando o fluxo unificado de 1-stem.
 
 ### Passo 5: Casamento de Metadados e Suporte a Spotify/Plataformas DRM
 * **Foco**: Downloader.
