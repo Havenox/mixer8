@@ -353,6 +353,13 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             return NotFound(new { ErrorMessage = "TRACK_NOT_FOUND" });
         }
 
+        // Se a faixa já foi importada e processada (ou está em fase posterior), ignora para evitar concorrência/duplicações
+        if (track.ExtractionStatus != "AguardandoDownload" && track.ExtractionStatus != "Processando: Baixando mídia")
+        {
+            Console.WriteLine($"[API] ImportCompleted duplicado recebido para a música {id}. Ignorando pois o status atual é '{track.ExtractionStatus}'.");
+            return Ok(track);
+        }
+
         // Resolve o diretório de downloads temporário para extração
         var downloadsDir = configuration["EXTRACTOR_DOWNLOADS_DIR"] ?? "./mixer8-extractor/downloads";
         if (!Path.IsPathRooted(downloadsDir))
