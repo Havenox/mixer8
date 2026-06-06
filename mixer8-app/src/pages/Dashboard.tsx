@@ -208,6 +208,15 @@ export const Dashboard: React.FC = () => {
   const [artistName, setArtistName] = useState('');
   const [newTrackId, setNewTrackId] = useState<string | null>(null);
 
+  const getFriendlyStatus = (log: string) => {
+    if (!log) return 'Iniciando processo...';
+    const clean = log.includes(']') ? log.split(']').pop()?.trim() || '' : log;
+    if (clean === 'AguardandoDownload') return 'Aguardando na fila de download...';
+    if (clean === 'Processando: Baixando mídia') return 'Baixando mídia do link...';
+    if (clean === 'Processando: Aguardando Extração') return 'Conversão concluída! Iniciando extração...';
+    return clean;
+  };
+
   // Verifica se a URL contém ?action=upload para abrir o modal
   const showUploadSection = new URLSearchParams(location.search).get('action') === 'upload';
 
@@ -270,11 +279,16 @@ export const Dashboard: React.FC = () => {
   // Hook de Infinite Scroll reutilizável
   useInfiniteScroll(hasMore, isFetchingMore, isLoadingTracks, () => fetchTracks(false));
 
+  const hasProcessingTracks = tracks.some(t => 
+    t.ExtractionStatus === 'AguardandoDownload' ||
+    t.ExtractionStatus.startsWith('Processando')
+  );
+
   // 2. Pooling do progresso real da conversão do Worker na VPS
   useEffect(() => {
     let interval: any;
 
-    if (newTrackId) {
+    if (newTrackId || hasProcessingTracks) {
       interval = setInterval(async () => {
         try {
           const headers: Record<string, string> = {};
@@ -286,33 +300,35 @@ export const Dashboard: React.FC = () => {
             const data: ITrack[] = await res.json();
             setTracks(data);
 
-            const uploadedTrack = data.find(t => t.TrackId === newTrackId);
-            if (uploadedTrack) {
-              // Adiciona atualização do log se o status mudou
-              setUploadProgress(prev => {
-                const currentStatus = `[WORKER STATUS] ${uploadedTrack.ExtractionStatus}`;
-                if (prev.length === 0 || prev[prev.length - 1] !== currentStatus) {
-                  return [...prev, currentStatus];
-                }
-                return prev;
-              });
+            if (newTrackId) {
+              const uploadedTrack = data.find(t => t.TrackId === newTrackId);
+              if (uploadedTrack) {
+                // Adiciona atualização do log se o status mudou
+                setUploadProgress(prev => {
+                  const currentStatus = `[WORKER STATUS] ${uploadedTrack.ExtractionStatus}`;
+                  if (prev.length === 0 || prev[prev.length - 1] !== currentStatus) {
+                    return [...prev, currentStatus];
+                  }
+                  return prev;
+                });
 
-              if (uploadedTrack.ExtractionStatus === 'Pronto') {
-                setUploadProgress(prev => [...prev, `🟢 [SUCESSO] Extrator finalizou o processamento de stems! Pronta para mixar.`]);
-                setTimeout(() => {
+                if (
+                  uploadedTrack.ExtractionStatus === 'Pronto' ||
+                  uploadedTrack.ExtractionStatus.startsWith('Processando')
+                ) {
                   setIsUploading(false);
                   setSelectedFile(null);
                   setSongName('');
                   setArtistName('');
                   setNewTrackId(null);
                   navigate('/dashboard'); // Fecha o modal
-                }, 3000);
-              } else if (uploadedTrack.ExtractionStatus === 'Falhou') {
-                setUploadProgress(prev => [...prev, `🔴 [ERRO] Ocorreu uma falha no processamento do Bot na VPS.`]);
-                setTimeout(() => {
-                  setIsUploading(false);
-                  setNewTrackId(null);
-                }, 4000);
+                } else if (uploadedTrack.ExtractionStatus === 'Falhou') {
+                  setUploadProgress(prev => [...prev, `🔴 [ERRO] Ocorreu uma falha no processamento do Bot na VPS.`]);
+                  setTimeout(() => {
+                    setIsUploading(false);
+                    setNewTrackId(null);
+                  }, 4000);
+                }
               }
             }
           }
@@ -323,7 +339,7 @@ export const Dashboard: React.FC = () => {
     }
 
     return () => clearInterval(interval);
-  }, [newTrackId]);
+  }, [newTrackId, hasProcessingTracks, Token]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -363,13 +379,16 @@ export const Dashboard: React.FC = () => {
 
       if (res.ok) {
         const createdTrack: ITrack = await res.json();
-        setNewTrackId(createdTrack.TrackId);
-        setUploadProgress(prev => [
-          ...prev, 
-          `[API OK] Arquivo gravado no disco com ID: ${createdTrack.TrackId}`,
-          `[FILA] Música adicionada na fila de processamento PostgreSQL.`,
-          `[FILA] Aguardando o bot na VPS Linux capturar a tarefa ( SKIP LOCKED )...`
-        ]);
+        setTracks(prev => {
+          if (prev.some(t => t.TrackId === createdTrack.TrackId)) return prev;
+          return [createdTrack, ...prev];
+        });
+        setIsUploading(false);
+        setSelectedFile(null);
+        setSongName('');
+        setArtistName('');
+        setNewTrackId(null);
+        navigate('/dashboard'); // Fecha o modal imediatamente pois a prévia de 1-stem já está disponível
       } else {
         const errorData = await res.json();
         setUploadProgress(prev => [...prev, `[ERRO API] Falha ao realizar upload: ${errorData.ErrorMessage || 'Erro Desconhecido'}`]);
@@ -403,6 +422,10 @@ export const Dashboard: React.FC = () => {
 
       if (res.ok) {
         const createdTrack: ITrack = await res.json();
+        setTracks(prev => {
+          if (prev.some(t => t.TrackId === createdTrack.TrackId)) return prev;
+          return [createdTrack, ...prev];
+        });
         setNewTrackId(createdTrack.TrackId);
         setUploadProgress(prev => [
           ...prev, 
@@ -670,37 +693,30 @@ export const Dashboard: React.FC = () => {
                 )}
               </div>
             ) : (
-              <div className="flex flex-col gap-4">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-white flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-yellow-500 animate-ping" />
-                    Robô Executando Fluxo de Navegação...
-                  </span>
-                  <span className="text-brand-gray">
-                    Extração em Andamento
-                  </span>
+              <div className="flex flex-col items-center justify-center py-10 px-4 gap-6 animate-in fade-in duration-300">
+                <div className="relative flex items-center justify-center">
+                  {/* Outer glowing ring */}
+                  <div className="absolute w-20 h-20 rounded-full border-2 border-brand-green/20 animate-ping duration-1000" />
+                  {/* Inner spinning gradient ring */}
+                  <div className="w-16 h-16 rounded-full border-t-2 border-r-2 border-brand-green animate-spin" />
+                  {/* Central icon */}
+                  <div className="absolute text-brand-green">
+                    <Sparkles className="w-6 h-6 animate-pulse" />
+                  </div>
                 </div>
 
-                <div className="bg-black border border-brand-hover rounded p-4 font-mono text-[10px] text-brand-gray h-64 overflow-y-auto flex flex-col gap-1 shadow-inner">
-                  {uploadProgress.map((log, idx) => (
-                    <div key={idx} className="flex gap-2 items-start">
-                      <span className="text-brand-green select-none">❯</span>
-                      <span className={log.startsWith('[API OK]') || log.startsWith('🟢') ? 'text-brand-green font-bold' : log.startsWith('🔴') ? 'text-red-400 font-bold' : 'text-spotify-gray/90'}>
-                        {log}
-                      </span>
-                    </div>
-                  ))}
-                  {!uploadProgress.some(l => l.includes('🟢') || l.includes('🔴')) && (
-                    <div className="flex gap-2 items-center text-white font-bold animate-pulse mt-1">
-                      <span className="text-brand-green select-none">❯</span>
-                      <span>Aguardando próxima atualização do Banco de Dados...</span>
-                    </div>
-                  )}
+                <div className="flex flex-col items-center text-center gap-2">
+                  <h3 className="text-base font-bold text-white tracking-wide">
+                    {uploadTab === 'file' ? 'Enviando Áudio...' : 'Baixando e Processando...'}
+                  </h3>
+                  <p className="text-xs text-brand-gray max-w-sm h-8 flex items-center justify-center">
+                    {getFriendlyStatus(uploadProgress[uploadProgress.length - 1])}
+                  </p>
                 </div>
 
-                <div className="bg-brand-hover/20 border border-brand-hover p-3 rounded text-[10px] text-brand-gray flex items-center gap-2">
-                  <ShieldAlert className="w-4 h-4 text-brand-green shrink-0" />
-                  <span>Não feche esta página. O processo de separação é persistido no PostgreSQL e processado pelo worker.</span>
+                <div className="bg-brand-hover/20 border border-brand-hover p-3 rounded-lg text-[10px] text-brand-gray flex items-center gap-2 max-w-md w-full">
+                  <ShieldAlert className="w-4 h-4 text-brand-green shrink-0 animate-pulse" />
+                  <span>Por favor, não feche esta janela. O download e a conversão estão sendo processados em nossa VPS de alta performance.</span>
                 </div>
               </div>
             )}
