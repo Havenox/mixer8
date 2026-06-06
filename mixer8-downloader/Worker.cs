@@ -90,13 +90,21 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
 
             var outputTemplate = Path.Combine(downloadsDir, $"{track.TrackId}.%(ext)s");
             var finalFilePath = Path.Combine(downloadsDir, $"{track.TrackId}.opus");
+            string? tempCoverPath = null;
 
             // Se for apenas o ID do YouTube, reconstrói o link limpo. Caso contrário, mantém a URL.
             var downloadUrl = track.DownloadUrl!;
+            var videoId = GetYouTubeVideoId(downloadUrl);
             if (!downloadUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
                 !downloadUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             {
                 downloadUrl = $"https://www.youtube.com/watch?v={downloadUrl}";
+            }
+
+            // Tenta baixar a thumbnail do YouTube em background/paralelo
+            if (!string.IsNullOrEmpty(videoId))
+            {
+                tempCoverPath = await DownloadYouTubeThumbnailAsync(videoId, downloadsDir);
             }
 
             // Executa o download via yt-dlp
@@ -112,7 +120,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 if (success && File.Exists(finalFilePath))
                 {
                     logger.LogInformation($"[DOWNLOADER] Download concluído com sucesso. Iniciando upload via HTTP...");
-                    uploadSuccess = await UploadCompletedAudioAsync(track.TrackId, finalFilePath, stoppingToken);
+                    uploadSuccess = await UploadCompletedAudioAsync(track.TrackId, finalFilePath, tempCoverPath, stoppingToken);
                 }
 
                 if (uploadSuccess)
@@ -123,6 +131,10 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                         if (File.Exists(finalFilePath))
                         {
                             File.Delete(finalFilePath);
+                        }
+                        if (!string.IsNullOrEmpty(tempCoverPath) && File.Exists(tempCoverPath))
+                        {
+                            File.Delete(tempCoverPath);
                         }
                     }
                     catch (Exception ex)
@@ -152,6 +164,10 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                         if (File.Exists(finalFilePath))
                         {
                             File.Delete(finalFilePath);
+                        }
+                        if (!string.IsNullOrEmpty(tempCoverPath) && File.Exists(tempCoverPath))
+                        {
+                            File.Delete(tempCoverPath);
                         }
                     }
                     catch {}
@@ -273,7 +289,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         return 0;
     }
 
-    private async Task<bool> UploadCompletedAudioAsync(Guid trackId, string filePath, CancellationToken stoppingToken)
+    private async Task<bool> UploadCompletedAudioAsync(Guid trackId, string filePath, string? coverPath, CancellationToken stoppingToken)
     {
         var apiUrl = configuration["API_URL"];
         if (string.IsNullOrEmpty(apiUrl))
@@ -298,15 +314,34 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             streamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/opus");
             content.Add(streamContent, "file", Path.GetFileName(filePath));
 
-            var response = await httpClient.PostAsync(requestUrl, content, stoppingToken);
-            if (response.IsSuccessStatusCode)
+            // Adiciona a capa se existir
+            FileStream? coverStream = null;
+            StreamContent? coverStreamContent = null;
+            if (!string.IsNullOrEmpty(coverPath) && File.Exists(coverPath))
             {
-                logger.LogInformation($"[DOWNLOADER] Envio do áudio finalizado com sucesso!");
-                return true;
+                coverStream = File.OpenRead(coverPath);
+                coverStreamContent = new StreamContent(coverStream);
+                coverStreamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
+                content.Add(coverStreamContent, "coverFile", Path.GetFileName(coverPath));
             }
 
-            var responseStr = await response.Content.ReadAsStringAsync(stoppingToken);
-            logger.LogError($"[DOWNLOADER ERROR] Erro na requisição HTTP: {response.StatusCode} - {responseStr}");
+            try
+            {
+                var response = await httpClient.PostAsync(requestUrl, content, stoppingToken);
+                if (response.IsSuccessStatusCode)
+                {
+                    logger.LogInformation($"[DOWNLOADER] Envio do áudio e capa finalizados com sucesso!");
+                    return true;
+                }
+
+                var responseStr = await response.Content.ReadAsStringAsync(stoppingToken);
+                logger.LogError($"[DOWNLOADER ERROR] Erro na requisição HTTP: {response.StatusCode} - {responseStr}");
+            }
+            finally
+            {
+                if (coverStreamContent != null) coverStreamContent.Dispose();
+                if (coverStream != null) coverStream.Dispose();
+            }
         }
         catch (Exception ex)
         {
@@ -314,5 +349,78 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         }
 
         return false;
+    }
+
+    private static string? GetYouTubeVideoId(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return null;
+        if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+            !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return url; // já é o ID
+        }
+
+        // Tenta encontrar "v="
+        var vIndex = url.IndexOf("v=", StringComparison.OrdinalIgnoreCase);
+        if (vIndex != -1)
+        {
+            var idStart = vIndex + 2;
+            var ampIndex = url.IndexOf('&', idStart);
+            return ampIndex != -1 ? url.Substring(idStart, ampIndex - idStart) : url.Substring(idStart);
+        }
+
+        // Tenta encontrar youtu.be/
+        var shortIndex = url.IndexOf("youtu.be/", StringComparison.OrdinalIgnoreCase);
+        if (shortIndex != -1)
+        {
+            var idStart = shortIndex + 9;
+            var questionIndex = url.IndexOf('?', idStart);
+            return questionIndex != -1 ? url.Substring(idStart, questionIndex - idStart) : url.Substring(idStart);
+        }
+
+        return null;
+    }
+
+    private async Task<string?> DownloadYouTubeThumbnailAsync(string videoId, string downloadsDir)
+    {
+        if (string.IsNullOrEmpty(videoId)) return null;
+
+        var tempCoverPath = Path.Combine(downloadsDir, $"{videoId}_cover.jpg");
+        logger.LogInformation($"[DOWNLOADER] Tentando baixar thumbnail do YouTube para o vídeo: {videoId}...");
+
+        using var client = new HttpClient();
+        client.Timeout = TimeSpan.FromSeconds(15);
+
+        // URLs possíveis de thumbnail
+        var urls = new[]
+        {
+            $"https://img.youtube.com/vi/{videoId}/maxresdefault.jpg",
+            $"https://img.youtube.com/vi/{videoId}/hqdefault.jpg"
+        };
+
+        foreach (var url in urls)
+        {
+            try
+            {
+                var response = await client.GetAsync(url);
+                if (response.IsSuccessStatusCode)
+                {
+                    var imageBytes = await response.Content.ReadAsByteArrayAsync();
+                    if (imageBytes != null && imageBytes.Length > 0)
+                    {
+                        await File.WriteAllBytesAsync(tempCoverPath, imageBytes);
+                        logger.LogInformation($"[DOWNLOADER] Thumbnail baixada com sucesso usando URL: {url}");
+                        return tempCoverPath;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning($"[DOWNLOADER] Falha ao tentar baixar thumbnail de {url}: {ex.Message}");
+            }
+        }
+
+        logger.LogWarning($"[DOWNLOADER] Não foi possível baixar nenhuma thumbnail para o vídeo: {videoId}");
+        return null;
     }
 }
