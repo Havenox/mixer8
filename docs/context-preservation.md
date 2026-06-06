@@ -1,7 +1,7 @@
 # Context Preservation (Save State) - Mixer8 Ecosystem
 
 **Data da Última Atualização:** 06/06/2026  
-Status do Projeto: Purga de Mocks Concluída, Player Multi-Stems Ativo, Uploader Direto Implementado, Conteinerização/Conversão Opus Concluída, Recursos Premium/Shuffle/Repeat Dinâmicos, Barra de Progresso Premium, Extrator Headless E2E via Playwright, Menu de Contexto Irrestrito Ativos, Acesso Anônimo com Endpoints de Segurança e Modal de Login Globais Integrados, Remoção de Cookies/Testes de Sessão Legados Concluída, Unificação de Login/Cadastro em Modal Único (Eliminação de Rotas Dedicadas), Microsserviço de Download Agnóstico (mixer8-downloader) com yt-dlp, e Overhaul de Upload & Prévia Imediata (1-Stem) com Workers 100% Desacoplados de Armazenamento via APIs HTTP Stateless.
+Status do Projeto: Purga de Mocks Concluída, Player Multi-Stems Ativo, Uploader Direto Implementado, Conteinerização/Conversão Opus Concluída, Recursos Premium/Shuffle/Repeat Dinâmicos, Barra de Progresso Premium, Extrator Headless E2E via Playwright, Menu de Contexto Irrestrito Ativos, Acesso Anônimo com Endpoints de Segurança e Modal de Login Globais Integrados, Remoção de Cookies/Testes de Sessão Legados Concluída, Unificação de Login/Cadastro em Modal Único (Eliminação de Rotas Dedicadas), Microsserviço de Download Agnóstico (mixer8-downloader) com yt-dlp, Overhaul de Upload & Prévia Imediata (1-Stem) com Workers 100% Desacoplados via APIs HTTP Stateless, e Extração Automática de Thumbnails do YouTube com Processamento WebP para Capas de Música.
 
 ---
 
@@ -98,6 +98,9 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
     * **Leitura de Metadados Ricos (TagLibSharp)**: Integrado o pacote NuGet `TagLibSharp` para auto-extrair Título, Artista e Capa física embutida de uploads diretos. Capas físicas são processadas in-memory para WebP 500x500 (80% qualidade) e salvas no disco.
     * **Workers 100% Stateless (Comunicação via APIs HTTP)**: Eliminada a dependência de volumes compartilhados em produção. O worker `mixer8-downloader` faz upload do áudio concluído via `POST /api/Tracks/{id}/ImportCompleted` e o worker `mixer8-extractor` baixa a prévia via `GET /stems/{id}/Completo.opus`, executa a automação Playwright e submete o ZIP final via `POST /api/Tracks/{id}/ProcessStemsZip`.
     * **Transição Atômica (ACID Swap)**: O endpoint `ProcessStemsZip` executa dentro de uma transação do Entity Framework, excluindo permanentemente a stem temporária `"Completo"`, deletando o arquivo `Completo.opus` e salvando as stems finais no banco de dados e no disco de forma 100% íntegra.
+22. **Extração Automática de Thumbnails do YouTube e Conversão para WebP**:
+    * **Downloader Resiliente**: O `mixer8-downloader` resolve o ID do vídeo do YouTube e baixa a thumbnail oficial diretamente de `img.youtube.com` via `HttpClient` (tentando `maxresdefault.jpg` com fallback automático para `hqdefault.jpg`), salvando temporariamente e anexando o Stream resultante à chamada multipart HTTP.
+    * **Processamento e Salvamento WebP**: O backend API recebe o arquivo na assinatura de `ImportCompleted` sob o parâmetro `coverFile`, executa o `ImageHelper` (crop 1:1, resize 500x500 e codificação WebP a 80% de qualidade) e salva a capa física resultante em `wwwroot/stems/{id}/cover.webp` (associando-a à track no PostgreSQL).
 
 ---
 
