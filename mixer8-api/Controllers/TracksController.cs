@@ -473,7 +473,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                 AudioUrl = $"/stems/{id}/Completo.opus",
                 CreatedAt = DateTime.UtcNow
             };
-            track.Stems.Add(stem);
+            dbContext.Stems.Add(stem);
         }
         else
         {
@@ -979,7 +979,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
 
             foreach (var newStem in stemsList)
             {
-                track.Stems.Add(newStem);
+                dbContext.Stems.Add(newStem);
             }
 
             track.ExtractionStatus = "Pronto";
