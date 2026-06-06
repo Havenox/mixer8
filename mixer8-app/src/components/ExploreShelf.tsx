@@ -1,9 +1,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Play, Pause, Disc, Music, Plus, CheckCircle, Clock, MoreVertical, 
+  Play, Pause, Disc, Music, Plus, Clock, MoreVertical, 
   Heart, User, ListMusic
 } from 'lucide-react';
+import { TrackStatusBadge } from './TrackStatusBadge';
 import { usePlayer } from '../context/PlayerContext';
 import type { ITrack } from '../context/PlayerContext';
 import { usePlaylists } from '../context/PlaylistContext';
@@ -251,17 +252,7 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
 
                   <div className="flex items-center justify-between mt-3 pt-2 border-t border-brand-hover text-[10px] font-bold">
                     <span className="text-brand-gray uppercase">Stems: {track.Stems?.length || 0}</span>
-                    {track.ExtractionStatus === 'Pronto' ? (
-                      <span className="text-brand-green flex items-center gap-1">
-                        <CheckCircle className="w-3.5 h-3.5" /> PRONTO
-                      </span>
-                    ) : track.ExtractionStatus.startsWith('Processando') ? (
-                      <span className="text-yellow-500 flex items-center gap-1 animate-pulse">
-                        <Clock className="w-3.5 h-3.5 animate-spin" /> {track.ExtractionStatus.includes(':') ? track.ExtractionStatus.split(':')[1].trim().toUpperCase() : 'EXTRAINDO'}
-                      </span>
-                    ) : (
-                      <span className="text-red-400">FALHOU</span>
-                    )}
+                    <TrackStatusBadge status={track.ExtractionStatus} />
                   </div>
                 </div>
               );

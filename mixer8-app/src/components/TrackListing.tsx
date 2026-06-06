@@ -1,8 +1,9 @@
 import React from 'react';
 import { 
-  Play, Pause, Disc, Music, Plus, Loader2, Info, CheckCircle, Clock, MoreVertical 
+  Play, Pause, Disc, Music, Plus, Loader2, Info, MoreVertical 
 } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
+import { TrackStatusBadge } from './TrackStatusBadge';
 import type { ITrack } from '../context/PlayerContext';
 import { usePlaylists } from '../context/PlaylistContext';
 import { useAuth } from '../context/AuthContext';
@@ -190,21 +191,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
 
                 {/* Status */}
                 <div className="hidden md:block text-xs font-bold">
-                  {track.ExtractionStatus === 'Pronto' ? (
-                    <span className="text-brand-green flex items-center gap-1.5">
-                      <CheckCircle className="w-3.5 h-3.5" /> PRONTO
-                    </span>
-                  ) : track.ExtractionStatus.startsWith('Processando') ? (
-                    <span className="text-yellow-500 flex items-center gap-1.5 animate-pulse">
-                      <Clock className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '3s' }} /> {track.ExtractionStatus.includes(':') ? track.ExtractionStatus.split(':')[1].trim().toUpperCase() : 'EXTRAINDO'}
-                    </span>
-                  ) : track.ExtractionStatus === 'Falhou' ? (
-                    <span className="text-red-400">FALHOU</span>
-                  ) : (
-                    <span className="text-brand-gray flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5" /> AGUARDANDO
-                    </span>
-                  )}
+                  <TrackStatusBadge status={track.ExtractionStatus} />
                 </div>
 
                 {/* Ações */}
@@ -360,21 +347,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
               <div className="flex items-center justify-between mt-3 pt-2 border-t border-brand-hover text-[10px] font-bold">
                 <span className="text-brand-gray uppercase">Stems: {track.Stems?.length || 0} faixas</span>
                 
-                {track.ExtractionStatus === 'Pronto' ? (
-                  <span className="text-brand-green flex items-center gap-1">
-                    <CheckCircle className="w-3.5 h-3.5" /> MIX PRONTO
-                  </span>
-                ) : track.ExtractionStatus.startsWith('Processando') ? (
-                  <span className="text-yellow-500 flex items-center gap-1 animate-pulse">
-                    <Clock className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '3s' }} /> {track.ExtractionStatus.includes(':') ? track.ExtractionStatus.split(':')[1].trim().toUpperCase() : 'EXTRAINDO'}
-                  </span>
-                ) : track.ExtractionStatus === 'Falhou' ? (
-                  <span className="text-red-400">FALHOU</span>
-                ) : (
-                  <span className="text-brand-gray flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" /> AGUARDANDO
-                  </span>
-                )}
+                <TrackStatusBadge status={track.ExtractionStatus} showMixLabel={true} />
               </div>
             </div>
           );
