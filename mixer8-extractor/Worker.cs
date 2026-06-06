@@ -121,12 +121,12 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             {
                 // Query com Lock de Linha (FOR UPDATE SKIP LOCKED) nativo do PostgreSQL
                 track = await db.Tracks
-                    .FromSqlRaw("SELECT * FROM \"Tracks\" WHERE \"ExtractionStatus\" = 'Aguardando' ORDER BY \"CreatedAt\" ASC LIMIT 1 FOR UPDATE SKIP LOCKED")
+                    .FromSqlRaw("SELECT * FROM \"Tracks\" WHERE \"ExtractionStatus\" = 'Processando: Aguardando Extração' ORDER BY \"CreatedAt\" ASC LIMIT 1 FOR UPDATE SKIP LOCKED")
                     .FirstOrDefaultAsync(stoppingToken);
 
                 if (track != null)
                 {
-                    track.ExtractionStatus = "Processando: Inicializando";
+                    track.ExtractionStatus = "Processando: Extraindo Stems";
                     await db.SaveChangesAsync(stoppingToken);
                     await transaction.CommitAsync(stoppingToken);
                     logger.LogInformation($"[WORKER] Música '{track.TrackTitle}' capturada com sucesso para processamento.");
@@ -154,13 +154,14 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         var db = scope.ServiceProvider.GetRequiredService<Mixer8DbContext>();
 
         IPage? page = null;
+        string? downloadsDir = null;
         try
         {
             // Atualiza status de processamento da música
             await UpdateTrackStatusAsync(track.TrackId, "Processando: Localizando arquivo original", db, stoppingToken);
 
             // 1. Resolução resiliente do diretório de downloads
-            var downloadsDir = configuration["EXTRACTOR_DOWNLOADS_DIR"] ?? "./mixer8-extractor/downloads";
+            downloadsDir = configuration["EXTRACTOR_DOWNLOADS_DIR"] ?? "./mixer8-extractor/downloads";
             if (!Path.IsPathRooted(downloadsDir))
             {
                 var baseDir = AppContext.BaseDirectory;
@@ -185,14 +186,37 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 throw new DirectoryNotFoundException($"[WORKER ERROR] Diretório de downloads não encontrado: {downloadsDir}");
             }
 
-            // 2. Busca o arquivo original carregado no upload (ex: downloads/{trackId}.mp3)
-            var files = Directory.GetFiles(downloadsDir, $"{track.TrackId}.*");
-            var originalFile = files.FirstOrDefault();
-
-            if (string.IsNullOrEmpty(originalFile) || !File.Exists(originalFile))
+            // 2. Faz o download do arquivo de prévia completo (Completo.opus) servido pela API
+            var apiHostUrl = configuration["API_URL"];
+            if (string.IsNullOrEmpty(apiHostUrl))
             {
-                throw new FileNotFoundException($"[WORKER ERROR] Arquivo original do upload não encontrado em {downloadsDir} com o ID {track.TrackId}");
+                var apiPort = configuration["API_PORT"] ?? "5000";
+                apiHostUrl = $"http://localhost:{apiPort}";
             }
+            apiHostUrl = apiHostUrl.TrimEnd('/');
+
+            var audioUrl = $"{apiHostUrl}/stems/{track.TrackId}/Completo.opus";
+            var originalFile = Path.Combine(downloadsDir, $"{track.TrackId}.opus");
+
+            logger.LogInformation($"[WORKER] Efetuando download de Completo.opus via HTTP de {audioUrl} para {originalFile}...");
+            await UpdateTrackStatusAsync(track.TrackId, "Processando: Baixando áudio original da API", db, stoppingToken);
+
+            using (var downloadClient = new HttpClient())
+            {
+                downloadClient.Timeout = TimeSpan.FromMinutes(5);
+                var downloadResponse = await downloadClient.GetAsync(audioUrl, stoppingToken);
+                if (!downloadResponse.IsSuccessStatusCode)
+                {
+                    throw new FileNotFoundException($"[WORKER ERROR] Não foi possível baixar Completo.opus da API. HTTP Status: {downloadResponse.StatusCode}");
+                }
+                
+                using (var fs = new FileStream(originalFile, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    await downloadResponse.Content.CopyToAsync(fs, stoppingToken);
+                }
+            }
+
+            logger.LogInformation($"[WORKER] Download de Completo.opus concluído com sucesso. Salvo em: {originalFile}");
 
             // 3. Inicializa o Playwright
             await UpdateTrackStatusAsync(track.TrackId, "Processando: Inicializando o Playwright", db, stoppingToken);
@@ -976,12 +1000,19 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             apiUrl = apiUrl.TrimEnd('/');
 
             using var httpClient = new HttpClient();
-            httpClient.Timeout = TimeSpan.FromMinutes(5);
+            httpClient.Timeout = TimeSpan.FromMinutes(10); // Aumentado para 10 minutos para uploads grandes
 
             var requestUrl = $"{apiUrl}/api/Tracks/{track.TrackId}/ProcessStemsZip";
-            logger.LogInformation($"[WORKER] Disparando requisição POST para: {requestUrl}");
+            logger.LogInformation($"[WORKER] Enviando ZIP de stems via POST para {requestUrl}...");
+            await UpdateTrackStatusAsync(track.TrackId, "Processando: Enviando stems para a API", db, stoppingToken);
 
-            var response = await httpClient.PostAsync(requestUrl, null, stoppingToken);
+            using var multipartContent = new MultipartFormDataContent();
+            using var zipStream = File.OpenRead(zipPath);
+            using var fileContent = new StreamContent(zipStream);
+            fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/zip");
+            multipartContent.Add(fileContent, "file", Path.GetFileName(zipPath));
+
+            var response = await httpClient.PostAsync(requestUrl, multipartContent, stoppingToken);
             if (!response.IsSuccessStatusCode)
             {
                 var errorContent = await response.Content.ReadAsStringAsync(stoppingToken);
@@ -1003,6 +1034,22 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         finally
         {
             _activePage = null;
+
+            // Limpeza dos arquivos locais temporários no worker para evitar disk leak
+            if (!string.IsNullOrEmpty(downloadsDir))
+            {
+                try
+                {
+                    var localZipPath = Path.Combine(downloadsDir, $"{track.TrackId}_stems.zip");
+                    var localAudioFile = Path.Combine(downloadsDir, $"{track.TrackId}.opus");
+                    if (File.Exists(localZipPath)) File.Delete(localZipPath);
+                    if (File.Exists(localAudioFile)) File.Delete(localAudioFile);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning($"[WORKER WARNING] Falha ao limpar arquivos locais do worker: {ex.Message}");
+                }
+            }
         }
     }
 
