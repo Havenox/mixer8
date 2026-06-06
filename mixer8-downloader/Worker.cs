@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.Net.Http;
 using Mixer8.Downloader.Domain;
 using Mixer8.Downloader.Infrastructure;
 using System;
@@ -99,24 +100,43 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
 
             if (dbTrack != null)
             {
+                bool uploadSuccess = false;
                 if (success && File.Exists(finalFilePath))
                 {
-                    logger.LogInformation($"[DOWNLOADER] Download concluído com sucesso. Calculando duração de: {finalFilePath}");
+                    logger.LogInformation($"[DOWNLOADER] Download concluído com sucesso. Iniciando upload via HTTP...");
+                    uploadSuccess = await UploadCompletedAudioAsync(track.TrackId, finalFilePath, stoppingToken);
+                }
 
-                    var durationDouble = await GetAudioDurationAsync(finalFilePath);
-                    var durationSecs = (int)Math.Round(durationDouble);
-
-                    dbTrack.Duration = durationSecs > 0 ? durationSecs : 0;
-                    dbTrack.ExtractionStatus = "Aguardando"; // Envia para a fila do Extrator Playwright
-                    logger.LogInformation($"[DOWNLOADER] Processamento concluído. Status de '{dbTrack.TrackTitle}' atualizado para 'Aguardando'. Duração: {dbTrack.Duration}s.");
+                if (uploadSuccess)
+                {
+                    logger.LogInformation($"[DOWNLOADER] Upload HTTP bem-sucedido para {track.TrackId}. Limpando arquivo local...");
+                    try
+                    {
+                        if (File.Exists(finalFilePath))
+                        {
+                            File.Delete(finalFilePath);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning($"[DOWNLOADER] Falha ao deletar arquivo local: {ex.Message}");
+                    }
                 }
                 else
                 {
-                    logger.LogError($"[DOWNLOADER] Falha no download via yt-dlp ou arquivo final não encontrado em: {finalFilePath}");
+                    logger.LogError($"[DOWNLOADER] Falha no download ou no upload via HTTP para {track.TrackId}. Marcando como Falhou.");
                     dbTrack.ExtractionStatus = "Falhou";
-                }
+                    await updateDb.SaveChangesAsync(stoppingToken);
 
-                await updateDb.SaveChangesAsync(stoppingToken);
+                    try
+                    {
+                        if (File.Exists(finalFilePath))
+                        {
+                            File.Delete(finalFilePath);
+                        }
+                    }
+                    catch {}
+                }
             }
         }
     }
@@ -232,5 +252,48 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         }
 
         return 0;
+    }
+
+    private async Task<bool> UploadCompletedAudioAsync(Guid trackId, string filePath, CancellationToken stoppingToken)
+    {
+        var apiUrl = configuration["API_URL"];
+        if (string.IsNullOrEmpty(apiUrl))
+        {
+            var apiPort = configuration["API_PORT"] ?? "5000";
+            apiUrl = $"http://localhost:{apiPort}";
+        }
+        apiUrl = apiUrl.TrimEnd('/');
+
+        var requestUrl = $"{apiUrl}/api/Tracks/{trackId}/ImportCompleted";
+        logger.LogInformation($"[DOWNLOADER] Enviando áudio concluído via POST para {requestUrl}...");
+
+        try
+        {
+            using var httpClient = new HttpClient();
+            httpClient.Timeout = TimeSpan.FromMinutes(10); // Grande timeout para arquivos grandes e conexões lentas
+
+            using var content = new MultipartFormDataContent();
+            using var fileStream = File.OpenRead(filePath);
+            using var streamContent = new StreamContent(fileStream);
+
+            streamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/opus");
+            content.Add(streamContent, "file", Path.GetFileName(filePath));
+
+            var response = await httpClient.PostAsync(requestUrl, content, stoppingToken);
+            if (response.IsSuccessStatusCode)
+            {
+                logger.LogInformation($"[DOWNLOADER] Envio do áudio finalizado com sucesso!");
+                return true;
+            }
+
+            var responseStr = await response.Content.ReadAsStringAsync(stoppingToken);
+            logger.LogError($"[DOWNLOADER ERROR] Erro na requisição HTTP: {response.StatusCode} - {responseStr}");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, $"[DOWNLOADER EXCEPTION] Falha ao enviar arquivo via HTTP.");
+        }
+
+        return false;
     }
 }
