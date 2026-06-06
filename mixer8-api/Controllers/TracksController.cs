@@ -221,6 +221,44 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
     }
 
     [Authorize(Roles = "Admin,PaidUser")]
+    [HttpPost("ImportUrl")]
+    public async Task<IActionResult> ImportUrl([FromBody] ImportUrlRequest request)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { ErrorMessage = "INVALID_TOKEN_CLAIMS" });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.DownloadUrl))
+        {
+            return BadRequest(new { ErrorMessage = "DOWNLOAD_URL_REQUIRED" });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.TrackTitle) || string.IsNullOrWhiteSpace(request.ArtistName))
+        {
+            return BadRequest(new { ErrorMessage = "METADATA_REQUIRED" });
+        }
+
+        var track = new Track
+        {
+            TrackId = Guid.NewGuid(),
+            TrackTitle = request.TrackTitle.Trim(),
+            ArtistName = request.ArtistName.Trim(),
+            UploadedBy = userId,
+            ExtractionStatus = "AguardandoDownload",
+            CreatedAt = DateTime.UtcNow,
+            DownloadUrl = request.DownloadUrl.Trim(),
+            Duration = 0
+        };
+
+        dbContext.Tracks.Add(track);
+        await dbContext.SaveChangesAsync();
+
+        return Ok(track);
+    }
+
+    [Authorize(Roles = "Admin,PaidUser")]
     [HttpPost("UploadChunk")]
     [DisableRequestSizeLimit]
     public async Task<IActionResult> UploadChunk([FromForm] UploadChunkRequest request)
@@ -1407,4 +1445,11 @@ public class UpdateTrackRequest
     public List<IFormFile> Files { get; set; } = new();
     public string? CoverUrl { get; set; }
     public string? Visibility { get; set; }
+}
+
+public class ImportUrlRequest
+{
+    public string DownloadUrl { get; set; } = null!;
+    public string TrackTitle { get; set; } = null!;
+    public string ArtistName { get; set; } = null!;
 }

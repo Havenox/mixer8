@@ -12,6 +12,7 @@ public class Track
     public string ExtractionStatus { get; set; } = "Aguardando"; // Aguardando, Processando, Pronto, Falhou
     public DateTime CreatedAt { get; set; }
     public string? CoverUrl { get; set; }
+    public string? DownloadUrl { get; set; }
 
     public ICollection<Stem> Stems { get; set; } = new List<Stem>();
 }

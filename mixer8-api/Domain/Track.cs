@@ -15,6 +15,7 @@ public class Track
     public string ExtractionStatus { get; set; } = "Aguardando"; // Aguardando, Processando, Pronto, Falhou
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public string? CoverUrl { get; set; }
+    public string? DownloadUrl { get; set; }
     public string Visibility { get; set; } = "Public";
     public bool DeletionPending { get; set; } = false;
     public string? DeletionReason { get; set; }
