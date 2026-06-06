@@ -340,7 +340,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
     [AllowAnonymous]
     [HttpPost("{id}/ImportCompleted")]
     [DisableRequestSizeLimit]
-    public async Task<IActionResult> ImportCompleted(Guid id, [FromForm] IFormFile file)
+    public async Task<IActionResult> ImportCompleted(Guid id, [FromForm] IFormFile file, [FromForm] IFormFile? coverFile)
     {
         if (file == null || file.Length == 0)
         {
@@ -381,26 +381,9 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             await file.CopyToAsync(fs);
         }
 
-        // Tenta extrair imagem de capa do arquivo baixado usando TagLibSharp (caso o usuário não tenha enviado uma capa)
-        byte[]? coverBytes = null;
-        try
-        {
-            using (var tagFile = TagLib.File.Create(tempFilePath))
-            {
-                if (tagFile.Tag.Pictures != null && tagFile.Tag.Pictures.Length > 0)
-                {
-                    coverBytes = tagFile.Tag.Pictures[0].Data.Data;
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[METADATA EXTRACTION EXCEPTION IN IMPORTCOMPLETED] {ex.Message}");
-        }
-
-        // Processa e salva a imagem de capa extraída se houver e a track não tiver uma capa ainda
+        // Se foi enviado um arquivo de imagem pelo downloader, usamos ele de preferência
         string? coverUrl = track.CoverUrl;
-        if (string.IsNullOrEmpty(coverUrl) && coverBytes != null && coverBytes.Length > 0)
+        if (coverFile != null && coverFile.Length > 0)
         {
             var stemsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "stems");
             var trackDir = Path.Combine(stemsDir, id.ToString());
@@ -409,16 +392,55 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             var coverPath = Path.Combine(trackDir, "cover.webp");
             try
             {
-                using (var ms = new MemoryStream(coverBytes))
-                {
-                    await ImageHelper.ProcessAndSaveImageAsync(ms, coverPath);
-                }
+                await ImageHelper.ProcessAndSaveImageAsync(coverFile, coverPath);
                 coverUrl = $"/stems/{id}/cover.webp";
-                Console.WriteLine($"[METADATA] Capa extraída e salva com sucesso no ImportCompleted para a música {id}");
+                Console.WriteLine($"[METADATA] Capa recebida do downloader salva com sucesso no ImportCompleted para a música {id}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[METADATA COVER EXCEPTION IN IMPORTCOMPLETED] Falha ao processar capa extraída: {ex.Message}");
+                Console.WriteLine($"[METADATA COVER EXCEPTION IN IMPORTCOMPLETED] Falha ao processar capa do downloader: {ex.Message}");
+            }
+        }
+        else
+        {
+            // Tenta extrair imagem de capa do arquivo baixado usando TagLibSharp (caso o usuário não tenha enviado uma capa)
+            byte[]? coverBytes = null;
+            try
+            {
+                using (var tagFile = TagLib.File.Create(tempFilePath))
+                {
+                    if (tagFile.Tag.Pictures != null && tagFile.Tag.Pictures.Length > 0)
+                    {
+                        coverBytes = tagFile.Tag.Pictures[0].Data.Data;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[METADATA EXTRACTION EXCEPTION IN IMPORTCOMPLETED] {ex.Message}");
+            }
+
+            // Processa e salva a imagem de capa extraída se houver e a track não tiver uma capa ainda
+            if (string.IsNullOrEmpty(coverUrl) && coverBytes != null && coverBytes.Length > 0)
+            {
+                var stemsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "stems");
+                var trackDir = Path.Combine(stemsDir, id.ToString());
+                if (!Directory.Exists(trackDir)) Directory.CreateDirectory(trackDir);
+                
+                var coverPath = Path.Combine(trackDir, "cover.webp");
+                try
+                {
+                    using (var ms = new MemoryStream(coverBytes))
+                    {
+                        await ImageHelper.ProcessAndSaveImageAsync(ms, coverPath);
+                    }
+                    coverUrl = $"/stems/{id}/cover.webp";
+                    Console.WriteLine($"[METADATA] Capa extraída e salva com sucesso no ImportCompleted para a música {id}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[METADATA COVER EXCEPTION IN IMPORTCOMPLETED] Falha ao processar capa extraída: {ex.Message}");
+                }
             }
         }
 
