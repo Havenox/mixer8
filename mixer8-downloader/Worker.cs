@@ -107,8 +107,19 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 tempCoverPath = await DownloadYouTubeThumbnailAsync(videoId, downloadsDir);
             }
 
+            // Tenta obter o arquivo de cookies a partir de variável de ambiente ou do diretório de downloads compartilhado
+            var cookiesPath = configuration["YT_DLP_COOKIES_FILE"];
+            if (string.IsNullOrEmpty(cookiesPath))
+            {
+                cookiesPath = Path.Combine(downloadsDir, "youtube-cookies.txt");
+            }
+            else if (!Path.IsPathRooted(cookiesPath))
+            {
+                cookiesPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, cookiesPath));
+            }
+
             // Executa o download via yt-dlp
-            var success = await RunYtdlpAsync(downloadUrl, outputTemplate);
+            var success = await RunYtdlpAsync(downloadUrl, outputTemplate, cookiesPath);
 
             using var updateScope = serviceProvider.CreateScope();
             var updateDb = updateScope.ServiceProvider.GetRequiredService<Mixer8DbContext>();
@@ -176,13 +187,25 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         }
     }
 
-    private static async Task<bool> RunYtdlpAsync(string downloadUrl, string outputPath)
+    private static async Task<bool> RunYtdlpAsync(string downloadUrl, string outputPath, string? cookiesPath)
     {
         Console.WriteLine($"[YT-DLP] Iniciando download: {downloadUrl} -> {outputPath}");
+        
+        var cookiesArg = "";
+        if (!string.IsNullOrEmpty(cookiesPath) && File.Exists(cookiesPath))
+        {
+            cookiesArg = $"--cookies \"{cookiesPath}\" ";
+            Console.WriteLine($"[YT-DLP] Utilizando arquivo de cookies encontrado em: {cookiesPath}");
+        }
+        else
+        {
+            Console.WriteLine("[YT-DLP] Nenhum arquivo de cookies valido fornecido ou encontrado. Executando download sem cookies...");
+        }
+
         var startInfo = new System.Diagnostics.ProcessStartInfo
         {
             FileName = "yt-dlp",
-            Arguments = $"--no-playlist -x --audio-format opus --audio-quality 96K -o \"{outputPath}\" \"{downloadUrl}\"",
+            Arguments = $"{cookiesArg}--no-playlist -x --audio-format opus --audio-quality 96K -o \"{outputPath}\" \"{downloadUrl}\"",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
