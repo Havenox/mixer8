@@ -91,8 +91,16 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             var outputTemplate = Path.Combine(downloadsDir, $"{track.TrackId}.%(ext)s");
             var finalFilePath = Path.Combine(downloadsDir, $"{track.TrackId}.opus");
 
+            // Se for apenas o ID do YouTube, reconstrói o link limpo. Caso contrário, mantém a URL.
+            var downloadUrl = track.DownloadUrl!;
+            if (!downloadUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                !downloadUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                downloadUrl = $"https://www.youtube.com/watch?v={downloadUrl}";
+            }
+
             // Executa o download via yt-dlp
-            var success = await RunYtdlpAsync(track.DownloadUrl!, outputTemplate);
+            var success = await RunYtdlpAsync(downloadUrl, outputTemplate);
 
             using var updateScope = serviceProvider.CreateScope();
             var updateDb = updateScope.ServiceProvider.GetRequiredService<Mixer8DbContext>();
@@ -147,7 +155,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         var startInfo = new System.Diagnostics.ProcessStartInfo
         {
             FileName = "yt-dlp",
-            Arguments = $"-x --audio-format opus --audio-quality 96K -o \"{outputPath}\" \"{downloadUrl}\"",
+            Arguments = $"--no-playlist -x --audio-format opus --audio-quality 96K -o \"{outputPath}\" \"{downloadUrl}\"",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
