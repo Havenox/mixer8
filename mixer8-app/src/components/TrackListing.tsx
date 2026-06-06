@@ -32,7 +32,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
   const { openAddToPlaylist } = usePlaylists();
 
   const handlePlayClick = (track: ITrack) => {
-    if (track.ExtractionStatus !== 'Pronto') return;
+    if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando')) return;
     loadTrack(track, undefined, undefined, tracksQueue || tracks);
   };
 
@@ -98,7 +98,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
                       {idx + 1}
                     </span>
                     <button
-                      disabled={track.ExtractionStatus !== 'Pronto'}
+                      disabled={track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando')}
                       onClick={(e) => {
                         e.stopPropagation();
                         handlePlayClick(track);
@@ -196,7 +196,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
                     </span>
                   ) : track.ExtractionStatus.startsWith('Processando') ? (
                     <span className="text-yellow-500 flex items-center gap-1.5 animate-pulse">
-                      <Clock className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '3s' }} /> EXTRAINDO
+                      <Clock className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '3s' }} /> {track.ExtractionStatus.includes(':') ? track.ExtractionStatus.split(':')[1].trim().toUpperCase() : 'EXTRAINDO'}
                     </span>
                   ) : track.ExtractionStatus === 'Falhou' ? (
                     <span className="text-red-400">FALHOU</span>
@@ -287,7 +287,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
                   <Disc className={`w-16 h-16 text-brand-green/20 group-hover:text-brand-green/40 transition-colors ${isPlay ? 'animate-spin' : ''}`} style={isPlay ? { animationDuration: '6s' } : {}} />
                 )}
                 <button 
-                  disabled={track.ExtractionStatus !== 'Pronto'}
+                  disabled={track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando')}
                   onClick={(e) => {
                     e.stopPropagation();
                     handlePlayClick(track);
@@ -366,7 +366,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
                   </span>
                 ) : track.ExtractionStatus.startsWith('Processando') ? (
                   <span className="text-yellow-500 flex items-center gap-1 animate-pulse">
-                    <Clock className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '3s' }} /> EXTRAINDO
+                    <Clock className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '3s' }} /> {track.ExtractionStatus.includes(':') ? track.ExtractionStatus.split(':')[1].trim().toUpperCase() : 'EXTRAINDO'}
                   </span>
                 ) : track.ExtractionStatus === 'Falhou' ? (
                   <span className="text-red-400">FALHOU</span>

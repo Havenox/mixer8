@@ -214,8 +214,8 @@ const Explore: React.FC = () => {
       const res = await fetch(`${API_URL}/Explore/WeeklyTrends`, { headers });
       if (res.ok) {
         const data = await res.json();
-        // Exibe apenas as tracks com extração concluída
-        setTracks(data.filter((t: ITrack) => t.ExtractionStatus === 'Pronto'));
+        // Exibe apenas as tracks com extração concluída ou em processamento
+        setTracks(data.filter((t: ITrack) => t.ExtractionStatus === 'Pronto' || t.ExtractionStatus.startsWith('Processando')));
       }
     } catch (err) {
       console.error('Erro ao buscar tracks:', err);

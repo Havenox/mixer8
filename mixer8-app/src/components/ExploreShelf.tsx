@@ -71,7 +71,7 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
   };
 
   const handlePlayClick = (track: ITrack) => {
-    if (track.ExtractionStatus !== 'Pronto') return;
+    if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando')) return;
     loadTrack(track, undefined, undefined, itemsToShow);
   };
 
@@ -217,7 +217,7 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
                       <Disc className={`w-16 h-16 text-brand-green/20 group-hover:text-brand-green/40 transition-colors ${isPlay ? 'animate-spin' : ''}`} style={isPlay ? { animationDuration: '6s' } : {}} />
                     )}
                     <button 
-                      disabled={track.ExtractionStatus !== 'Pronto'}
+                      disabled={track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando')}
                       onClick={(e) => {
                         e.stopPropagation();
                         handlePlayClick(track);
@@ -257,7 +257,7 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
                       </span>
                     ) : track.ExtractionStatus.startsWith('Processando') ? (
                       <span className="text-yellow-500 flex items-center gap-1 animate-pulse">
-                        <Clock className="w-3.5 h-3.5 animate-spin" /> EXTRAINDO
+                        <Clock className="w-3.5 h-3.5 animate-spin" /> {track.ExtractionStatus.includes(':') ? track.ExtractionStatus.split(':')[1].trim().toUpperCase() : 'EXTRAINDO'}
                       </span>
                     ) : (
                       <span className="text-red-400">FALHOU</span>

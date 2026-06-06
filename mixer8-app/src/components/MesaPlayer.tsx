@@ -3,7 +3,7 @@ import { usePlayer } from '../context/PlayerContext';
 import { 
   Play, Pause, SkipBack, SkipForward, Volume2, 
   Sliders, RefreshCw, Disc, Layers, Music, ChevronDown,
-  Shuffle, Repeat, Repeat1
+  Shuffle, Repeat, Repeat1, Clock
 } from 'lucide-react';
 
 import { SERVER_URL } from '../config';
@@ -81,6 +81,8 @@ export const MesaPlayer: React.FC = () => {
   };
 
   const hasMultipleStems = currentTrack.Stems && currentTrack.Stems.length > 1;
+  const isProcessingOrSingleStem = !!(currentTrack.ExtractionStatus?.startsWith('Processando') || 
+    (currentTrack.Stems && currentTrack.Stems.length === 1 && currentTrack.Stems[0].StemType === 'Completo'));
 
   return (
     <>
@@ -226,8 +228,8 @@ export const MesaPlayer: React.FC = () => {
         {/* Direita: Mixagem DAW & Volume Geral */}
         <div className="flex items-center gap-2 md:gap-4 flex-1 md:flex-none md:w-1/4 justify-end min-w-0 md:min-w-[220px] relative select-none">
           
-          {/* Botão de Mixer apenas se houver múltiplas stems */}
-          {hasMultipleStems && (
+          {/* Botão de Mixer se houver múltiplas stems ou estiver em processamento */}
+          {(hasMultipleStems || isProcessingOrSingleStem) && (
             <button 
               onClick={() => setShowMixer(!showMixer)}
               className={`flex items-center justify-center gap-2 p-2 md:px-3 md:py-1.5 rounded-full border transition-all cursor-pointer shrink-0 ${
@@ -257,7 +259,7 @@ export const MesaPlayer: React.FC = () => {
           </div>
 
           {/* PAINEL FLUTUANTE DA DAW (Mesa de Mixagem Dinâmica para até 10 stems) */}
-          {showMixer && hasMultipleStems && (
+          {showMixer && (hasMultipleStems || isProcessingOrSingleStem) && (
             <div className="absolute right-0 bottom-28 w-80 bg-brand-card border border-brand-hover p-5 rounded-lg shadow-2xl flex flex-col gap-4 animate-in slide-in-from-bottom-2 duration-200">
               <div className="flex items-center justify-between border-b border-brand-hover pb-3">
                 <div className="flex items-center gap-2 text-white">
@@ -265,9 +267,19 @@ export const MesaPlayer: React.FC = () => {
                   <span className="font-bold text-sm">Mesa de Som (Stems)</span>
                 </div>
                 <span className="text-[10px] bg-brand-hover text-brand-green font-bold px-1.5 py-0.5 rounded">
-                  REALTIME
+                  {isProcessingOrSingleStem ? 'PREVIA' : 'REALTIME'}
                 </span>
               </div>
+
+              {isProcessingOrSingleStem ? (
+                <div className="flex flex-col items-center justify-center text-center p-4 gap-3">
+                  <Clock className="w-8 h-8 text-yellow-500 animate-pulse" />
+                  <p className="text-xs text-brand-gray leading-relaxed m-0 font-medium">
+                    Mixagem em processamento. Ouça a prévia completa enquanto separamos os canais.
+                  </p>
+                </div>
+              ) : (
+                <>
 
               {/* Presets Rápidos */}
               <div className="grid grid-cols-4 gap-1.5 text-[10px] font-bold uppercase">
@@ -384,6 +396,8 @@ export const MesaPlayer: React.FC = () => {
                   <RefreshCw className="w-3 h-3 animate-spin" style={{ animationDuration: '6s' }} /> Salvar Preset
                 </button>
               </div>
+              </>
+              )}
             </div>
           )}
         </div>
@@ -428,7 +442,7 @@ export const MesaPlayer: React.FC = () => {
 
         {/* Controles de Mídia Compactos */}
         <div className="flex items-center gap-3 shrink-0">
-          {hasMultipleStems && (
+          {(hasMultipleStems || isProcessingOrSingleStem) && (
             <button 
               onClick={(e) => { e.stopPropagation(); setIsExpandedMobile(true); setShowMobileMixer(true); }}
               className="text-brand-gray hover:text-white p-2 cursor-pointer transition-colors"
@@ -537,7 +551,7 @@ export const MesaPlayer: React.FC = () => {
           {/* Controles Principais */}
           <div className="flex items-center justify-between w-full px-4 mb-6 shrink-0 relative">
             {/* Mixer Trigger */}
-            {hasMultipleStems ? (
+            {(hasMultipleStems || isProcessingOrSingleStem) ? (
               <button 
                 onClick={() => setShowMobileMixer(!showMobileMixer)}
                 className={`p-2.5 rounded-full transition-colors cursor-pointer ${
@@ -651,16 +665,26 @@ export const MesaPlayer: React.FC = () => {
           </div>
 
           {/* Mixer Stems Mobile (Directly below playback controls) */}
-          {showMobileMixer && hasMultipleStems && (
+          {showMobileMixer && (hasMultipleStems || isProcessingOrSingleStem) && (
             <div className="w-full mt-6 border-t border-brand-hover pt-6 flex flex-col gap-4 animate-in slide-in-from-bottom duration-250 select-none pb-12">
               <div className="flex items-center justify-between border-b border-brand-hover pb-2">
                 <span className="font-bold text-sm text-brand-green uppercase tracking-wider flex items-center gap-1.5">
                   <Layers className="w-4 h-4" /> Mixer de Som (Realtime)
                 </span>
                 <span className="text-xs bg-brand-hover text-brand-green font-black px-2 py-0.5 rounded">
-                  {currentTrack.Stems?.length} STEMS
+                  {isProcessingOrSingleStem ? 'PREVIA' : `${currentTrack.Stems?.length} STEMS`}
                 </span>
               </div>
+
+              {isProcessingOrSingleStem ? (
+                <div className="flex flex-col items-center justify-center text-center p-4 gap-3 bg-black/20 border border-brand-hover rounded-lg">
+                  <Clock className="w-8 h-8 text-yellow-500 animate-pulse" />
+                  <p className="text-xs text-brand-gray leading-relaxed m-0 font-medium text-white">
+                    Mixagem em processamento. Ouça a prévia completa enquanto separamos os canais.
+                  </p>
+                </div>
+              ) : (
+                <>
 
               {/* Presets Rápidos */}
               <div className="grid grid-cols-4 gap-2 text-xs font-bold uppercase select-none shrink-0">
@@ -766,6 +790,8 @@ export const MesaPlayer: React.FC = () => {
                     );
                   })}
               </div>
+              </>
+              )}
             </div>
           )}
         </div>
