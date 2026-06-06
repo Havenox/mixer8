@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { 
   UploadCloud, FileAudio, 
   Sparkles, ShieldAlert, AlertTriangle, Plus, Trash2, X, Music, Loader2, Settings, RefreshCw, Image,
-  LayoutGrid, List
+  LayoutGrid, List, ArrowLeftRight
 } from 'lucide-react';
 
 import { usePlayer } from '../context/PlayerContext';
@@ -207,6 +207,76 @@ export const Dashboard: React.FC = () => {
   const [songName, setSongName] = useState('');
   const [artistName, setArtistName] = useState('');
   const [newTrackId, setNewTrackId] = useState<string | null>(null);
+
+  // Busca metadados do YouTube/URL automaticamente ao colar o link (com debounce)
+  useEffect(() => {
+    if (!downloadUrl.trim()) return;
+
+    const isYouTube = downloadUrl.includes('youtube.com') || downloadUrl.includes('youtu.be');
+    if (!isYouTube) return;
+
+    const fetchMetadata = async () => {
+      try {
+        const res = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(downloadUrl.trim())}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.title) {
+            const title = data.title;
+            
+            // Limpa termos comuns de títulos do YouTube para focar na música/artista
+            const cleanTitle = title
+              .replace(/\s*[\(\[][Oo]fficial\s*[Vv]ideo[\)\]]/g, '')
+              .replace(/\s*[\(\[][Oo]fficial\s*[Aa]udio[\)\]]/g, '')
+              .replace(/\s*[\(\[][Oo]fficial\s*[Mm]usic\s*[Vv]ideo[\)\]]/g, '')
+              .replace(/\s*[\(\[][Oo]fficial\s*[Ll]yric\s*[Vv]ideo[\)\]]/g, '')
+              .replace(/\s*[\(\[][Ll]yric\s*[Vv]ideo[\)\]]/g, '')
+              .replace(/\s*[\(\[][Vv]ídeo\s*[Oo]ficial[\)\]]/g, '')
+              .replace(/\s*[\(\[][Cc]lipe\s*[Oo]ficial[\)\]]/g, '')
+              .replace(/\s*[\(\[][Aa]udio\s*[Oo]ficial[\)\]]/g, '')
+              .replace(/\s*[\(\[][Ll]ive[\)\]]/g, '')
+              .replace(/\s*[\(\[]HD[\)\]]/g, '')
+              .replace(/\s*[\(\[]4[Kk][\)\]]/g, '')
+              .trim();
+            
+            const separators = [' - ', ' – ', ' — ', ' | ', ' |'];
+            let parsedArtist = '';
+            let parsedSong = '';
+            
+            for (const sep of separators) {
+              if (cleanTitle.includes(sep)) {
+                const parts = cleanTitle.split(sep);
+                if (parts.length >= 2) {
+                  parsedArtist = parts[0].trim();
+                  parsedSong = parts.slice(1).join(sep).trim();
+                  break;
+                }
+              }
+            }
+            
+            if (!parsedArtist && !parsedSong) {
+              parsedSong = cleanTitle;
+              parsedArtist = data.author_name || '';
+            }
+            
+            // Apenas preenche se os inputs correspondentes estiverem vazios (UX amigável)
+            if (!songName.trim()) setSongName(parsedSong);
+            if (!artistName.trim()) setArtistName(parsedArtist);
+          }
+        }
+      } catch (err) {
+        console.error('Falha ao buscar metadados do YouTube:', err);
+      }
+    };
+
+    const timer = setTimeout(fetchMetadata, 500);
+    return () => clearTimeout(timer);
+  }, [downloadUrl]);
+
+  const swapSongAndArtist = () => {
+    const temp = songName;
+    setSongName(artistName);
+    setArtistName(temp);
+  };
 
   const getFriendlyStatus = (log: string) => {
     if (!log) return 'Iniciando processo...';
@@ -659,7 +729,7 @@ export const Dashboard: React.FC = () => {
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
                       <div className="flex flex-col gap-1 text-xs">
                         <label className="font-semibold text-brand-gray">Nome da Música</label>
                         <input 
@@ -667,9 +737,17 @@ export const Dashboard: React.FC = () => {
                           placeholder="Ex: Yesterday"
                           value={songName}
                           onChange={(e) => setSongName(e.target.value)}
-                          className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green"
+                          className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green w-full"
                         />
                       </div>
+                      <button
+                        type="button"
+                        onClick={swapSongAndArtist}
+                        className="p-2 bg-brand-card hover:bg-brand-hover text-brand-gray hover:text-white rounded border border-brand-hover hover:border-brand-green flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer h-[38px]"
+                        title="Inverter Música e Artista"
+                      >
+                        <ArrowLeftRight className="w-4 h-4" />
+                      </button>
                       <div className="flex flex-col gap-1 text-xs">
                         <label className="font-semibold text-brand-gray">Nome do Artista</label>
                         <input 
@@ -677,7 +755,7 @@ export const Dashboard: React.FC = () => {
                           placeholder="Ex: The Beatles"
                           value={artistName}
                           onChange={(e) => setArtistName(e.target.value)}
-                          className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green"
+                          className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green w-full"
                         />
                       </div>
                     </div>
