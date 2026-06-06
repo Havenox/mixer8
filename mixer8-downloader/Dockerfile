@@ -14,9 +14,9 @@ RUN dotnet publish -c Release -o out
 FROM mcr.microsoft.com/dotnet/runtime:10.0
 WORKDIR /app
 
-# Instala ffmpeg, python3, pip e o yt-dlp de forma limpa e atualizada
+# Instala ffmpeg, python3, nodejs, pip e o yt-dlp de forma limpa e atualizada
 RUN apt-get update && \
-    apt-get install -y ffmpeg python3 python3-pip python3-venv && \
+    apt-get install -y ffmpeg python3 python3-pip python3-venv nodejs && \
     python3 -m venv /opt/venv && \
     /opt/venv/bin/pip install --upgrade pip yt-dlp && \
     ln -s /opt/venv/bin/yt-dlp /usr/local/bin/yt-dlp && \
