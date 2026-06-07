@@ -4,7 +4,7 @@ import type { IPlaylist } from '../context/PlaylistContext';
 import { useAuth } from '../context/AuthContext';
 import { 
   ListMusic, PlusCircle, Edit, Trash2, AlertTriangle,
-  LayoutGrid, List
+  LayoutGrid, List, Search, X
 } from 'lucide-react';
 
 import { PlaylistListing } from '../components/PlaylistListing';
@@ -25,6 +25,20 @@ export const Playlists: React.FC = () => {
   );
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; playlist: IPlaylist } | null>(null);
   const [collabPlaylistToLeave, setCollabPlaylistToLeave] = useState<IPlaylist | null>(null);
+
+  const [searchInput, setSearchInput] = useState('');
+  const [showAll, setShowAll] = useState(false);
+
+  // Filtragem das playlists em memória (client-side)
+  const filteredPlaylists = playlists.filter(p => {
+    const matchesSearch = 
+      p.Name.toLowerCase().includes(searchInput.toLowerCase()) ||
+      (p.Description && p.Description.toLowerCase().includes(searchInput.toLowerCase()));
+
+    const matchesVisibility = showAll ? true : p.Visibility === 'Public';
+
+    return matchesSearch && matchesVisibility;
+  });
 
   const handleLayoutToggle = (mode: 'grid' | 'list') => {
     setLayoutMode(mode);
@@ -116,6 +130,54 @@ export const Playlists: React.FC = () => {
         </div>
       </div>
 
+      {/* Barra de Filtros e Busca */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-black/20 border border-brand-hover p-4 rounded-xl backdrop-blur-md">
+        {/* Campo de Busca */}
+        <div className="relative w-full md:max-w-sm">
+          <input
+            type="text"
+            placeholder="Buscar por playlist..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="w-full bg-black/40 border border-brand-hover hover:border-brand-gray/40 focus:border-brand-green/60 rounded-full py-2.5 pl-10 pr-10 text-xs text-white placeholder-brand-gray/60 focus:outline-none transition-all"
+          />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gray" />
+          {searchInput && (
+            <button
+              onClick={() => setSearchInput('')}
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-brand-gray hover:text-white cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Filtros de Visibilidade */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] text-brand-gray font-bold uppercase tracking-wider mr-1">Visibilidade:</span>
+          <button
+            onClick={() => setShowAll(false)}
+            className={`py-1.5 px-4 rounded-full text-xs font-bold transition-all cursor-pointer ${
+              !showAll 
+                ? 'bg-brand-green text-black hover:scale-102 shadow-md shadow-brand-green/10' 
+                : 'bg-brand-hover text-brand-gray hover:text-white hover:bg-brand-hover/80'
+            }`}
+          >
+            Públicas
+          </button>
+          <button
+            onClick={() => setShowAll(true)}
+            className={`py-1.5 px-4 rounded-full text-xs font-bold transition-all cursor-pointer ${
+              showAll 
+                ? 'bg-brand-green text-black hover:scale-102 shadow-md shadow-brand-green/10' 
+                : 'bg-brand-hover text-brand-gray hover:text-white hover:bg-brand-hover/80'
+            }`}
+          >
+            Todas (Públicas + Privadas)
+          </button>
+        </div>
+      </div>
+
       {/* Grid de Playlists */}
       {playlists.length === 0 ? (
         <div className="text-xs text-brand-gray font-semibold py-8 text-center bg-brand-card/20 border border-brand-hover border-dashed rounded-lg flex flex-col items-center justify-center gap-3">
@@ -131,9 +193,15 @@ export const Playlists: React.FC = () => {
             Começar Agora
           </button>
         </div>
+      ) : filteredPlaylists.length === 0 ? (
+        <div className="text-xs text-brand-gray font-semibold py-12 text-center bg-brand-card/10 border border-brand-hover border-dashed rounded-lg flex flex-col items-center justify-center gap-3">
+          <ListMusic className="w-10 h-10 text-brand-gray/30 animate-pulse" />
+          <span className="text-white font-bold text-sm">Nenhuma playlist encontrada</span>
+          <span>Tente ajustar sua busca ou mude a visibilidade para "Todas".</span>
+        </div>
       ) : (
         <PlaylistListing
-          playlists={playlists}
+          playlists={filteredPlaylists}
           layoutMode={layoutMode}
           onToggleSavePlaylist={handleUnsavePlaylist}
           onPlaylistContextMenu={(e, playlist) => {
