@@ -212,11 +212,11 @@ export const PublicProfile: React.FC = () => {
             Nenhuma playlist pública criada por este usuário.
           </div>
         ) : (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,220px))] gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-[repeat(auto-fill,minmax(180px,220px))] gap-3 sm:gap-4">
             {profile.PublicPlaylists.map((playlist) => (
               <div 
                 key={playlist.PlaylistId} 
-                className="bg-brand-card border border-brand-hover p-4 rounded hover:bg-brand-hover transition-all flex flex-col gap-3 group shadow-lg relative cursor-pointer"
+                className="bg-brand-card border border-brand-hover p-2.5 sm:p-4 rounded hover:bg-brand-hover transition-all flex flex-col gap-2 sm:gap-3 group shadow-lg relative cursor-pointer"
                 onClick={() => navigate(`/playlists/${playlist.PlaylistId}`)}
               >
                 <div className="aspect-square bg-black border border-brand-hover rounded flex items-center justify-center text-brand-green shadow-md overflow-hidden relative shrink-0">
