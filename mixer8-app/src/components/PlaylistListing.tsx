@@ -277,7 +277,7 @@ export const PlaylistListing: React.FC<PlaylistListingProps> = ({
 
   // Layout em Grade (Default)
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,220px))] gap-4 select-none w-full animate-in fade-in duration-300">
+    <div className="grid grid-cols-2 sm:grid-cols-[repeat(auto-fill,minmax(180px,220px))] gap-3 sm:gap-4 select-none w-full animate-in fade-in duration-300">
       {playlists.map((playlist) => {
         const canManage = playlist.IsOwner || CurrentUser?.UserRole === 'Admin';
         const canContext = canManage || playlist.IsSaved || playlist.IsCollaborator;
@@ -285,7 +285,7 @@ export const PlaylistListing: React.FC<PlaylistListingProps> = ({
         return (
           <div 
             key={playlist.PlaylistId} 
-            className="bg-brand-card border border-brand-hover p-4 rounded-md hover:bg-brand-hover transition-all flex flex-col gap-3 group shadow-lg relative cursor-pointer"
+            className="bg-brand-card border border-brand-hover p-2.5 sm:p-4 rounded-md hover:bg-brand-hover transition-all flex flex-col gap-2 sm:gap-3 group shadow-lg relative cursor-pointer"
             onClick={() => handlePlaylistClick(playlist.PlaylistId)}
             onContextMenu={(e) => {
               if (canContext) {
@@ -308,7 +308,7 @@ export const PlaylistListing: React.FC<PlaylistListingProps> = ({
               </button>
             )}
 
-            <div className="w-full aspect-square bg-gradient-to-br from-brand-card to-black/60 border border-brand-hover rounded mb-1 flex items-center justify-center relative overflow-hidden group shadow-md shrink-0">
+            <div className="w-full aspect-square bg-gradient-to-br from-brand-card to-black/60 border border-brand-hover rounded mb-0.5 sm:mb-1 flex items-center justify-center relative overflow-hidden group shadow-md shrink-0">
               {playlist.CoverUrl ? (
                 <img 
                   src={playlist.CoverUrl.startsWith('http') ? playlist.CoverUrl : `${SERVER_URL}${playlist.CoverUrl}`} 
