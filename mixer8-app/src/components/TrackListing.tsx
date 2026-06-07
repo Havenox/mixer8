@@ -329,7 +329,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
   // Layout em Grade (Default)
   return (
     <div className="flex flex-col gap-6 select-none w-full animate-in fade-in duration-300">
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,220px))] gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-[repeat(auto-fill,minmax(160px,220px))] gap-3 sm:gap-4">
         {tracks.map((track) => {
           const isPlay = isCurrentPlaying(track);
           const isLoaded = isCurrentLoaded(track);
@@ -337,7 +337,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
           return (
             <div 
               key={track.TrackId} 
-              className={`bg-brand-card border p-4 rounded-md hover:bg-brand-hover group transition-all relative cursor-pointer flex flex-col justify-between ${
+              className={`bg-brand-card border p-2.5 sm:p-4 rounded-md hover:bg-brand-hover group transition-all relative cursor-pointer flex flex-col justify-between ${
                 isLoaded ? 'border-brand-green/30' : 'border-brand-hover'
               }`}
               onContextMenu={(e) => {
@@ -360,7 +360,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
                 </button>
               )}
 
-              <div className="w-full aspect-square bg-black border border-brand-hover rounded mb-4 flex items-center justify-center relative overflow-hidden group shadow-md">
+              <div className="w-full aspect-square bg-black border border-brand-hover rounded mb-2 sm:mb-4 flex items-center justify-center relative overflow-hidden group shadow-md">
                 {track.CoverUrl ? (
                   <img 
                     src={track.CoverUrl.startsWith('http') ? track.CoverUrl : `${SERVER_URL}${track.CoverUrl}`} 
@@ -450,10 +450,10 @@ export const TrackListing: React.FC<TrackListingProps> = ({
                 )}
               </div>
 
-              <div className="flex items-center justify-between mt-3 pt-2 border-t border-brand-hover text-[10px] font-bold">
-                <span className="text-brand-gray uppercase">Stems: {track.Stems?.length || 0} faixas</span>
+              <div className="flex items-center justify-between mt-2 sm:mt-3 pt-2 border-t border-brand-hover text-[9px] sm:text-[10px] font-bold">
+                <span className="text-brand-gray uppercase truncate max-w-[55%]">Stems: {track.Stems?.length || 0}</span>
                 
-                <TrackStatusBadge status={track.ExtractionStatus} showMixLabel={true} />
+                <TrackStatusBadge status={track.ExtractionStatus} />
               </div>
             </div>
           );
