@@ -131,49 +131,48 @@ export const Playlists: React.FC = () => {
       </div>
 
       {/* Barra de Filtros e Busca */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-black/20 border border-brand-hover p-4 rounded-xl backdrop-blur-md">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2">
         {/* Campo de Busca */}
-        <div className="relative w-full md:max-w-sm">
+        <div className="relative w-full sm:w-48">
           <input
             type="text"
-            placeholder="Buscar por playlist..."
+            placeholder="Buscar..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="w-full bg-black/40 border border-brand-hover hover:border-brand-gray/40 focus:border-brand-green/60 rounded-full py-2.5 pl-10 pr-10 text-xs text-white placeholder-brand-gray/60 focus:outline-none transition-all"
+            className="w-full bg-transparent border-b border-white/10 focus:border-brand-green/60 py-1 pl-7 pr-6 text-xs text-white placeholder-brand-gray/40 focus:outline-none transition-all"
           />
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gray" />
+          <Search className="absolute left-1 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-gray/60" />
           {searchInput && (
             <button
               onClick={() => setSearchInput('')}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-brand-gray hover:text-white cursor-pointer"
+              className="absolute right-1 top-1/2 -translate-y-1/2 text-brand-gray hover:text-white cursor-pointer"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-3 h-3" />
             </button>
           )}
         </div>
 
         {/* Filtros de Visibilidade */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] text-brand-gray font-bold uppercase tracking-wider mr-1">Visibilidade:</span>
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setShowAll(false)}
-            className={`py-1.5 px-4 rounded-full text-xs font-bold transition-all cursor-pointer ${
+            className={`py-0.5 px-2.5 rounded-full text-[10px] font-bold transition-all border cursor-pointer ${
               !showAll 
-                ? 'bg-brand-green text-black hover:scale-102 shadow-md shadow-brand-green/10' 
-                : 'bg-brand-hover text-brand-gray hover:text-white hover:bg-brand-hover/80'
+                ? 'bg-brand-green/10 text-brand-green border-brand-green/30 shadow-md shadow-brand-green/5' 
+                : 'bg-transparent border-white/10 text-brand-gray hover:text-white hover:border-white/25'
             }`}
           >
             Públicas
           </button>
           <button
             onClick={() => setShowAll(true)}
-            className={`py-1.5 px-4 rounded-full text-xs font-bold transition-all cursor-pointer ${
+            className={`py-0.5 px-2.5 rounded-full text-[10px] font-bold transition-all border cursor-pointer ${
               showAll 
-                ? 'bg-brand-green text-black hover:scale-102 shadow-md shadow-brand-green/10' 
-                : 'bg-brand-hover text-brand-gray hover:text-white hover:bg-brand-hover/80'
+                ? 'bg-brand-green/10 text-brand-green border-brand-green/30 shadow-md shadow-brand-green/5' 
+                : 'bg-transparent border-white/10 text-brand-gray hover:text-white hover:border-white/25'
             }`}
           >
-            Todas (Públicas + Privadas)
+            Todas
           </button>
         </div>
       </div>
