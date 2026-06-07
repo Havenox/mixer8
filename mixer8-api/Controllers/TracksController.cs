@@ -25,7 +25,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         ".mp4", ".mkv", ".avi", ".mov", ".flv", ".webm", ".m4v", ".3gp", ".ts"
     };
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] int? page, [FromQuery] int? limit)
+    public async Task<IActionResult> GetAll([FromQuery] int? page, [FromQuery] int? limit, [FromQuery] string? search, [FromQuery] bool showAll = false)
     {
         Guid? userId = null;
         bool isAdmin = false;
@@ -38,11 +38,33 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
 
         var query = dbContext.Tracks
             .Include(t => t.Stems)
-            .Where(t => 
+            .AsQueryable();
+
+        if (showAll)
+        {
+            query = query.Where(t => 
                 (t.DeletionPending && isAdmin) ||
                 (!t.DeletionPending && (t.Visibility == "Public" || (userId != null && (t.UploadedBy == userId || isAdmin))))
-            )
-            .OrderByDescending(t => t.CreatedAt);
+            );
+        }
+        else
+        {
+            query = query.Where(t => 
+                (t.DeletionPending && isAdmin) ||
+                (!t.DeletionPending && t.Visibility == "Public")
+            );
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var searchLower = search.ToLower();
+            query = query.Where(t => 
+                t.TrackTitle.ToLower().Contains(searchLower) || 
+                t.ArtistName.ToLower().Contains(searchLower)
+            );
+        }
+
+        query = query.OrderByDescending(t => t.CreatedAt);
 
         List<Track> tracks;
         if (page.HasValue && limit.HasValue)
