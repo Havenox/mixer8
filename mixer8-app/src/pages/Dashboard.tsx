@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
@@ -349,26 +349,46 @@ export const Dashboard: React.FC = () => {
   // Hook de Infinite Scroll reutilizável
   useInfiniteScroll(hasMore, isFetchingMore, isLoadingTracks, () => fetchTracks(false));
 
-  const hasProcessingTracks = tracks.some(t => 
-    t.ExtractionStatus === 'AguardandoDownload' ||
-    t.ExtractionStatus.startsWith('Processando')
-  );
+  const processingIdsStr = useMemo(() => {
+    const idsSet = new Set<string>();
+    
+    tracks.forEach(t => {
+      if (
+        t.ExtractionStatus === 'AguardandoDownload' ||
+        t.ExtractionStatus.startsWith('Processando')
+      ) {
+        idsSet.add(t.TrackId);
+      }
+    });
+
+    if (newTrackId) {
+      idsSet.add(newTrackId);
+    }
+
+    return Array.from(idsSet).sort().join(',');
+  }, [tracks, newTrackId]);
 
   // 2. Pooling do progresso real da conversão do Worker na VPS
   useEffect(() => {
     let interval: any;
 
-    if (newTrackId || hasProcessingTracks) {
+    if (processingIdsStr) {
       interval = setInterval(async () => {
         try {
           const headers: Record<string, string> = {};
           if (Token) {
             headers['Authorization'] = `Bearer ${Token}`;
           }
-          const res = await fetch(`${API_URL}/Tracks`, { headers });
+          const res = await fetch(`${API_URL}/Tracks/Status?ids=${processingIdsStr}`, { headers });
           if (res.ok) {
             const data: ITrack[] = await res.json();
-            setTracks(data);
+            
+            setTracks(prev => {
+              return prev.map(t => {
+                const updated = data.find(ut => ut.TrackId === t.TrackId);
+                return updated ? updated : t;
+              });
+            });
 
             if (newTrackId) {
               const uploadedTrack = data.find(t => t.TrackId === newTrackId);
@@ -405,11 +425,11 @@ export const Dashboard: React.FC = () => {
         } catch {
           // Mantém conexão silenciosa
         }
-      }, 3000); // Poll a cada 3 segundos
+      }, 5000); // Poll a cada 5 segundos
     }
 
     return () => clearInterval(interval);
-  }, [newTrackId, hasProcessingTracks, Token]);
+  }, [processingIdsStr, Token, newTrackId, navigate]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
