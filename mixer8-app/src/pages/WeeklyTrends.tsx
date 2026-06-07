@@ -278,7 +278,7 @@ export const WeeklyTrends: React.FC = () => {
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={e => e.stopPropagation()}
         >
-          {contextMenu.track.ExtractionStatus === 'Pronto' && (
+          {(contextMenu.track.ExtractionStatus === 'Pronto' || contextMenu.track.ExtractionStatus.startsWith('Processando')) && (
             <button
               onClick={() => {
                 openAddToPlaylist(contextMenu.track.TrackId, contextMenu.track.TrackTitle, contextMenu.track.ArtistName);
@@ -293,7 +293,7 @@ export const WeeklyTrends: React.FC = () => {
 
           {(CurrentUser?.UserRole === 'Admin' || contextMenu.track.UploadedBy === CurrentUser?.UserId) && (
             <>
-              {contextMenu.track.ExtractionStatus === 'Pronto' && (
+              {(contextMenu.track.ExtractionStatus === 'Pronto' || contextMenu.track.ExtractionStatus.startsWith('Processando')) && (
                 <div className="h-[1px] bg-brand-hover my-1" />
               )}
               <button

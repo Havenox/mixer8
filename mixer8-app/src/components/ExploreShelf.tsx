@@ -190,7 +190,7 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
                   onClick={() => handlePlayClick(track)}
                 >
                   {/* Botão de playlist no hover */}
-                  {track.ExtractionStatus === 'Pronto' && (
+                  {(track.ExtractionStatus === 'Pronto' || track.ExtractionStatus.startsWith('Processando')) && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
