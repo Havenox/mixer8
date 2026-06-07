@@ -1237,6 +1237,14 @@ export const PlaylistDetail: React.FC = () => {
                         handlePlayTrack(t);
                       }
                     }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      if (!IsAuthenticated) {
+                        openLoginModal();
+                      } else {
+                        setMobileTrackMenu(t);
+                      }
+                    }}
                     className={`flex items-center gap-3 p-2 rounded-md active:bg-brand-hover/40 transition-colors cursor-pointer ${
                       isCurrentTrack ? 'bg-brand-hover/10' : ''
                     }`}
@@ -1337,9 +1345,9 @@ export const PlaylistDetail: React.FC = () => {
                           setMobileTrackMenu(t);
                         }
                       }}
-                      className="p-2 text-brand-gray hover:text-white transition-colors cursor-pointer shrink-0"
+                      className="p-1.5 -mr-1.5 text-brand-gray/50 hover:text-white active:scale-90 transition-all cursor-pointer shrink-0"
                     >
-                      <MoreHorizontal className="w-5 h-5" />
+                      <MoreHorizontal className="w-4 h-4" />
                     </button>
                   </div>
                 );
