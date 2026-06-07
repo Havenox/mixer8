@@ -142,6 +142,44 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         return Ok(tracks);
     }
 
+    [HttpGet("Status")]
+    public async Task<IActionResult> GetStatus([FromQuery] string ids)
+    {
+        if (string.IsNullOrWhiteSpace(ids))
+        {
+            return BadRequest(new { ErrorMessage = "IDS_REQUIRED" });
+        }
+
+        var guidIds = ids.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(idStr => Guid.TryParse(idStr, out var g) ? g : Guid.Empty)
+            .Where(g => g != Guid.Empty)
+            .ToList();
+
+        if (guidIds.Count == 0)
+        {
+            return Ok(new List<Track>());
+        }
+
+        Guid? userId = null;
+        bool isAdmin = false;
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userIdClaim != null && Guid.TryParse(userIdClaim, out var parsedUserId))
+        {
+            userId = parsedUserId;
+            isAdmin = User.IsInRole("Admin");
+        }
+
+        var tracks = await dbContext.Tracks
+            .Include(t => t.Stems)
+            .Where(t => guidIds.Contains(t.TrackId))
+            .Where(t => 
+                (t.DeletionPending && isAdmin) ||
+                (!t.DeletionPending && (t.Visibility == "Public" || (userId != null && (t.UploadedBy == userId || isAdmin))))
+            )
+            .ToListAsync();
+
+        return Ok(tracks);
+    }
 
     [Authorize]
     [HttpPost("Upload")]
