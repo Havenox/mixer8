@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  ListMusic, Lock, Globe, EyeOff, Play, MoreVertical, Clock, Heart, User, Loader2 
+  ListMusic, Lock, Globe, EyeOff, Play, MoreVertical, MoreHorizontal, Clock, Heart, User, Loader2 
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { SERVER_URL } from '../config';
@@ -72,7 +72,7 @@ export const PlaylistListing: React.FC<PlaylistListingProps> = ({
     return (
       <div className="flex flex-col gap-1 w-full select-none animate-in fade-in duration-300">
         {/* Cabeçalho da Lista */}
-        <div className="grid grid-cols-[50px_1fr_120px_120px_100px_80px] gap-4 px-4 py-2 border-b border-brand-hover/60 text-[10px] text-brand-gray font-bold uppercase tracking-wider select-none">
+        <div className="hidden md:grid grid-cols-[50px_1fr_120px_120px_100px_80px] gap-4 px-4 py-2 border-b border-brand-hover/60 text-[10px] text-brand-gray font-bold uppercase tracking-wider select-none">
           <div className="text-center">Capa</div>
           <div>Playlist</div>
           <div className="hidden md:block">Criador</div>
@@ -88,126 +88,179 @@ export const PlaylistListing: React.FC<PlaylistListingProps> = ({
             const canContext = canManage || playlist.IsSaved || playlist.IsCollaborator;
             
             return (
-              <div
-                key={playlist.PlaylistId}
-                className="grid grid-cols-[50px_1fr_80px] md:grid-cols-[50px_1fr_120px_120px_100px_80px] gap-4 items-center px-4 py-2.5 rounded-md border border-brand-hover bg-brand-card/40 hover:bg-brand-hover/60 transition-all group relative cursor-pointer"
-                onClick={() => handlePlaylistClick(playlist.PlaylistId)}
-                onContextMenu={(e) => {
-                  if (canContext) {
-                    e.preventDefault();
-                    onPlaylistContextMenu(e, playlist);
-                  }
-                }}
-              >
-                {/* Capa */}
-                <div className="w-10 h-10 bg-gradient-to-br from-brand-card to-black/60 border border-brand-hover rounded overflow-hidden flex items-center justify-center text-brand-green shrink-0">
-                  {playlist.CoverUrl ? (
-                    <img 
-                      src={playlist.CoverUrl.startsWith('http') ? playlist.CoverUrl : `${SERVER_URL}${playlist.CoverUrl}`} 
-                      alt="Capa" 
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <ListMusic className="w-5 h-5 text-brand-green/40" />
-                  )}
-                </div>
+              <React.Fragment key={playlist.PlaylistId}>
+                {/* Desktop View */}
+                <div
+                  className="hidden md:grid md:grid-cols-[50px_1fr_120px_120px_100px_80px] gap-4 items-center px-4 py-2.5 rounded-md border border-brand-hover bg-brand-card/40 hover:bg-brand-hover/60 transition-all group relative cursor-pointer"
+                  onClick={() => handlePlaylistClick(playlist.PlaylistId)}
+                  onContextMenu={(e) => {
+                    if (canContext) {
+                      e.preventDefault();
+                      onPlaylistContextMenu(e, playlist);
+                    }
+                  }}
+                >
+                  {/* Capa */}
+                  <div className="w-10 h-10 bg-gradient-to-br from-brand-card to-black/60 border border-brand-hover rounded overflow-hidden flex items-center justify-center text-brand-green shrink-0">
+                    {playlist.CoverUrl ? (
+                      <img 
+                        src={playlist.CoverUrl.startsWith('http') ? playlist.CoverUrl : `${SERVER_URL}${playlist.CoverUrl}`} 
+                        alt="Capa" 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <ListMusic className="w-5 h-5 text-brand-green/40" />
+                    )}
+                  </div>
 
-                {/* Info */}
-                <div className="flex flex-col min-w-0">
-                  <span className="font-bold text-white text-sm truncate group-hover:text-brand-green transition-colors duration-200">
-                    {playlist.Name}
-                  </span>
-                  {playlist.Description && (
-                    <span className="text-xs text-brand-gray truncate">
-                      {playlist.Description}
+                  {/* Info */}
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-bold text-white text-sm truncate group-hover:text-brand-green transition-colors duration-200">
+                      {playlist.Name}
                     </span>
-                  )}
-                </div>
+                    {playlist.Description && (
+                      <span className="text-xs text-brand-gray truncate">
+                        {playlist.Description}
+                      </span>
+                    )}
+                  </div>
 
-                {/* Criador */}
-                <div className="hidden md:flex items-center gap-1.5 min-w-0 text-xs text-brand-gray select-none">
-                  {playlist.OwnerAvatarUrl ? (
-                    <img 
-                      src={playlist.OwnerAvatarUrl.startsWith('http') ? playlist.OwnerAvatarUrl : `${SERVER_URL}${playlist.OwnerAvatarUrl}`} 
-                      alt="Avatar" 
-                      className="w-4 h-4 rounded-full object-cover border border-brand-green/20" 
-                    />
-                  ) : (
-                    <div className="w-4 h-4 rounded-full bg-brand-hover border border-brand-green/20 flex items-center justify-center text-brand-green shrink-0">
-                      <User className="w-2.5 h-2.5" />
+                  {/* Criador */}
+                  <div className="hidden md:flex items-center gap-1.5 min-w-0 text-xs text-brand-gray select-none">
+                    {playlist.OwnerAvatarUrl ? (
+                      <img 
+                        src={playlist.OwnerAvatarUrl.startsWith('http') ? playlist.OwnerAvatarUrl : `${SERVER_URL}${playlist.OwnerAvatarUrl}`} 
+                        alt="Avatar" 
+                        className="w-4 h-4 rounded-full object-cover border border-brand-green/20" 
+                      />
+                    ) : (
+                      <div className="w-4 h-4 rounded-full bg-brand-hover border border-brand-green/20 flex items-center justify-center text-brand-green shrink-0">
+                        <User className="w-2.5 h-2.5" />
+                      </div>
+                    )}
+                    <span className="truncate">
+                      {playlist.OwnerFirstName?.trim() 
+                        ? `${playlist.OwnerFirstName} ${playlist.OwnerLastName || ''}`.trim() 
+                        : (playlist.OwnerUserName ? `@${playlist.OwnerUserName}` : playlist.OwnerEmail)}
+                    </span>
+                  </div>
+
+                  {/* Músicas & Duração */}
+                  <div className="hidden md:flex items-center gap-1.5 text-xs text-brand-gray font-semibold leading-none select-none">
+                    <span>{playlist.TracksCount} {playlist.TracksCount === 1 ? 'música' : 'músicas'}</span>
+                    <span className="text-brand-gray/40">•</span>
+                    <div className="flex items-center gap-1 text-[11px]">
+                      <Clock className="w-3.5 h-3.5 text-brand-gray/60" />
+                      <span>{getPlaylistTotalDuration(playlist.PlaylistId, playlist.TracksCount)}</span>
                     </div>
-                  )}
-                  <span className="truncate">
-                    {playlist.OwnerFirstName?.trim() 
-                      ? `${playlist.OwnerFirstName} ${playlist.OwnerLastName || ''}`.trim() 
-                      : (playlist.OwnerUserName ? `@${playlist.OwnerUserName}` : playlist.OwnerEmail)}
-                  </span>
-                </div>
+                  </div>
 
-                {/* Músicas & Duração */}
-                <div className="hidden md:flex items-center gap-1.5 text-xs text-brand-gray font-semibold leading-none select-none">
-                  <span>{playlist.TracksCount} {playlist.TracksCount === 1 ? 'música' : 'músicas'}</span>
-                  <span className="text-brand-gray/40">•</span>
-                  <div className="flex items-center gap-1 text-[11px]">
-                    <Clock className="w-3.5 h-3.5 text-brand-gray/60" />
-                    <span>{getPlaylistTotalDuration(playlist.PlaylistId, playlist.TracksCount)}</span>
+                  {/* Status/Badges */}
+                  <div className="hidden md:flex items-center gap-1.5 text-xs text-brand-gray select-none flex-wrap">
+                    {playlist.Visibility === 'Private' ? (
+                      <span className="flex items-center gap-1 text-brand-green">
+                        <Lock className="w-3.5 h-3.5" /> Privada
+                      </span>
+                    ) : playlist.Visibility === 'Public' ? (
+                      <span className="flex items-center gap-1 text-brand-gray">
+                        <Globe className="w-3.5 h-3.5 text-brand-gray/60" /> Pública
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-brand-gray">
+                        <EyeOff className="w-3.5 h-3.5 text-brand-gray/60" /> Oculta
+                      </span>
+                    )}
+                    {playlist.IsCollaborator && (
+                      <span className="px-1.5 py-0.5 bg-brand-green/10 text-[9px] text-brand-green font-bold rounded border border-brand-green/20 uppercase tracking-wider">
+                        Colab
+                      </span>
+                    )}
+                    {playlist.IsSaved && (
+                      <span className="px-1.5 py-0.5 bg-blue-500/10 text-[9px] text-blue-400 font-bold rounded border border-blue-500/20 uppercase tracking-wider select-none">
+                        Salva
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Ações */}
+                  <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
+                    {!playlist.IsOwner && onToggleSavePlaylist && (
+                      <button
+                        onClick={() => onToggleSavePlaylist(playlist)}
+                        className={`w-7 h-7 rounded-full bg-black/60 border flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-105 transition-all shadow-md cursor-pointer duration-200 ${
+                          playlist.IsSaved
+                            ? 'border-brand-green text-brand-green'
+                            : 'border-brand-hover hover:border-white text-brand-gray hover:text-white'
+                        }`}
+                        title={playlist.IsSaved ? "Remover da Biblioteca" : "Salvar na Biblioteca"}
+                      >
+                        <Heart className={`w-3.5 h-3.5 ${playlist.IsSaved ? 'fill-brand-green text-brand-green' : ''}`} />
+                      </button>
+                    )}
+                    
+                    {canContext && (
+                      <button
+                        onClick={(e) => onPlaylistContextMenu(e, playlist)}
+                        className="w-7 h-7 rounded-full bg-black/40 border border-brand-hover hover:border-brand-green text-brand-gray hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                        title="Mais Opções"
+                      >
+                        <MoreVertical className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                {/* Status/Badges */}
-                <div className="hidden md:flex items-center gap-1.5 text-xs text-brand-gray select-none flex-wrap">
-                  {playlist.Visibility === 'Private' ? (
-                    <span className="flex items-center gap-1 text-brand-green">
-                      <Lock className="w-3.5 h-3.5" /> Privada
-                    </span>
-                  ) : playlist.Visibility === 'Public' ? (
-                    <span className="flex items-center gap-1 text-brand-gray">
-                      <Globe className="w-3.5 h-3.5 text-brand-gray/60" /> Pública
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1 text-brand-gray">
-                      <EyeOff className="w-3.5 h-3.5 text-brand-gray/60" /> Oculta
-                    </span>
-                  )}
-                  {playlist.IsCollaborator && (
-                    <span className="px-1.5 py-0.5 bg-brand-green/10 text-[9px] text-brand-green font-bold rounded border border-brand-green/20 uppercase tracking-wider">
-                      Colab
-                    </span>
-                  )}
-                  {playlist.IsSaved && (
-                    <span className="px-1.5 py-0.5 bg-blue-500/10 text-[9px] text-blue-400 font-bold rounded border border-blue-500/20 uppercase tracking-wider select-none">
-                      Salva
-                    </span>
-                  )}
-                </div>
+                {/* Mobile View */}
+                <div
+                  className="flex md:hidden items-center gap-3 p-2 rounded-md active:bg-brand-hover/40 transition-colors cursor-pointer"
+                  onClick={() => handlePlaylistClick(playlist.PlaylistId)}
+                  onContextMenu={(e) => {
+                    if (canContext) {
+                      e.preventDefault();
+                      onPlaylistContextMenu(e, playlist);
+                    }
+                  }}
+                >
+                  {/* Capa */}
+                  <div className="w-11 h-11 bg-gradient-to-br from-brand-card to-black/60 border border-brand-hover rounded overflow-hidden flex items-center justify-center text-brand-green shrink-0">
+                    {playlist.CoverUrl ? (
+                      <img 
+                        src={playlist.CoverUrl.startsWith('http') ? playlist.CoverUrl : `${SERVER_URL}${playlist.CoverUrl}`} 
+                        alt="Capa" 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <ListMusic className="w-5 h-5 text-brand-green/40" />
+                    )}
+                  </div>
 
-                {/* Ações */}
-                <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
-                  {!playlist.IsOwner && onToggleSavePlaylist && (
-                    <button
-                      onClick={() => onToggleSavePlaylist(playlist)}
-                      className={`w-7 h-7 rounded-full bg-black/60 border flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-105 transition-all shadow-md cursor-pointer duration-200 ${
-                        playlist.IsSaved
-                          ? 'border-brand-green text-brand-green'
-                          : 'border-brand-hover hover:border-white text-brand-gray hover:text-white'
-                      }`}
-                      title={playlist.IsSaved ? "Remover da Biblioteca" : "Salvar na Biblioteca"}
-                    >
-                      <Heart className={`w-3.5 h-3.5 ${playlist.IsSaved ? 'fill-brand-green text-brand-green' : ''}`} />
-                    </button>
-                  )}
-                  
+                  {/* Info */}
+                  <div className="flex-1 min-w-0 flex flex-col justify-center">
+                    <span className="font-bold text-white text-sm truncate leading-tight">
+                      {playlist.Name}
+                    </span>
+                    <span className="text-xs text-brand-gray truncate mt-1 leading-none">
+                      {playlist.TracksCount} {playlist.TracksCount === 1 ? 'música' : 'músicas'}
+                      {playlist.Visibility === 'Private' && ' • Privada'}
+                      {playlist.Visibility === 'Unlisted' && ' • Oculta'}
+                      {playlist.IsCollaborator && ' • Colaborativa'}
+                    </span>
+                  </div>
+
+                  {/* Reticências (Menu Mobile) */}
                   {canContext && (
                     <button
-                      onClick={(e) => onPlaylistContextMenu(e, playlist)}
-                      className="w-7 h-7 rounded-full bg-black/40 border border-brand-hover hover:border-brand-green text-brand-gray hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
-                      title="Mais Opções"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onPlaylistContextMenu(e, playlist);
+                      }}
+                      className="p-1.5 -mr-1.5 text-brand-gray/50 hover:text-white active:scale-90 transition-all cursor-pointer shrink-0"
                     >
-                      <MoreVertical className="w-3.5 h-3.5" />
+                      <MoreHorizontal className="w-4 h-4" />
                     </button>
                   )}
                 </div>
-              </div>
+              </React.Fragment>
             );
           })}
         </div>
