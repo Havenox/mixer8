@@ -992,7 +992,7 @@ export const App: React.FC = () => {
       try {
         // Post access details to the webhook. The client IP will be automatically
         // captured by Cloudflare/n8n in headers like cf-connecting-ip or x-forwarded-for.
-        await fetch('https://n8n.impulse8.com.br/webhook/mixer8-access', {
+        await fetch('https://n8n.impulse8.com.br/webhook/access', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
