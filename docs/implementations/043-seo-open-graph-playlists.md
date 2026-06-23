@@ -33,7 +33,9 @@ Implementou-se o padrão de **Dynamic Rendering** (Prerendering sob demanda por 
   * Injeção de script de redirecionamento `window.location.replace()` no body do HTML gerado como contingência para navegadores tradicionais.
 
 ### Frontend (`mixer8-app`)
-* **[nginx.conf](file:///g:/DEV/mixer8/mixer8-app/nginx.conf):** Adicionada a regra `location ~* ^/playlists/([^/]+)/?$` avaliando se o tráfego provém de bots por meio de expressão regular. Em caso positivo, efetua o proxy reverso para `http://api:5000/api/seo/playlists/$1` repassando os cabeçalhos de contexto originais (`Host`, `X-Forwarded-Proto`, etc.).
+* **[nginx.conf](file:///g:/DEV/mixer8/mixer8-app/nginx.conf):** Adicionada a regra `location ~* ^/playlists/([^/]+)/?$` avaliando se o tráfego provém de bots por meio de expressão regular. 
+  * Para contornar a restrição do Nginx que proíbe diretivas como `proxy_set_header` dentro de condicionais (`if`), a condicional executa apenas uma reescrita interna (`rewrite ^/playlists/([^/]+)/?$ /api/seo/playlists/$1 last;`).
+  * Criou-se a rota interna `location /api/seo/` protegida com a diretiva `internal;`, onde é feito o proxy reverso definitivo (`proxy_pass http://api:5000;`) com os respectivos cabeçalhos de encaminhamento (`proxy_set_header`).
 
 ---
 
