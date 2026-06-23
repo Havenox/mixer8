@@ -36,6 +36,7 @@ Implementou-se o padrão de **Dynamic Rendering** (Prerendering sob demanda por 
 * **[nginx.conf](file:///g:/DEV/mixer8/mixer8-app/nginx.conf):** Adicionada a regra `location ~* ^/playlists/([^/]+)/?$` avaliando se o tráfego provém de bots por meio de expressão regular. 
   * Para contornar a restrição do Nginx que proíbe diretivas como `proxy_set_header` dentro de condicionais (`if`), a condicional executa apenas uma reescrita interna (`rewrite ^/playlists/([^/]+)/?$ /api/seo/playlists/$1 last;`).
   * Criou-se a rota interna `location /api/seo/` protegida com a diretiva `internal;`, onde é feito o proxy reverso definitivo (`proxy_pass http://api:5000;`) com os respectivos cabeçalhos de encaminhamento (`proxy_set_header`).
+  * Adicionou-se o bloco `location ~* ^/(stems|playlists)/.+\.(?:webp|png|jpg|jpeg|gif|ico|opus|mp3|wav)$` para proxy direto de arquivos físicos (como `cover.webp` ou stems de áudio `.opus`) que residem no container da API. Isso evita o conflito de rota onde solicitações para arquivos de imagem de capas (como `/playlists/{id}/cover.webp`) caíam no fallback da SPA e retornavam o HTML do `index.html` em vez da imagem real.
 
 ---
 
