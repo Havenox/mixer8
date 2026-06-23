@@ -142,7 +142,7 @@ public class SeoController(Mixer8DbContext dbContext) : ControllerBase
         {
             // Fallback para a primeira faixa adicionada que possua capa
             coverUrl = playlist.PlaylistTracks
-                .OrderBy(pt => pt.AddedAt)
+                .OrderBy(pt => pt.Order)
                 .Select(pt => pt.Track != null ? pt.Track.CoverUrl : null)
                 .FirstOrDefault(c => !string.IsNullOrEmpty(c));
         }

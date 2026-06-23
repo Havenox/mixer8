@@ -131,7 +131,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
         var result = playlists.Select(p =>
         {
             var firstTrackCover = p.PlaylistTracks
-                .OrderBy(pt => pt.AddedAt)
+                .OrderBy(pt => pt.Order)
                 .Select(pt => pt.Track.CoverUrl)
                 .FirstOrDefault();
 
@@ -211,7 +211,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             .FirstOrDefaultAsync(up => up.UserId == playlist.OwnerId);
 
         var firstTrackCover = playlist.PlaylistTracks
-            .OrderBy(pt => pt.AddedAt)
+            .OrderBy(pt => pt.Order)
             .Select(pt => pt.Track.CoverUrl)
             .FirstOrDefault();
 
@@ -686,7 +686,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
         var result = playlists.Select(p =>
         {
             var firstTrackCover = p.PlaylistTracks
-                .OrderBy(pt => pt.AddedAt)
+                .OrderBy(pt => pt.Order)
                 .Select(pt => pt.Track.CoverUrl)
                 .FirstOrDefault();
 
