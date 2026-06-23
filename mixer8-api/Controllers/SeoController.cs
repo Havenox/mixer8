@@ -44,8 +44,20 @@ public class SeoController(Mixer8DbContext dbContext) : ControllerBase
         }
 
         // Resolve os cabeçalhos do host para construir caminhos absolutos
-        var scheme = Request.Headers["X-Forwarded-Proto"].FirstOrDefault() ?? Request.Scheme;
+        var scheme = Request.Headers["X-Forwarded-Proto"].FirstOrDefault();
+        if (string.IsNullOrEmpty(scheme))
+        {
+            scheme = Request.Scheme;
+        }
+
         var host = Request.Headers["X-Forwarded-Host"].FirstOrDefault() ?? Request.Headers["Host"].FirstOrDefault() ?? Request.Host.Value;
+
+        // Se estiver no domínio de produção (.dev), força HTTPS para evitar inconsistência de redirecionamento HTTP->HTTPS
+        if (host != null && host.Contains("havenox.dev", StringComparison.OrdinalIgnoreCase))
+        {
+            scheme = "https";
+        }
+
         var baseUrl = $"{scheme}://{host}";
         var absolutePageUrl = $"{baseUrl}/playlists/{playlist.PlaylistId}";
 
@@ -174,6 +186,8 @@ public class SeoController(Mixer8DbContext dbContext) : ControllerBase
             <meta property="og:description" content="{{WebUtility.HtmlEncode(metadataDescription)}}">
             <meta property="og:type" content="music.playlist">
             <meta property="og:image" content="{{WebUtility.HtmlEncode(absoluteCoverUrl)}}">
+            <meta property="og:image:width" content="500">
+            <meta property="og:image:height" content="500">
             <meta property="og:url" content="{{WebUtility.HtmlEncode(absolutePageUrl)}}">
             <meta property="og:site_name" content="Mixer 8">
 
