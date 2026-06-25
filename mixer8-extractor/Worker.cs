@@ -157,6 +157,9 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         string? downloadsDir = null;
         string? chordsJsonData = null;
         string? lyricsJsonData = null;
+        string? lyricsNewFormatJsonData = null;
+        string? lyricsJsonUrl = null;
+        string? authToken = null;
         string? lyricsOperationStatus = null;
         string? separateOperationStatus = null;
         try
@@ -298,6 +301,11 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             {
                 try
                 {
+                    if (response.Request.Headers != null && response.Request.Headers.TryGetValue("authorization", out var authVal) && !string.IsNullOrEmpty(authVal))
+                    {
+                        authToken = authVal;
+                    }
+
                     var url = response.Url;
                     if (url.Contains("chords", StringComparison.OrdinalIgnoreCase) || url.Contains("BEATSCHORDS"))
                     {
@@ -318,6 +326,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                     }
                     else if (url.Contains("lyrics", StringComparison.OrdinalIgnoreCase) || url.Contains("transcription", StringComparison.OrdinalIgnoreCase))
                     {
+                        bool isNewFormat = url.Contains("lyrics_new_format", StringComparison.OrdinalIgnoreCase);
                         var text = await response.TextAsync();
                         // Garante que é o JSON real de letras (contendo chaves de transcrição) e não a URL assinada de download
                         if (!string.IsNullOrEmpty(text) && 
@@ -326,10 +335,22 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                             !text.Contains("GoogleAccessId") &&
                             !text.Contains("Signature"))
                         {
-                            if (text.Length > (lyricsJsonData?.Length ?? 0))
+                            if (isNewFormat)
                             {
-                                lyricsJsonData = text;
-                                Console.WriteLine($"[BOT-PASSO] Lyrics JSON real capturado com sucesso! (Tamanho: {text.Length} bytes)");
+                                if (text.Length > (lyricsNewFormatJsonData?.Length ?? 0))
+                                {
+                                    lyricsNewFormatJsonData = text;
+                                    Console.WriteLine($"[BOT-PASSO] Lyrics New Format JSON real capturado via interceptação! (Tamanho: {text.Length} bytes)");
+                                }
+                            }
+                            else
+                            {
+                                if (text.Length > (lyricsJsonData?.Length ?? 0))
+                                {
+                                    lyricsJsonData = text;
+                                    lyricsJsonUrl = url;
+                                    Console.WriteLine($"[BOT-PASSO] Lyrics JSON real capturado com sucesso! (Tamanho: {text.Length} bytes)");
+                                }
                             }
                         }
                     }
@@ -1093,6 +1114,32 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 Console.WriteLine($"[BOT-DEBUG] Falha ao acionar botão de letras na DAW: {ex.Message}");
             }
 
+            // Proativa: tenta baixar o lyrics_new_format.json se tivermos a URL de lyrics.json e ainda não foi capturado
+            if (!string.IsNullOrEmpty(lyricsJsonUrl) && string.IsNullOrEmpty(lyricsNewFormatJsonData))
+            {
+                try
+                {
+                    string lyricsNewFormatUrl = lyricsJsonUrl.Replace("lyrics.json", "lyrics_new_format.json");
+                    Console.WriteLine($"[BOT-PASSO] Proativo: Tentando baixar lyrics_new_format.json de: {lyricsNewFormatUrl}");
+                    
+                    using var client = new HttpClient();
+                    if (!string.IsNullOrEmpty(authToken))
+                    {
+                        client.DefaultRequestHeaders.Add("Authorization", authToken);
+                    }
+                    var newFormatText = await client.GetStringAsync(lyricsNewFormatUrl);
+                    if (!string.IsNullOrEmpty(newFormatText) && (newFormatText.TrimStart().StartsWith("{") || newFormatText.TrimStart().StartsWith("[")))
+                    {
+                        lyricsNewFormatJsonData = newFormatText;
+                        Console.WriteLine($"[BOT-PASSO] Sucesso proativo: lyrics_new_format.json baixado (Tamanho: {newFormatText.Length} bytes)!");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[BOT-PASSO] [Aviso] Não foi possível baixar lyrics_new_format.json proativamente: {ex.Message}");
+                }
+            }
+
             Console.WriteLine("[BOT-PASSO] Iniciando monitoramento do botão 'Exportar'...");
 
             // Monitoramos a presença e a ativação do botão "Exportar" que é habilitado quando pronto
@@ -1229,7 +1276,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             Console.WriteLine($"[BOT-PASSO] Sucesso: ZIP gravado com êxito em disco!");
 
             // Injeta os metadados (cifras/letras) capturados no ZIP
-            if (!string.IsNullOrEmpty(chordsJsonData) || !string.IsNullOrEmpty(lyricsJsonData))
+            if (!string.IsNullOrEmpty(chordsJsonData) || !string.IsNullOrEmpty(lyricsJsonData) || !string.IsNullOrEmpty(lyricsNewFormatJsonData))
             {
                 try
                 {
@@ -1254,6 +1301,16 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                                 await writer.WriteAsync(lyricsJsonData);
                             }
                             Console.WriteLine("[BOT-PASSO] lyrics.json injetado com sucesso no ZIP!");
+                        }
+
+                        if (!string.IsNullOrEmpty(lyricsNewFormatJsonData))
+                        {
+                            var entry = archive.CreateEntry("lyrics_new_format.json");
+                            using (var writer = new StreamWriter(entry.Open()))
+                            {
+                                await writer.WriteAsync(lyricsNewFormatJsonData);
+                            }
+                            Console.WriteLine("[BOT-PASSO] lyrics_new_format.json injetado com sucesso no ZIP!");
                         }
                     }
                 }
