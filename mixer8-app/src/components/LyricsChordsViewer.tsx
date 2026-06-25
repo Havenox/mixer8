@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Music, X } from 'lucide-react';
-import { useLyricsChords } from '../hooks/useLyricsChords';
+import { useLyricsChords, transposeChord } from '../hooks/useLyricsChords';
 import type { ILyricsLine, IChordBeat } from '../hooks/useLyricsChords';
 import { SERVER_URL } from '../config';
 
@@ -124,6 +124,23 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
     );
   }, [processedLines, CurrentTime]);
 
+  // 4. Calcula o acorde ativo com base estrita no tempo (independente da letra)
+  const currentChordName = useMemo(() => {
+    if (!chords || chords.length === 0) return '';
+    let activeBeat = chords[0];
+    for (let i = 0; i < chords.length; i++) {
+      if (chords[i].curr_beat_time <= CurrentTime) {
+        activeBeat = chords[i];
+      } else {
+        break;
+      }
+    }
+    const rawChord = activeBeat && activeBeat.chord_simple_pop !== 'N' 
+      ? activeBeat.chord_simple_pop 
+      : '';
+    return rawChord ? transposeChord(rawChord, transpose) : '';
+  }, [chords, CurrentTime, transpose]);
+
   // 4. Auto-Scroll suave para manter a linha ativa centralizada na tela
   useEffect(() => {
     if (activeLineIndex !== -1) {
@@ -135,7 +152,7 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
   }, [activeLineIndex]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-brand-black/95 backdrop-blur-2xl flex flex-col font-sans select-none animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-x-0 top-0 bottom-16 md:bottom-24 z-40 bg-brand-black/95 backdrop-blur-2xl flex flex-col font-sans select-none animate-in fade-in zoom-in-95 duration-200">
       
       {/* Cabeçalho do Modal */}
       <header className="h-16 px-6 border-b border-brand-hover flex items-center justify-between shrink-0 bg-brand-black/50">
@@ -183,6 +200,16 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
           </button>
         </div>
       </header>
+
+      {/* Caixa Fixa do Acorde Atual */}
+      {currentChordName && (
+        <div className="bg-brand-hover/30 border-b border-brand-hover py-3 px-6 flex flex-col items-center justify-center shrink-0">
+          <span className="text-[10px] text-brand-gray uppercase tracking-wider font-bold mb-0.5">Acorde Atual</span>
+          <span className="text-3xl md:text-4xl font-black text-brand-green tracking-wider uppercase animate-pulse-slow">
+            {currentChordName}
+          </span>
+        </div>
+      )}
 
       {/* Área Central: Exibição */}
       <div className="flex-1 overflow-y-auto px-6 md:px-12 py-24 flex flex-col gap-14 scroll-smooth">

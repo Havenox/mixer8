@@ -422,7 +422,7 @@ export const MesaPlayer: React.FC = () => {
       {/* 2. COMPACT MOBILE AUDIO PLAYER */}
       <div 
         onClick={() => setIsExpandedMobile(true)}
-        className="fixed bottom-0 left-0 right-0 h-16 bg-brand-black/95 backdrop-blur border-t border-brand-hover px-4 flex md:hidden items-center justify-between z-40 shadow-xl select-none cursor-pointer"
+        className="fixed bottom-0 left-0 right-0 h-16 bg-brand-black/95 backdrop-blur border-t border-brand-hover px-4 flex md:hidden items-center justify-between z-50 shadow-xl select-none cursor-pointer"
       >
         {/* Barra de progresso ultrafina no topo absoluto do mini player */}
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-brand-hover">
@@ -502,7 +502,7 @@ export const MesaPlayer: React.FC = () => {
           {/* Capa Gigante */}
           <div className="flex-1 flex items-center justify-center my-4 max-h-[340px] shrink-0">
             <div 
-              onClick={() => setShowLyricsModal(true)}
+              onClick={() => { setShowLyricsModal(true); setIsExpandedMobile(false); }}
               className="w-full aspect-square max-w-[260px] xs:max-w-[300px] rounded-lg overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.8)] border border-white/5 bg-brand-card flex items-center justify-center cursor-pointer"
               title="Abrir Letras & Cifras"
             >
@@ -583,7 +583,7 @@ export const MesaPlayer: React.FC = () => {
                 </button>
               )}
               <button 
-                onClick={() => setShowLyricsModal(true)}
+                onClick={() => { setShowLyricsModal(true); setIsExpandedMobile(false); }}
                 className="p-2.5 rounded-full text-brand-gray hover:text-white transition-colors cursor-pointer"
                 title="Letras e Cifras"
               >
