@@ -33,25 +33,67 @@ export interface IProcessedLine extends Omit<ILyricsLine, 'words'> {
   Words: IProcessedWord[];
 }
 
+// Tabela de mapeamento das 17 notas fundamentais de entrada para o índice da escala temperada de 12 notas
+const rootNotesMapping: Record<string, number> = {
+  'C': 0,
+  'C#': 1,
+  'Db': 1,
+  'D': 2,
+  'D#': 3,
+  'Eb': 3,
+  'E': 4,
+  'F': 5,
+  'F#': 6,
+  'Gb': 6,
+  'G': 7,
+  'G#': 8,
+  'Ab': 8,
+  'A': 9,
+  'A#': 10,
+  'Bb': 10,
+  'B': 11
+};
+
+// Escala temperada normalizada com a regra do músico (sustenidos apenas em C# e F#, bemóis em Eb, Ab, Bb)
+const standardNotes = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+
 /**
- * Transpõe um acorde com base no número de semitons fornecido.
- * Suporta tons maiores, menores e sufixos simples (ex: Fm, C#, G).
+ * Normaliza e transpõe uma parte individual de um acorde (sem a barra de baixo).
+ */
+function processSingleChordPart(part: string, semitones: number): string {
+  if (!part || part === 'N') return part;
+
+  // Regex flexível para capturar a nota fundamental (letra A-G seguida opcionalmente de # ou b)
+  const match = part.match(/^([A-G][#b]?)(.*)$/);
+  if (!match) return part;
+
+  const [_, root, suffix] = match;
+  
+  // Obtém o índice da nota original
+  const originalIndex = rootNotesMapping[root];
+  if (originalIndex === undefined) return part;
+
+  // Calcula o novo índice transposto na escala diatônica circular de 12 semitons
+  const transposedIndex = (originalIndex + semitones + 12 * 10) % 12;
+  const transposedRootName = standardNotes[transposedIndex];
+
+  return `${transposedRootName}${suffix}`;
+}
+
+/**
+ * Transpõe e normaliza um acorde com base no número de semitons fornecido.
+ * Suporta acordes com baixo alterado (slash chords, ex: F#m/A#).
  */
 export function transposeChord(chordName: string, semitones: number): string {
   if (!chordName || chordName === 'N') return '';
-  
-  const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  
-  // Expressão regular para isolar a nota fundamental e os sufixos (ex: Fm -> F e m, C#m7 -> C# e m7)
-  const match = chordName.match(/^([A-G]#?)(.*)$/);
-  if (!match) return chordName;
-  
-  const [_, root, suffix] = match;
-  const index = notes.indexOf(root);
-  if (index === -1) return chordName;
-  
-  const newIndex = (index + semitones + 12 * 10) % 12;
-  return `${notes[newIndex]}${suffix}`;
+
+  // Suporte a acordes com baixo alterado (split por "/")
+  if (chordName.includes('/')) {
+    const parts = chordName.split('/');
+    return parts.map(part => processSingleChordPart(part, semitones)).join('/');
+  }
+
+  return processSingleChordPart(chordName, semitones);
 }
 
 /**
