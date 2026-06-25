@@ -155,6 +155,8 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
 
         IPage? page = null;
         string? downloadsDir = null;
+        string? chordsJsonData = null;
+        string? lyricsJsonData = null;
         try
         {
             // Atualiza status de processamento da música
@@ -288,6 +290,37 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             var pages = context.Pages.ToList();
             page = pages.FirstOrDefault() ?? await context.NewPageAsync();
             _activePage = page;
+
+            // Intercepta e captura arquivos de cifras (chords.json) e letras (lyrics.json) da plataforma
+            page.Response += async (sender, response) =>
+            {
+                try
+                {
+                    var url = response.Url;
+                    if (url.Contains("chords.json") || url.Contains("BEATSCHORDS"))
+                    {
+                        var text = await response.TextAsync();
+                        if (!string.IsNullOrEmpty(text))
+                        {
+                            chordsJsonData = text;
+                            Console.WriteLine($"[BOT-PASSO] Chords JSON capturado com sucesso! (Tamanho: {text.Length} bytes)");
+                        }
+                    }
+                    else if (url.Contains("lyrics.json") || url.Contains("LYRICS") || url.Contains("transcription"))
+                    {
+                        var text = await response.TextAsync();
+                        if (!string.IsNullOrEmpty(text))
+                        {
+                            lyricsJsonData = text;
+                            Console.WriteLine($"[BOT-PASSO] Lyrics JSON capturado com sucesso! (Tamanho: {text.Length} bytes)");
+                        }
+                    }
+                }
+                catch
+                {
+                    // Ignora erros de leitura de respostas sem corpo legível
+                }
+            };
             
             // Registra listeners para capturar erros e logs do console do navegador para logs informativos de erros
             page.Console += (sender, msg) => 
@@ -986,6 +1019,41 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
 
             logger.LogInformation($"[WORKER SUCCESS] PASSO: Download do ZIP de stems finalizado com sucesso: {zipPath}");
             Console.WriteLine($"[BOT-PASSO] Sucesso: ZIP gravado com êxito em disco!");
+
+            // Injeta os metadados (cifras/letras) capturados no ZIP
+            if (!string.IsNullOrEmpty(chordsJsonData) || !string.IsNullOrEmpty(lyricsJsonData))
+            {
+                try
+                {
+                    Console.WriteLine("[BOT-PASSO] Injetando metadados (cifras/letras) no arquivo ZIP baixado...");
+                    using (var archive = ZipFile.Open(zipPath, ZipArchiveMode.Update))
+                    {
+                        if (!string.IsNullOrEmpty(chordsJsonData))
+                        {
+                            var entry = archive.CreateEntry("chords.json");
+                            using (var writer = new StreamWriter(entry.Open()))
+                            {
+                                await writer.WriteAsync(chordsJsonData);
+                            }
+                            Console.WriteLine("[BOT-PASSO] chords.json injetado com sucesso no ZIP!");
+                        }
+
+                        if (!string.IsNullOrEmpty(lyricsJsonData))
+                        {
+                            var entry = archive.CreateEntry("lyrics.json");
+                            using (var writer = new StreamWriter(entry.Open()))
+                            {
+                                await writer.WriteAsync(lyricsJsonData);
+                            }
+                            Console.WriteLine("[BOT-PASSO] lyrics.json injetado com sucesso no ZIP!");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, $"[WORKER ERROR] Falha ao injetar metadados no ZIP: {ex.Message}");
+                }
+            }
 
             // Fecha o contexto do navegador com segurança
             await context.DisposeAsync();
