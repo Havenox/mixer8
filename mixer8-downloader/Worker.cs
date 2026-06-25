@@ -118,8 +118,10 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 cookiesPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, cookiesPath));
             }
 
+            var extraArgs = configuration["YT_DLP_EXTRA_ARGS"] ?? "";
+
             // Executa o download via yt-dlp
-            var success = await RunYtdlpAsync(downloadUrl, outputTemplate, cookiesPath);
+            var success = await RunYtdlpAsync(downloadUrl, outputTemplate, cookiesPath, extraArgs);
 
             using var updateScope = serviceProvider.CreateScope();
             var updateDb = updateScope.ServiceProvider.GetRequiredService<Mixer8DbContext>();
@@ -187,7 +189,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         }
     }
 
-    private static async Task<bool> RunYtdlpAsync(string downloadUrl, string outputPath, string? cookiesPath)
+    private static async Task<bool> RunYtdlpAsync(string downloadUrl, string outputPath, string? cookiesPath, string extraArgs)
     {
         Console.WriteLine($"[YT-DLP] Iniciando download: {downloadUrl} -> {outputPath}");
         
@@ -202,10 +204,16 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             Console.WriteLine("[YT-DLP] Nenhum arquivo de cookies valido fornecido ou encontrado. Executando download sem cookies...");
         }
 
+        var extraArgsStr = !string.IsNullOrWhiteSpace(extraArgs) ? $"{extraArgs.Trim()} " : "";
+        if (!string.IsNullOrEmpty(extraArgsStr))
+        {
+            Console.WriteLine($"[YT-DLP] Utilizando argumentos extras configurados: {extraArgsStr.Trim()}");
+        }
+
         var startInfo = new System.Diagnostics.ProcessStartInfo
         {
             FileName = "yt-dlp",
-            Arguments = $"{cookiesArg}--remote-components ejs:github --no-playlist -x --audio-format opus --audio-quality 96K -o \"{outputPath}\" \"{downloadUrl}\"",
+            Arguments = $"{cookiesArg}{extraArgsStr}--remote-components ejs:github --no-playlist -x --audio-format opus --audio-quality 96K -o \"{outputPath}\" \"{downloadUrl}\"",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
