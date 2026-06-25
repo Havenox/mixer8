@@ -3,6 +3,7 @@ import { Music, X } from 'lucide-react';
 import { useLyricsChords, transposeChord } from '../hooks/useLyricsChords';
 import type { ILyricsLine, IChordBeat } from '../hooks/useLyricsChords';
 import { SERVER_URL } from '../config';
+import { usePlayer } from '../context/PlayerContext';
 
 interface ILyricsChordsViewerProps {
   TrackId: string;
@@ -56,6 +57,7 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
   CurrentTime,
   OnClose
 }) => {
+  const { seek } = usePlayer();
   const [lyrics, setLyrics] = useState<ILyricsLine[] | null>(null);
   const [chords, setChords] = useState<IChordBeat[] | null>(null);
   const [transpose, setTranspose] = useState<number>(0);
@@ -253,7 +255,8 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
 
                         {/* Palavra com destaque gradual de Karaokê */}
                         <span 
-                          className={`text-lg md:text-2xl font-semibold transition-colors duration-150 ${
+                          onClick={() => seek(word.start)}
+                          className={`text-lg md:text-2xl font-semibold cursor-pointer transition-all hover:text-brand-green active:scale-95 duration-150 ${
                             isWordActive ? 'text-brand-green' : 'text-neutral-100'
                           }`}
                         >
