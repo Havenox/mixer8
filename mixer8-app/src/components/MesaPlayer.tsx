@@ -40,7 +40,6 @@ export const MesaPlayer: React.FC = () => {
   
   const [isExpandedMobile, setIsExpandedMobile] = useState(false);
   const [showMobileMixer, setShowMobileMixer] = useState(false);
-  const [showMobileVolume, setShowMobileVolume] = useState(false);
 
   const displayTime = isDraggingProgress ? dragProgressTime : currentTime;
   const progressPercent = (displayTime / (duration || 1)) * 100;
@@ -634,64 +633,28 @@ export const MesaPlayer: React.FC = () => {
               </button>
             </div>
 
-            {/* Linha 2: Utilidades (Mixer, Letras e Controle de Volume Vertical) */}
-            <div className="flex items-center justify-between w-full px-6 relative">
-              {/* Mixer e Letras */}
-              <div className="flex items-center gap-2">
-                {(hasMultipleStems || isProcessingOrSingleStem) && (
-                  <button 
-                    onClick={() => setShowMobileMixer(!showMobileMixer)}
-                    className={`flex items-center gap-1.5 py-1.5 px-3 rounded-full border transition-all cursor-pointer ${
-                      showMobileMixer ? 'bg-brand-green/10 border-brand-green text-brand-green shadow-md font-bold' : 'border-brand-hover text-brand-gray hover:text-white'
-                    }`}
-                    title="Mixer de Som"
-                  >
-                    <Sliders className="w-4 h-4" />
-                    <span className="text-[11px] font-semibold">Mixer</span>
-                  </button>
-                )}
+            {/* Linha 2: Utilidades (Mixer e Letras) */}
+            <div className="flex items-center justify-center gap-4 w-full px-6">
+              {(hasMultipleStems || isProcessingOrSingleStem) && (
                 <button 
-                  onClick={() => { setShowLyricsModal(true); setIsExpandedMobile(false); }}
-                  className="flex items-center gap-1.5 py-1.5 px-3 rounded-full border border-brand-hover text-brand-gray hover:text-white transition-all cursor-pointer"
-                  title="Letras e Cifras"
-                >
-                  <Music className="w-4 h-4" />
-                  <span className="text-[11px] font-semibold">Letras</span>
-                </button>
-              </div>
-
-              {/* Volume Toggle com Popover de Volume Vertical */}
-              <div className="relative">
-                <button 
-                  onClick={() => setShowMobileVolume(!showMobileVolume)}
-                  className={`p-2.5 rounded-full transition-colors cursor-pointer ${
-                    showMobileVolume ? 'text-brand-green bg-brand-green/10' : 'text-brand-gray hover:text-white'
+                  onClick={() => setShowMobileMixer(!showMobileMixer)}
+                  className={`flex items-center gap-2 py-2 px-4 rounded-full border transition-all cursor-pointer ${
+                    showMobileMixer ? 'bg-brand-green/10 border-brand-green text-brand-green shadow-md font-bold' : 'border-brand-hover text-brand-gray hover:text-white'
                   }`}
-                  title="Volume"
+                  title="Mixer de Som"
                 >
-                  <Volume2 className="w-5 h-5" />
+                  <Sliders className="w-5 h-5" />
+                  <span className="text-xs font-semibold">Mixer Stems</span>
                 </button>
-                
-                {/* Vertical Volume Popover corrigido com slider nativo para arrasto correto e sem números */}
-                {showMobileVolume && (
-                  <div className="absolute right-0 bottom-12 bg-brand-card border border-brand-hover p-3 rounded-2xl shadow-2xl flex flex-col items-center justify-center z-50 w-12 h-36 animate-in slide-in-from-bottom duration-200">
-                    <input 
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={masterVolume}
-                      onChange={(e) => setMasterVolume(parseFloat(e.target.value))}
-                      {...{ orient: "vertical" }}
-                      className="accent-brand-green h-28 w-1 cursor-pointer bg-transparent"
-                      style={{ 
-                        WebkitAppearance: 'slider-vertical',
-                        writingMode: 'vertical-lr'
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
+              )}
+              <button 
+                onClick={() => { setShowLyricsModal(true); setIsExpandedMobile(false); }}
+                className="flex items-center gap-2 py-2 px-4 rounded-full border border-brand-hover text-brand-gray hover:text-white transition-all cursor-pointer"
+                title="Letras e Cifras"
+              >
+                <Music className="w-5 h-5" />
+                <span className="text-xs font-semibold">Letras & Cifras</span>
+              </button>
             </div>
 
           </div>
