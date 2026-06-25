@@ -213,7 +213,7 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
       )}
 
       {/* Área Central: Exibição */}
-      <div className="flex-1 overflow-y-auto px-6 md:px-12 py-24 flex flex-col gap-14 scroll-smooth">
+      <div className="flex-1 overflow-y-auto px-6 md:px-12 py-24 flex flex-col gap-8 scroll-smooth">
         {loading ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 text-brand-gray">
             <div className="w-6 h-6 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
@@ -241,30 +241,23 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
                   isActive ? 'opacity-100 scale-[1.02]' : 'opacity-25 hover:opacity-40'
                 }`}
               >
-                <div className="flex flex-wrap gap-x-2 gap-y-6">
+                <div className="flex flex-wrap gap-x-2 gap-y-3">
                   {line.Words.map((word, wIdx) => {
                     const isWordActive = CurrentTime >= word.start && CurrentTime <= word.end;
 
                     return (
-                      <div key={wIdx} className="inline-flex flex-col items-start select-none">
-                        {/* Acorde empilhado acima da palavra */}
-                        <span className="chord text-brand-green font-bold text-xs md:text-sm h-5 select-none transition-transform duration-200">
-                          {word.Chord || <span className="opacity-0 select-none">&nbsp;</span>}
-                        </span>
-
-                        {/* Palavra com destaque gradual de Karaokê */}
-                        <span 
-                          onClick={() => {
-                            seek(word.start);
-                            if (!isPlaying) togglePlay();
-                          }}
-                          className={`text-lg md:text-2xl font-semibold cursor-pointer transition-all hover:text-brand-green active:scale-95 duration-150 ${
-                            isWordActive ? 'text-brand-green' : 'text-neutral-100'
-                          }`}
-                        >
-                          {word.word}
-                        </span>
-                      </div>
+                      <span 
+                        key={wIdx}
+                        onClick={() => {
+                          seek(word.start);
+                          if (!isPlaying) togglePlay();
+                        }}
+                        className={`text-lg md:text-2xl font-semibold cursor-pointer transition-all hover:text-brand-green active:scale-95 duration-150 select-none ${
+                          isWordActive ? 'text-brand-green' : 'text-neutral-100'
+                        }`}
+                      >
+                        {word.word}
+                      </span>
                     );
                   })}
                 </div>
