@@ -299,14 +299,15 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 try
                 {
                     var url = response.Url;
-                    if (url.Contains("chords.json") || url.Contains("BEATSCHORDS"))
+                    if (url.Contains("chords", StringComparison.OrdinalIgnoreCase) || url.Contains("BEATSCHORDS"))
                     {
                         var text = await response.TextAsync();
                         // Garante que é o JSON real de acordes (um array contendo curr_beat_time) e não a URL assinada de download
                         if (!string.IsNullOrEmpty(text) && 
                             text.TrimStart().StartsWith("[") && 
                             text.Contains("curr_beat_time") && 
-                            !text.Contains("\"url\""))
+                            !text.Contains("GoogleAccessId") &&
+                            !text.Contains("Signature"))
                         {
                             if (text.Length > (chordsJsonData?.Length ?? 0))
                             {
@@ -315,14 +316,15 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                             }
                         }
                     }
-                    else if (url.Contains("lyrics.json") || url.Contains("LYRICS") || url.Contains("transcription"))
+                    else if (url.Contains("lyrics", StringComparison.OrdinalIgnoreCase) || url.Contains("transcription", StringComparison.OrdinalIgnoreCase))
                     {
                         var text = await response.TextAsync();
-                        // Garante que é o JSON real de letras (contendo chaves text/words) e não a URL assinada de download
+                        // Garante que é o JSON real de letras (contendo chaves de transcrição) e não a URL assinada de download
                         if (!string.IsNullOrEmpty(text) && 
-                            text.TrimStart().StartsWith("{") && 
-                            (text.Contains("\"text\"") || text.Contains("\"words\"") || text.Contains("\"lyrics\"")) && 
-                            !text.Contains("\"url\""))
+                            (text.TrimStart().StartsWith("{") || text.TrimStart().StartsWith("[")) && 
+                            (text.Contains("\"text\"") || text.Contains("\"words\"") || text.Contains("\"lyrics\"") || text.Contains("\"time\"")) && 
+                            !text.Contains("GoogleAccessId") &&
+                            !text.Contains("Signature"))
                         {
                             if (text.Length > (lyricsJsonData?.Length ?? 0))
                             {
@@ -1040,38 +1042,30 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                             
                             // Aguarda até 300 segundos (5 minutos) com base nas respostas GraphQL de status
                             bool transcriptionFinished = false;
+                            bool loggedCompleted = false;
                             int maxWaitSeconds = 300; 
                             for (int waitSec = 1; waitSec <= maxWaitSeconds; waitSec++)
                             {
+                                // Caso o JSON do lyrics apareça
+                                if (!string.IsNullOrEmpty(lyricsJsonData))
+                                {
+                                    Console.WriteLine($"[BOT-PASSO] Sucesso: Lyrics JSON capturado no segundo {waitSec}!");
+                                    transcriptionFinished = true;
+                                    break;
+                                }
+
                                 if (lyricsOperationStatus == "COMPLETED")
                                 {
-                                    Console.WriteLine($"[BOT-PASSO] Transcrição concluída (COMPLETED) detectada via GraphQL no segundo {waitSec}. Aguardando captura do lyrics.json...");
-                                    
-                                    // Aguarda até 10 segundos adicionais para a resposta do lyrics.json ser capturada em segundo plano
-                                    for (int lyricsWait = 1; lyricsWait <= 10; lyricsWait++)
+                                    if (!loggedCompleted)
                                     {
-                                        if (!string.IsNullOrEmpty(lyricsJsonData))
-                                        {
-                                            Console.WriteLine($"[BOT-PASSO] Sucesso: Lyrics JSON capturado com êxito após {lyricsWait} segundos do término da transcrição!");
-                                            transcriptionFinished = true;
-                                            break;
-                                        }
-                                        await Task.Delay(1000, stoppingToken);
+                                        Console.WriteLine($"[BOT-PASSO] Transcrição concluída (COMPLETED) detectada via GraphQL no segundo {waitSec}. Aguardando captura do lyrics.json...");
+                                        loggedCompleted = true;
                                     }
-                                    break;
                                 }
                                 else if (lyricsOperationStatus == "FAILED")
                                 {
                                     Console.WriteLine($"[BOT-PASSO] Transcrição falhou ou idioma não suportado (FAILED) detectado via GraphQL no segundo {waitSec}. Prosseguindo sem letras...");
-                                    transcriptionFinished = true;
-                                    break;
-                                }
-                                
-                                // Caso o JSON do lyrics apareça diretamente mesmo antes da atualização do status no GraphQL
-                                if (!string.IsNullOrEmpty(lyricsJsonData))
-                                {
-                                    Console.WriteLine($"[BOT-PASSO] Sucesso: Lyrics JSON capturado diretamente no segundo {waitSec}!");
-                                    transcriptionFinished = true;
+                                    transcriptionFinished = true; // trata como concluído para pular o aviso de timeout
                                     break;
                                 }
 
@@ -1080,7 +1074,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                             
                             if (!transcriptionFinished)
                             {
-                                Console.WriteLine("[BOT-PASSO] [Aviso] Limite de tempo de transcrição (300s) atingido. Prosseguindo...");
+                                Console.WriteLine("[BOT-PASSO] [Aviso] lyrics.json não foi capturado no intervalo de 300s. Prosseguindo...");
                             }
                             break;
                         }
