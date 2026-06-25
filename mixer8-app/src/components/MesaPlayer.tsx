@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 
 import { SERVER_URL } from '../config';
+import { LyricsChordsViewer } from './LyricsChordsViewer';
 
 export const MesaPlayer: React.FC = () => {
   const { 
@@ -33,6 +34,7 @@ export const MesaPlayer: React.FC = () => {
   } = usePlayer();
 
   const [showMixer, setShowMixer] = useState(false);
+  const [showLyricsModal, setShowLyricsModal] = useState(false);
   const [isDraggingProgress, setIsDraggingProgress] = useState(false);
   const [dragProgressTime, setDragProgressTime] = useState(0);
   
@@ -91,7 +93,11 @@ export const MesaPlayer: React.FC = () => {
         
         {/* Esquerda: Info da Música Real */}
         <div className="flex items-center gap-2.5 md:gap-4 flex-1 md:flex-none min-w-0 md:w-1/4 md:min-w-[200px]">
-          <div className="w-10 h-10 md:w-14 md:h-14 bg-brand-card border border-brand-hover rounded flex items-center justify-center relative overflow-hidden group shadow-lg shrink-0">
+          <div 
+            onClick={() => setShowLyricsModal(true)}
+            className="w-10 h-10 md:w-14 md:h-14 bg-brand-card border border-brand-hover rounded flex items-center justify-center relative overflow-hidden group shadow-lg shrink-0 cursor-pointer"
+            title="Abrir Letras & Cifras"
+          >
             {currentTrack.CoverUrl ? (
               <img 
                 src={currentTrack.CoverUrl.startsWith('http') ? currentTrack.CoverUrl : `${SERVER_URL}${currentTrack.CoverUrl}`} 
@@ -243,6 +249,15 @@ export const MesaPlayer: React.FC = () => {
               <span className="hidden md:inline text-xs font-semibold">Mixer Stems</span>
             </button>
           )}
+
+          {/* Botão de Letras / Cifras */}
+          <button 
+            onClick={() => setShowLyricsModal(true)}
+            className="flex items-center justify-center p-2 rounded-full border border-brand-hover text-brand-gray hover:text-white hover:border-white transition-all cursor-pointer shrink-0"
+            title="Letras e Cifras"
+          >
+            <Music className="w-4 h-4 shrink-0" />
+          </button>
 
           {/* Barra de volume geral real com Bolinha Premium */}
           <div className="flex items-center gap-1.5 md:gap-2 text-brand-gray shrink-0">
@@ -486,7 +501,11 @@ export const MesaPlayer: React.FC = () => {
 
           {/* Capa Gigante */}
           <div className="flex-1 flex items-center justify-center my-4 max-h-[340px] shrink-0">
-            <div className="w-full aspect-square max-w-[260px] xs:max-w-[300px] rounded-lg overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.8)] border border-white/5 bg-brand-card flex items-center justify-center">
+            <div 
+              onClick={() => setShowLyricsModal(true)}
+              className="w-full aspect-square max-w-[260px] xs:max-w-[300px] rounded-lg overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.8)] border border-white/5 bg-brand-card flex items-center justify-center cursor-pointer"
+              title="Abrir Letras & Cifras"
+            >
               {currentTrack.CoverUrl ? (
                 <img 
                   src={currentTrack.CoverUrl.startsWith('http') ? currentTrack.CoverUrl : `${SERVER_URL}${currentTrack.CoverUrl}`} 
@@ -550,20 +569,27 @@ export const MesaPlayer: React.FC = () => {
 
           {/* Controles Principais */}
           <div className="flex items-center justify-between w-full px-4 mb-6 shrink-0 relative">
-            {/* Mixer Trigger */}
-            {(hasMultipleStems || isProcessingOrSingleStem) ? (
+            {/* Mixer & Lyrics Triggers */}
+            <div className="flex items-center gap-1.5">
+              {(hasMultipleStems || isProcessingOrSingleStem) && (
+                <button 
+                  onClick={() => setShowMobileMixer(!showMobileMixer)}
+                  className={`p-2.5 rounded-full transition-colors cursor-pointer ${
+                    showMobileMixer ? 'text-brand-green bg-brand-green/10' : 'text-brand-gray hover:text-white'
+                  }`}
+                  title="Mixer de Som"
+                >
+                  <Sliders className="w-5 h-5" />
+                </button>
+              )}
               <button 
-                onClick={() => setShowMobileMixer(!showMobileMixer)}
-                className={`p-2.5 rounded-full transition-colors cursor-pointer ${
-                  showMobileMixer ? 'text-brand-green bg-brand-green/10' : 'text-brand-gray hover:text-white'
-                }`}
-                title="Mixer de Som"
+                onClick={() => setShowLyricsModal(true)}
+                className="p-2.5 rounded-full text-brand-gray hover:text-white transition-colors cursor-pointer"
+                title="Letras e Cifras"
               >
-                <Sliders className="w-5 h-5" />
+                <Music className="w-5 h-5" />
               </button>
-            ) : (
-              <div className="w-10" />
-            )}
+            </div>
 
             {/* Media buttons group */}
             <div className="flex items-center gap-5 sm:gap-6">
@@ -795,6 +821,13 @@ export const MesaPlayer: React.FC = () => {
             </div>
           )}
         </div>
+      )}
+      {showLyricsModal && (
+        <LyricsChordsViewer 
+          TrackId={currentTrack.TrackId}
+          CurrentTime={currentTime}
+          OnClose={() => setShowLyricsModal(false)}
+        />
       )}
     </>
   );
