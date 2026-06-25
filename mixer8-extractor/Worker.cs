@@ -157,6 +157,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         string? downloadsDir = null;
         string? chordsJsonData = null;
         string? lyricsJsonData = null;
+        string? lyricsOperationStatus = null;
         try
         {
             // Atualiza status de processamento da música
@@ -291,7 +292,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             page = pages.FirstOrDefault() ?? await context.NewPageAsync();
             _activePage = page;
 
-            // Intercepta e captura arquivos de cifras (chords.json) e letras (lyrics.json) da plataforma
+            // Intercepta e captura arquivos de cifras (chords.json), letras (lyrics.json) e progresso de transcrição (GraphQL)
             page.Response += async (sender, response) =>
             {
                 try
@@ -326,6 +327,58 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                             {
                                 lyricsJsonData = text;
                                 Console.WriteLine($"[BOT-PASSO] Lyrics JSON real capturado com sucesso! (Tamanho: {text.Length} bytes)");
+                            }
+                        }
+                    }
+                    else if (url.Contains("/graphql") || url.Contains("graphql"))
+                    {
+                        var text = await response.TextAsync();
+                        if (!string.IsNullOrEmpty(text) && (text.Contains("LYRICS_B") || text.Contains("\"lyrics\"")))
+                        {
+                            try
+                            {
+                                using var doc = System.Text.Json.JsonDocument.Parse(text);
+                                if (doc.RootElement.TryGetProperty("data", out var data) && 
+                                    data.TryGetProperty("track", out var trackObj))
+                                {
+                                    // 1. Verifica no array de operations
+                                    if (trackObj.TryGetProperty("operations", out var operations) && operations.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                    {
+                                        foreach (var op in operations.EnumerateArray())
+                                        {
+                                            if (op.TryGetProperty("name", out var opName) && opName.GetString() == "LYRICS_B")
+                                            {
+                                                if (op.TryGetProperty("status", out var opStatus))
+                                                {
+                                                    var statusVal = opStatus.GetString();
+                                                    if (!string.IsNullOrEmpty(statusVal))
+                                                    {
+                                                        lyricsOperationStatus = statusVal;
+                                                        Console.WriteLine($"[BOT-PASSO] Estado de LYRICS_B monitorado via GraphQL: {statusVal}");
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    // 2. Verifica no objeto principal lyrics (fallback/complementar)
+                                    if (trackObj.TryGetProperty("lyrics", out var lyricsProp) && lyricsProp.ValueKind == System.Text.Json.JsonValueKind.Object)
+                                    {
+                                        if (lyricsProp.TryGetProperty("status", out var lyricsPropStatus))
+                                        {
+                                            var statusVal = lyricsPropStatus.GetString();
+                                            if (!string.IsNullOrEmpty(statusVal))
+                                            {
+                                                lyricsOperationStatus = statusVal;
+                                                Console.WriteLine($"[BOT-PASSO] Estado de track.lyrics monitorado via GraphQL: {statusVal}");
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"[BOT-DEBUG] Falha ao parsear GraphQL: {ex.Message}");
                             }
                         }
                     }
@@ -936,22 +989,51 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                             Console.WriteLine($"[BOT-PASSO] Botão de letras localizado via seletor: '{selector}' na tentativa {attempt}. Efetuando clique...");
                             await locator.ClickAsync(new LocatorClickOptions { Timeout = 5000 });
                             lyricsClicked = true;
-                            Console.WriteLine("[BOT-PASSO] Clique no botão de letras realizado! Aguardando até 10s para a captura do lyrics.json...");
+                            Console.WriteLine("[BOT-PASSO] Clique no botão de letras realizado! Monitorando progresso de transcrição via GraphQL...");
                             
-                            // Aguarda até 10 segundos para a resposta do lyrics.json ser capturada em segundo plano
-                            for (int waitSec = 1; waitSec <= 10; waitSec++)
+                            // Aguarda até 300 segundos (5 minutos) com base nas respostas GraphQL de status
+                            bool transcriptionFinished = false;
+                            int maxWaitSeconds = 300; 
+                            for (int waitSec = 1; waitSec <= maxWaitSeconds; waitSec++)
                             {
-                                if (!string.IsNullOrEmpty(lyricsJsonData))
+                                if (lyricsOperationStatus == "COMPLETED")
                                 {
-                                    Console.WriteLine($"[BOT-PASSO] Sucesso: Lyrics JSON capturado com êxito após {waitSec} segundos!");
+                                    Console.WriteLine($"[BOT-PASSO] Transcrição concluída (COMPLETED) detectada via GraphQL no segundo {waitSec}. Aguardando captura do lyrics.json...");
+                                    
+                                    // Aguarda até 10 segundos adicionais para a resposta do lyrics.json ser capturada em segundo plano
+                                    for (int lyricsWait = 1; lyricsWait <= 10; lyricsWait++)
+                                    {
+                                        if (!string.IsNullOrEmpty(lyricsJsonData))
+                                        {
+                                            Console.WriteLine($"[BOT-PASSO] Sucesso: Lyrics JSON capturado com êxito após {lyricsWait} segundos do término da transcrição!");
+                                            transcriptionFinished = true;
+                                            break;
+                                        }
+                                        await Task.Delay(1000, stoppingToken);
+                                    }
                                     break;
                                 }
+                                else if (lyricsOperationStatus == "FAILED")
+                                {
+                                    Console.WriteLine($"[BOT-PASSO] Transcrição falhou ou idioma não suportado (FAILED) detectado via GraphQL no segundo {waitSec}. Prosseguindo sem letras...");
+                                    transcriptionFinished = true;
+                                    break;
+                                }
+                                
+                                // Caso o JSON do lyrics apareça diretamente mesmo antes da atualização do status no GraphQL
+                                if (!string.IsNullOrEmpty(lyricsJsonData))
+                                {
+                                    Console.WriteLine($"[BOT-PASSO] Sucesso: Lyrics JSON capturado diretamente no segundo {waitSec}!");
+                                    transcriptionFinished = true;
+                                    break;
+                                }
+
                                 await Task.Delay(1000, stoppingToken);
                             }
                             
-                            if (string.IsNullOrEmpty(lyricsJsonData))
+                            if (!transcriptionFinished)
                             {
-                                Console.WriteLine("[BOT-PASSO] [Aviso] lyrics.json não foi capturado no intervalo de 10s (pode ser uma música instrumental). Prosseguindo...");
+                                Console.WriteLine("[BOT-PASSO] [Aviso] Limite de tempo de transcrição (300s) atingido. Prosseguindo...");
                             }
                             break;
                         }
