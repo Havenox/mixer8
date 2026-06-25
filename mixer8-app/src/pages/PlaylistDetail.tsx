@@ -388,6 +388,10 @@ export const PlaylistDetail: React.FC = () => {
   }, [id, navigate]);
 
   const handlePlayTrack = (t: IPlaylistTrack) => {
+    if (currentTrack && currentTrack.TrackId === t.TrackId) {
+      togglePlay();
+      return;
+    }
     const trackToPlay = {
       TrackId: t.TrackId,
       TrackTitle: t.TrackTitle,

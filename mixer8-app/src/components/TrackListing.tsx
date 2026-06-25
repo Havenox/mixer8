@@ -29,12 +29,16 @@ export const TrackListing: React.FC<TrackListingProps> = ({
   tracksQueue
 }) => {
   const { CurrentUser } = useAuth();
-  const { loadTrack, currentTrack, isPlaying } = usePlayer();
+  const { loadTrack, currentTrack, isPlaying, togglePlay } = usePlayer();
   const { openAddToPlaylist } = usePlaylists();
 
   const handlePlayClick = (track: ITrack) => {
     if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando')) return;
-    loadTrack(track, undefined, undefined, tracksQueue || tracks);
+    if (isCurrentLoaded(track)) {
+      togglePlay();
+    } else {
+      loadTrack(track, undefined, undefined, tracksQueue || tracks);
+    }
   };
 
   const isCurrentPlaying = (track: ITrack) => {

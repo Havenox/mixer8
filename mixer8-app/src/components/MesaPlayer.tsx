@@ -237,7 +237,7 @@ export const MesaPlayer: React.FC = () => {
           {(hasMultipleStems || isProcessingOrSingleStem) && (
             <button 
               onClick={() => setShowMixer(!showMixer)}
-              className={`flex items-center justify-center gap-2 p-2 md:px-3 md:py-1.5 rounded-full border transition-all cursor-pointer shrink-0 ${
+              className={`flex items-center justify-center p-2 rounded-full border transition-all cursor-pointer shrink-0 ${
                 showMixer 
                   ? 'bg-brand-green/10 border-brand-green text-brand-green shadow-md' 
                   : 'border-brand-hover text-brand-gray hover:text-white hover:border-white'
@@ -245,7 +245,6 @@ export const MesaPlayer: React.FC = () => {
               title="Mesa Mixer de Stems"
             >
               <Sliders className="w-4 h-4 shrink-0" />
-              <span className="hidden md:inline text-xs font-semibold">Mixer Stems</span>
             </button>
           )}
 
@@ -268,7 +267,8 @@ export const MesaPlayer: React.FC = () => {
               step="0.05"
               value={masterVolume}
               onChange={(e) => setMasterVolume(parseFloat(e.target.value))}
-              className="w-14 sm:w-20 accent-brand-green bg-brand-hover h-1 md:h-1.5 rounded-lg appearance-none cursor-pointer"
+              className="w-14 sm:w-20 accent-brand-green dynamic-progress h-1 md:h-1.5 rounded-lg appearance-none cursor-pointer"
+              style={{ '--slider-progress': `${masterVolume * 100}%` } as React.CSSProperties}
             />
           </div>
 

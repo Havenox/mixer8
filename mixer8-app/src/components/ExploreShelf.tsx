@@ -57,7 +57,7 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
   onToggleSavePlaylist
 }) => {
   const { CurrentUser, IsAuthenticated, openLoginModal } = useAuth();
-  const { loadTrack, currentTrack, isPlaying } = usePlayer();
+  const { loadTrack, currentTrack, isPlaying, togglePlay } = usePlayer();
   const { openAddToPlaylist } = usePlaylists();
   const navigate = useNavigate();
 
@@ -73,7 +73,11 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
 
   const handlePlayClick = (track: ITrack) => {
     if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando')) return;
-    loadTrack(track, undefined, undefined, itemsToShow);
+    if (isCurrentLoaded(track)) {
+      togglePlay();
+    } else {
+      loadTrack(track, undefined, undefined, itemsToShow);
+    }
   };
 
   const handlePlaylistClick = (playlistId: string) => {
