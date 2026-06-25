@@ -158,6 +158,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         string? chordsJsonData = null;
         string? lyricsJsonData = null;
         string? lyricsOperationStatus = null;
+        string? separateOperationStatus = null;
         try
         {
             // Atualiza status de processamento da música
@@ -292,7 +293,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             page = pages.FirstOrDefault() ?? await context.NewPageAsync();
             _activePage = page;
 
-            // Intercepta e captura arquivos de cifras (chords.json), letras (lyrics.json) e progresso de transcrição (GraphQL)
+            // Intercepta e captura arquivos de cifras (chords.json), letras (lyrics.json) e progresso de processamento/transcrição (GraphQL)
             page.Response += async (sender, response) =>
             {
                 try
@@ -333,7 +334,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                     else if (url.Contains("/graphql") || url.Contains("graphql"))
                     {
                         var text = await response.TextAsync();
-                        if (!string.IsNullOrEmpty(text) && (text.Contains("LYRICS_B") || text.Contains("\"lyrics\"")))
+                        if (!string.IsNullOrEmpty(text) && (text.Contains("LYRICS_B") || text.Contains("\"lyrics\"") || text.Contains("SEPARATE") || text.Contains("\"separate\"")))
                         {
                             try
                             {
@@ -346,27 +347,77 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                                     {
                                         foreach (var op in operations.EnumerateArray())
                                         {
-                                            if (op.TryGetProperty("name", out var opName) && opName.GetString() == "LYRICS_B")
+                                            if (op.TryGetProperty("name", out var opName))
                                             {
-                                                if (op.TryGetProperty("status", out var opStatus))
+                                                var nameVal = opName.GetString();
+                                                if (nameVal == "LYRICS_B")
                                                 {
-                                                    var statusVal = opStatus.GetString();
-                                                    if (!string.IsNullOrEmpty(statusVal))
+                                                    if (op.TryGetProperty("status", out var opStatus))
                                                     {
-                                                        lyricsOperationStatus = statusVal;
-                                                        Console.WriteLine($"[BOT-PASSO] Estado de LYRICS_B monitorado via GraphQL: {statusVal}");
+                                                        var statusVal = opStatus.GetString();
+                                                        if (!string.IsNullOrEmpty(statusVal))
+                                                        {
+                                                            lyricsOperationStatus = statusVal;
+                                                            Console.WriteLine($"[BOT-PASSO] Estado de LYRICS_B monitorado via GraphQL: {statusVal}");
+                                                        }
+                                                    }
+                                                }
+                                                else if (nameVal != null && nameVal.Contains("SEPARATE"))
+                                                {
+                                                    if (op.TryGetProperty("status", out var opStatus))
+                                                    {
+                                                        var statusVal = opStatus.GetString();
+                                                        if (!string.IsNullOrEmpty(statusVal))
+                                                        {
+                                                            separateOperationStatus = statusVal;
+                                                            Console.WriteLine($"[BOT-PASSO] Estado de {nameVal} monitorado via GraphQL: {statusVal}");
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
                                     }
                                     
-                                    // 2. Verifica no objeto principal lyrics (fallback/complementar)
-                                    if (trackObj.TryGetProperty("lyrics", out var lyricsProp) && lyricsProp.ValueKind == System.Text.Json.JsonValueKind.Object)
+                                    // 2. Verifica no objeto principal (summary)
+                                    if (trackObj.TryGetProperty("summary", out var summaryProp) && summaryProp.ValueKind == System.Text.Json.JsonValueKind.Object)
                                     {
-                                        if (lyricsProp.TryGetProperty("status", out var lyricsPropStatus))
+                                        if (summaryProp.TryGetProperty("v1", out var v1Prop) && v1Prop.ValueKind == System.Text.Json.JsonValueKind.Object)
                                         {
-                                            var statusVal = lyricsPropStatus.GetString();
+                                            // Verifica lyrics
+                                            if (v1Prop.TryGetProperty("lyrics", out var lyricsProp) && lyricsProp.ValueKind == System.Text.Json.JsonValueKind.Object)
+                                            {
+                                                if (lyricsProp.TryGetProperty("status", out var statusProp))
+                                                {
+                                                    var statusVal = statusProp.GetString();
+                                                    if (!string.IsNullOrEmpty(statusVal))
+                                                    {
+                                                        lyricsOperationStatus = statusVal;
+                                                        Console.WriteLine($"[BOT-PASSO] Estado de summary.v1.lyrics monitorado via GraphQL: {statusVal}");
+                                                    }
+                                                }
+                                            }
+                                            // Verifica separate
+                                            if (v1Prop.TryGetProperty("separate", out var separateProp) && separateProp.ValueKind == System.Text.Json.JsonValueKind.Object)
+                                            {
+                                                if (separateProp.TryGetProperty("status", out var statusProp))
+                                                {
+                                                    var statusVal = statusProp.GetString();
+                                                    if (!string.IsNullOrEmpty(statusVal))
+                                                    {
+                                                        separateOperationStatus = statusVal;
+                                                        Console.WriteLine($"[BOT-PASSO] Estado de summary.v1.separate monitorado via GraphQL: {statusVal}");
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Fallback retrocompatível para lyrics caso summary esteja vazio
+                                    if (string.IsNullOrEmpty(lyricsOperationStatus) && trackObj.TryGetProperty("lyrics", out var lyricsPropLegacy) && lyricsPropLegacy.ValueKind == System.Text.Json.JsonValueKind.Object)
+                                    {
+                                        if (lyricsPropLegacy.TryGetProperty("status", out var statusProp))
+                                        {
+                                            var statusVal = statusProp.GetString();
                                             if (!string.IsNullOrEmpty(statusVal))
                                             {
                                                 lyricsOperationStatus = statusVal;
@@ -899,41 +950,37 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 Console.WriteLine("[BOT-PASSO] [DAW] Nenhum IFrame com o player foi detectado. Usando a página principal.");
             }
 
-            // Calcula o atraso fixo inicial com base no tamanho do arquivo original (proporcional à duração)
-            long fileSizeBytes = 0;
-            try
+            Console.WriteLine("[BOT-PASSO] Iniciando monitoramento em tempo real da separação de stems via GraphQL...");
+            
+            bool separateFinished = false;
+            int maxSeparateWaitSeconds = 900; // Limite máximo de segurança de 15 minutos
+            for (int waitSec = 1; waitSec <= maxSeparateWaitSeconds; waitSec++)
             {
-                if (File.Exists(originalFile))
+                if (separateOperationStatus == "COMPLETED")
                 {
-                    fileSizeBytes = new FileInfo(originalFile).Length;
+                    Console.WriteLine($"[BOT-PASSO] Sucesso: Separação de stems concluída (COMPLETED) detectada via GraphQL no segundo {waitSec}!");
+                    separateFinished = true;
+                    break;
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[BOT-DEBUG] Falha ao ler tamanho do arquivo original: {ex.Message}");
+                else if (separateOperationStatus == "FAILED")
+                {
+                    Console.WriteLine($"[BOT-PASSO] Falha: Separação de stems falhou (FAILED) detectada via GraphQL no segundo {waitSec}!");
+                    throw new Exception("[WORKER ERROR] Falha no processamento de stems na plataforma Moises.ai.");
+                }
+
+                // Log a cada 10s para não inundar o console
+                if (waitSec % 10 == 0)
+                {
+                    Console.WriteLine($"[BOT-PASSO] Aguardando separação de stems via GraphQL... (Segundo {waitSec}/{maxSeparateWaitSeconds})");
+                }
+                
+                await Task.Delay(1000, stoppingToken);
             }
 
-            var waitTimeBaseStr = configuration["EXTRACTOR_WAIT_TIME_BASE_SECONDS"] ?? "180";
-            int waitTimeBase = int.TryParse(waitTimeBaseStr, out var wtb) ? wtb : 180;
-
-            int delayMs = waitTimeBase * 1000;
-            if (fileSizeBytes > 15 * 1024 * 1024) // > 15 MB
+            if (!separateFinished)
             {
-                delayMs = (waitTimeBase + 120) * 1000;
-                Console.WriteLine($"[BOT-PASSO] Arquivo grande detectado ({fileSizeBytes / (1024.0 * 1024.0):F2} MB). Definindo tempo de espera para {delayMs / 1000} segundos.");
+                Console.WriteLine("[BOT-PASSO] [Aviso] Limite de 15 minutos atingido sem confirmação via GraphQL. Prosseguindo por timeout...");
             }
-            else if (fileSizeBytes > 8 * 1024 * 1024) // > 8 MB
-            {
-                delayMs = (waitTimeBase + 60) * 1000;
-                Console.WriteLine($"[BOT-PASSO] Arquivo médio-grande detectado ({fileSizeBytes / (1024.0 * 1024.0):F2} MB). Definindo tempo de espera para {delayMs / 1000} segundos.");
-            }
-            else
-            {
-                Console.WriteLine($"[BOT-PASSO] Arquivo padrão/pequeno detectado ({fileSizeBytes / (1024.0 * 1024.0):F2} MB). Definindo tempo de espera padrão de {delayMs / 1000} segundos.");
-            }
-
-            Console.WriteLine($"[BOT-PASSO] Aguardando atraso fixo de {delayMs / 1000} segundos para que o Moises conclua o processamento de todas as stems...");
-            await Task.Delay(delayMs, stoppingToken);
 
             // Realiza um F5/refresh na página para carregar as stems prontas e reestruturar a DOM de forma limpa
             try
