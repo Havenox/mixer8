@@ -567,39 +567,18 @@ export const MesaPlayer: React.FC = () => {
             </div>
           </div>
 
-          {/* Controles Principais */}
-          <div className="flex items-center justify-between w-full px-4 mb-6 shrink-0 relative">
-            {/* Mixer & Lyrics Triggers */}
-            <div className="flex items-center gap-1.5">
-              {(hasMultipleStems || isProcessingOrSingleStem) && (
-                <button 
-                  onClick={() => setShowMobileMixer(!showMobileMixer)}
-                  className={`p-2.5 rounded-full transition-colors cursor-pointer ${
-                    showMobileMixer ? 'text-brand-green bg-brand-green/10' : 'text-brand-gray hover:text-white'
-                  }`}
-                  title="Mixer de Som"
-                >
-                  <Sliders className="w-5 h-5" />
-                </button>
-              )}
-              <button 
-                onClick={() => { setShowLyricsModal(true); setIsExpandedMobile(false); }}
-                className="p-2.5 rounded-full text-brand-gray hover:text-white transition-colors cursor-pointer"
-                title="Letras e Cifras"
-              >
-                <Music className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Media buttons group */}
-            <div className="flex items-center gap-5 sm:gap-6">
+          {/* Controles Principais Mobile (Duas linhas para evitar quebra/overflow lateral) */}
+          <div className="w-full shrink-0 flex flex-col gap-6 mb-6">
+            
+            {/* Linha 1: Controles de Playback (Mídia) */}
+            <div className="flex items-center justify-between w-full px-6">
               {/* Shuffle (Aleatório) */}
               <button 
                 onClick={toggleShuffle}
-                className={`transition-colors cursor-pointer flex flex-col items-center justify-center relative p-1 ${
+                className={`transition-colors cursor-pointer flex flex-col items-center justify-center relative p-2 ${
                   isShuffle 
                     ? 'text-brand-green' 
-                    : 'text-brand-gray'
+                    : 'text-brand-gray hover:text-white'
                 }`}
               >
                 <Shuffle className="w-5 h-5" />
@@ -610,7 +589,7 @@ export const MesaPlayer: React.FC = () => {
 
               <button 
                 onClick={playPreviousTrack}
-                className="text-brand-gray hover:text-white active:scale-95 transition-transform cursor-pointer"
+                className="text-brand-gray hover:text-white active:scale-95 transition-transform cursor-pointer p-2"
                 title="Anterior"
               >
                 <SkipBack className="w-6 h-6 fill-current" />
@@ -629,7 +608,7 @@ export const MesaPlayer: React.FC = () => {
               
               <button 
                 onClick={playNextTrack}
-                className="text-brand-gray hover:text-white active:scale-95 transition-transform cursor-pointer"
+                className="text-brand-gray hover:text-white active:scale-95 transition-transform cursor-pointer p-2"
                 title="Próxima"
               >
                 <SkipForward className="w-6 h-6 fill-current" />
@@ -638,10 +617,10 @@ export const MesaPlayer: React.FC = () => {
               {/* Repeat (Repetição) */}
               <button 
                 onClick={toggleRepeatMode}
-                className={`transition-colors cursor-pointer flex flex-col items-center justify-center relative p-1 ${
+                className={`transition-colors cursor-pointer flex flex-col items-center justify-center relative p-2 ${
                   repeatMode !== 'off' 
                     ? 'text-brand-green' 
-                    : 'text-brand-gray'
+                    : 'text-brand-gray hover:text-white'
                 }`}
               >
                 {repeatMode === 'one' ? (
@@ -655,39 +634,66 @@ export const MesaPlayer: React.FC = () => {
               </button>
             </div>
 
-            {/* Volume Toggle */}
-            <div className="relative">
-              <button 
-                onClick={() => setShowMobileVolume(!showMobileVolume)}
-                className={`p-2.5 rounded-full transition-colors cursor-pointer ${
-                  showMobileVolume ? 'text-brand-green bg-brand-green/10' : 'text-brand-gray hover:text-white'
-                }`}
-                title="Volume"
-              >
-                <Volume2 className="w-5 h-5" />
-              </button>
-              
-              {/* Vertical Volume Popover */}
-              {showMobileVolume && (
-                <div className="absolute right-0 bottom-12 bg-brand-hover/95 backdrop-blur border border-brand-green/20 rounded-full px-2 py-4 shadow-2xl flex flex-col items-center gap-2 z-50 h-32 w-10 animate-in slide-in-from-bottom duration-200">
-                  <input 
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={masterVolume}
-                    onChange={(e) => setMasterVolume(parseFloat(e.target.value))}
-                    className="accent-brand-green w-24 h-1 rounded appearance-none cursor-pointer"
-                    style={{ 
-                      WebkitAppearance: 'slider-vertical',
-                      transform: 'rotate(-90deg) translateY(-2px)',
-                      transformOrigin: 'center',
-                      margin: '30px 0'
-                    }}
-                  />
-                </div>
-              )}
+            {/* Linha 2: Utilidades (Mixer, Letras e Controle de Volume Vertical) */}
+            <div className="flex items-center justify-between w-full px-6 relative">
+              {/* Mixer e Letras */}
+              <div className="flex items-center gap-2">
+                {(hasMultipleStems || isProcessingOrSingleStem) && (
+                  <button 
+                    onClick={() => setShowMobileMixer(!showMobileMixer)}
+                    className={`flex items-center gap-1.5 py-1.5 px-3 rounded-full border transition-all cursor-pointer ${
+                      showMobileMixer ? 'bg-brand-green/10 border-brand-green text-brand-green shadow-md font-bold' : 'border-brand-hover text-brand-gray hover:text-white'
+                    }`}
+                    title="Mixer de Som"
+                  >
+                    <Sliders className="w-4 h-4" />
+                    <span className="text-[11px] font-semibold">Mixer</span>
+                  </button>
+                )}
+                <button 
+                  onClick={() => { setShowLyricsModal(true); setIsExpandedMobile(false); }}
+                  className="flex items-center gap-1.5 py-1.5 px-3 rounded-full border border-brand-hover text-brand-gray hover:text-white transition-all cursor-pointer"
+                  title="Letras e Cifras"
+                >
+                  <Music className="w-4 h-4" />
+                  <span className="text-[11px] font-semibold">Letras</span>
+                </button>
+              </div>
+
+              {/* Volume Toggle com Popover de Volume Vertical */}
+              <div className="relative">
+                <button 
+                  onClick={() => setShowMobileVolume(!showMobileVolume)}
+                  className={`p-2.5 rounded-full transition-colors cursor-pointer ${
+                    showMobileVolume ? 'text-brand-green bg-brand-green/10' : 'text-brand-gray hover:text-white'
+                  }`}
+                  title="Volume"
+                >
+                  <Volume2 className="w-5 h-5" />
+                </button>
+                
+                {/* Vertical Volume Popover corrigido com slider nativo para arrasto correto e sem números */}
+                {showMobileVolume && (
+                  <div className="absolute right-0 bottom-12 bg-brand-card border border-brand-hover p-3 rounded-2xl shadow-2xl flex flex-col items-center justify-center z-50 w-12 h-36 animate-in slide-in-from-bottom duration-200">
+                    <input 
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={masterVolume}
+                      onChange={(e) => setMasterVolume(parseFloat(e.target.value))}
+                      {...{ orient: "vertical" }}
+                      className="accent-brand-green h-28 w-1 cursor-pointer bg-transparent"
+                      style={{ 
+                        WebkitAppearance: 'slider-vertical',
+                        writingMode: 'vertical-lr'
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
+
           </div>
 
           {/* Mixer Stems Mobile (Directly below playback controls) */}
