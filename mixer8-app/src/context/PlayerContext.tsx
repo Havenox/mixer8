@@ -51,6 +51,8 @@ interface IPlayerContext {
   toggleShuffle: () => void;
   toggleRepeatMode: () => void;
   isPremium: boolean;
+  transpose: number;
+  setTranspose: React.Dispatch<React.SetStateAction<number>>;
 }
 
 const PlayerContext = createContext<IPlayerContext | undefined>(undefined);
@@ -167,6 +169,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const { Token, CurrentUser } = useAuth();
   const [currentTrack, setCurrentTrack] = useState<ITrack | null>(null);
   const [currentPlaylistId, setCurrentPlaylistId] = useState<string | null>(null);
+  const [transpose, setTranspose] = useState<number>(0);
   const [currentAlbumId, setCurrentAlbumId] = useState<string | null>(null);
   const [currentQueue, setCurrentQueue] = useState<ITrack[]>([]);
   const currentQueueRef = useRef<ITrack[]>([]);
@@ -595,6 +598,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     cleanupActiveStems();
     setCurrentTime(0);
     setDuration(0);
+    setTranspose(0);
     
     // Atualiza estados para renderização reativa
     setCurrentTrack(track);
@@ -1247,7 +1251,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         repeatMode,
         toggleShuffle,
         toggleRepeatMode,
-        isPremium
+        isPremium,
+        transpose,
+        setTranspose
       }}
     >
       {children}

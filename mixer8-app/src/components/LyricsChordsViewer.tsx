@@ -57,10 +57,9 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
   CurrentTime,
   OnClose
 }) => {
-  const { seek, isPlaying, togglePlay } = usePlayer();
+  const { seek, isPlaying, togglePlay, transpose, setTranspose } = usePlayer();
   const [lyrics, setLyrics] = useState<ILyricsLine[] | null>(null);
   const [chords, setChords] = useState<IChordBeat[] | null>(null);
-  const [transpose, setTranspose] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   

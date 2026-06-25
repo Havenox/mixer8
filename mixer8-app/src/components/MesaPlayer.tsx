@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { usePlayer } from '../context/PlayerContext';
 import { 
   Play, Pause, SkipBack, SkipForward, Volume2, 
@@ -8,6 +8,8 @@ import {
 
 import { SERVER_URL } from '../config';
 import { LyricsChordsViewer } from './LyricsChordsViewer';
+import { transposeChord } from '../hooks/useLyricsChords';
+import type { IChordBeat } from '../hooks/useLyricsChords';
 
 export const MesaPlayer: React.FC = () => {
   const { 
@@ -30,8 +32,53 @@ export const MesaPlayer: React.FC = () => {
     isShuffle,
     repeatMode,
     toggleShuffle,
-    toggleRepeatMode
+    toggleRepeatMode,
+    transpose
   } = usePlayer();
+
+  const [chords, setChords] = useState<IChordBeat[] | null>(null);
+
+  // Carrega as cifras (chords.json) quando a faixa atual for alterada
+  useEffect(() => {
+    setChords(null);
+    if (!currentTrack?.TrackId) return;
+
+    let isMounted = true;
+    const fetchChords = async () => {
+      try {
+        const response = await fetch(`${SERVER_URL}/stems/${currentTrack.TrackId}/chords.json`);
+        if (response.ok) {
+          const data = await response.json();
+          if (isMounted) {
+            setChords(data);
+          }
+        }
+      } catch (e) {
+        console.warn("Chords not available for this track:", e);
+      }
+    };
+    fetchChords();
+    return () => {
+      isMounted = false;
+    };
+  }, [currentTrack?.TrackId]);
+
+  // Calcula o acorde ativo com base estrita no tempo e na transposição atual
+  const currentChord = useMemo(() => {
+    if (!chords || chords.length === 0) return '';
+    let activeBeat = chords[0];
+    for (let i = 0; i < chords.length; i++) {
+      if (chords[i].curr_beat_time <= currentTime) {
+        activeBeat = chords[i];
+      } else {
+        break;
+      }
+    }
+    const rawChord = activeBeat && activeBeat.chord_simple_pop !== 'N' 
+      ? activeBeat.chord_simple_pop 
+      : '';
+    return rawChord ? transposeChord(rawChord, transpose) : '';
+  }, [chords, currentTime, transpose]);
 
   const [showMixer, setShowMixer] = useState(false);
   const [showLyricsModal, setShowLyricsModal] = useState(false);
@@ -118,8 +165,15 @@ export const MesaPlayer: React.FC = () => {
               {currentTrack.ArtistName}
             </span>
           </div>
-          <div className="hidden sm:inline-block px-2 py-0.5 bg-brand-hover text-[9px] text-brand-green font-bold rounded uppercase tracking-wider border border-brand-green/20 shrink-0 select-none">
-            {currentTrack.Stems?.length || 0} Stems
+          <div className={`hidden sm:flex ${isPlaying && currentChord ? 'flex-col gap-1 items-start justify-center' : 'items-center justify-center'} shrink-0`}>
+            <div className="px-2 py-0.5 bg-brand-hover text-[9px] text-brand-green font-bold rounded uppercase tracking-wider border border-brand-green/20 select-none">
+              {currentTrack.Stems?.length || 0} Stems
+            </div>
+            {isPlaying && currentChord && (
+              <div className="px-1.5 py-0.5 bg-brand-green/10 text-[9px] text-brand-green font-bold rounded tracking-wider border border-brand-green/30 select-none">
+                {currentChord}
+              </div>
+            )}
           </div>
         </div>
 
@@ -487,9 +541,16 @@ export const MesaPlayer: React.FC = () => {
             <span className="text-xs font-semibold text-white truncate leading-tight">
               {currentTrack.TrackTitle}
             </span>
-            <span className="text-[10px] text-brand-gray/80 truncate mt-0.5">
-              {currentTrack.ArtistName}
-            </span>
+            <div className="flex items-center gap-1.5 mt-0.5 truncate">
+              <span className="text-[10px] text-brand-gray/80 truncate">
+                {currentTrack.ArtistName}
+              </span>
+              {isPlaying && currentChord && (
+                <span className="px-1.5 py-0.5 bg-brand-green/10 text-[8px] text-brand-green font-bold rounded tracking-wider border border-brand-green/30 select-none shrink-0 leading-none">
+                  {currentChord}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -558,13 +619,20 @@ export const MesaPlayer: React.FC = () => {
 
           {/* Informações da Música */}
           <div className="flex justify-between items-center w-full px-2 mb-4 shrink-0">
-            <div className="flex flex-col min-w-0">
+            <div className="flex flex-col min-w-0 flex-1 mr-2">
               <h2 className="text-xl font-bold text-white truncate leading-tight select-text">
                 {currentTrack.TrackTitle}
               </h2>
-              <p className="text-sm text-brand-gray hover:text-white cursor-pointer truncate mt-1 select-text">
-                {currentTrack.ArtistName}
-              </p>
+              <div className="flex items-center gap-2 mt-1 truncate">
+                <p className="text-sm text-brand-gray hover:text-white cursor-pointer truncate select-text">
+                  {currentTrack.ArtistName}
+                </p>
+                {isPlaying && currentChord && (
+                  <span className="px-1.5 py-0.5 bg-brand-green/10 text-[9px] text-brand-green font-bold rounded tracking-wider border border-brand-green/30 select-none shrink-0 leading-none">
+                    {currentChord}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="px-2 py-0.5 bg-brand-hover text-[9px] text-brand-green font-bold rounded uppercase tracking-wider border border-brand-green/20 shrink-0">
               {currentTrack.Stems?.length || 0} Stems
