@@ -17,11 +17,11 @@ WORKDIR /app
 # Copia o binário estático do Deno (solucionador JS recomendado pelo yt-dlp)
 COPY --from=denoland/deno:bin /deno /usr/local/bin/deno
 
-# Instala ffmpeg, python3, pip, yt-dlp e o yt-dlp-ejs de forma limpa e atualizada
+# Instala ffmpeg, python3, pip, yt-dlp, curl-cffi e o yt-dlp-ejs de forma limpa e atualizada
 RUN apt-get update && \
     apt-get install -y ffmpeg python3 python3-pip python3-venv && \
     python3 -m venv /opt/venv && \
-    /opt/venv/bin/pip install --upgrade pip yt-dlp yt-dlp-ejs && \
+    /opt/venv/bin/pip install --upgrade pip yt-dlp yt-dlp-ejs curl-cffi && \
     ln -s /opt/venv/bin/yt-dlp /usr/local/bin/yt-dlp && \
     rm -rf /var/lib/apt/lists/*
 
