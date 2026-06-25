@@ -423,11 +423,50 @@ export const MesaPlayer: React.FC = () => {
         onClick={() => setIsExpandedMobile(true)}
         className="fixed bottom-0 left-0 right-0 h-16 bg-brand-black/95 backdrop-blur border-t border-brand-hover px-4 flex md:hidden items-center justify-between z-50 shadow-xl select-none cursor-pointer"
       >
-        {/* Barra de progresso ultrafina no topo absoluto do mini player */}
-        <div className="absolute top-0 left-0 right-0 h-[2px] bg-brand-hover">
-          <div 
-            className="h-full bg-brand-green transition-all duration-100" 
-            style={{ width: `${(currentTime / (duration || 1)) * 100}%` }}
+        {/* Barra de progresso interativa no topo absoluto do mini player com seek de precisão */}
+        <div 
+          onClick={(e) => e.stopPropagation()}
+          className="absolute -top-1.5 left-0 right-0 h-4 flex items-center z-20 group cursor-pointer"
+        >
+          {/* Visual Track */}
+          <div className="relative w-full h-[3px] bg-brand-hover group-hover:h-1.5 transition-all">
+            {/* Filled Progress */}
+            <div 
+              className="absolute left-0 top-0 h-full bg-brand-green" 
+              style={{ width: `${progressPercent}%` }}
+            />
+            {/* Pequena bolinha verde sutil (thumb) */}
+            <div 
+              className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-brand-green shadow-[0_0_6px_#1db954] opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+              style={{ left: `calc(${progressPercent}% - 5px)` }}
+            />
+          </div>
+          
+          {/* Invisible interactive input range */}
+          <input 
+            type="range"
+            min="0"
+            max={duration || 100}
+            step="1"
+            value={displayTime}
+            onMouseDown={() => {
+              setIsDraggingProgress(true);
+              setDragProgressTime(currentTime);
+            }}
+            onTouchStart={() => {
+              setIsDraggingProgress(true);
+              setDragProgressTime(currentTime);
+            }}
+            onChange={(e) => setDragProgressTime(parseFloat(e.target.value))}
+            onMouseUp={(e) => {
+              setIsDraggingProgress(false);
+              seek(parseFloat((e.target as HTMLInputElement).value));
+            }}
+            onTouchEnd={(e) => {
+              setIsDraggingProgress(false);
+              seek(parseFloat((e.target as HTMLInputElement).value));
+            }}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
           />
         </div>
 
