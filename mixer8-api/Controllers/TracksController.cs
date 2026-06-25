@@ -753,7 +753,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                             if (string.IsNullOrEmpty(entry.Name) || entry.Length == 0) continue;
 
                             var entryNameLower = entry.Name.ToLowerInvariant();
-                            if (entryNameLower == "chords.json" || entryNameLower == "lyrics.json")
+                            if (entryNameLower == "chords.json" || entryNameLower == "lyrics.json" || entryNameLower == "lyrics_new_format.json")
                             {
                                 if (entry.Length > 2 * 1024 * 1024) continue;
                                 try
@@ -1030,7 +1030,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                         if (string.IsNullOrEmpty(entry.Name) || entry.Length == 0) continue;
 
                         var entryNameLower = entry.Name.ToLowerInvariant();
-                        if (entryNameLower == "chords.json" || entryNameLower == "lyrics.json")
+                        if (entryNameLower == "chords.json" || entryNameLower == "lyrics.json" || entryNameLower == "lyrics_new_format.json")
                         {
                             if (entry.Length > 2 * 1024 * 1024) continue;
                             try
@@ -1648,7 +1648,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                                         if (string.IsNullOrEmpty(entry.Name) || entry.Length == 0) continue;
 
                                         var entryNameLower = entry.Name.ToLowerInvariant();
-                                        if (entryNameLower == "chords.json" || entryNameLower == "lyrics.json")
+                                        if (entryNameLower == "chords.json" || entryNameLower == "lyrics.json" || entryNameLower == "lyrics_new_format.json")
                                         {
                                             if (entry.Length > 2 * 1024 * 1024) continue;
                                             try
