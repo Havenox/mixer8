@@ -57,7 +57,7 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
   CurrentTime,
   OnClose
 }) => {
-  const { seek } = usePlayer();
+  const { seek, isPlaying, togglePlay } = usePlayer();
   const [lyrics, setLyrics] = useState<ILyricsLine[] | null>(null);
   const [chords, setChords] = useState<IChordBeat[] | null>(null);
   const [transpose, setTranspose] = useState<number>(0);
@@ -255,7 +255,10 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
 
                         {/* Palavra com destaque gradual de Karaokê */}
                         <span 
-                          onClick={() => seek(word.start)}
+                          onClick={() => {
+                            seek(word.start);
+                            if (!isPlaying) togglePlay();
+                          }}
                           className={`text-lg md:text-2xl font-semibold cursor-pointer transition-all hover:text-brand-green active:scale-95 duration-150 ${
                             isWordActive ? 'text-brand-green' : 'text-neutral-100'
                           }`}
