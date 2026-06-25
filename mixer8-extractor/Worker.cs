@@ -162,6 +162,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         string? authToken = null;
         string? lyricsOperationStatus = null;
         string? separateOperationStatus = null;
+        string? beatschordsOperationStatus = null;
         try
         {
             // Atualiza status de processamento da música
@@ -357,7 +358,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                     else if (url.Contains("/graphql") || url.Contains("graphql"))
                     {
                         var text = await response.TextAsync();
-                        if (!string.IsNullOrEmpty(text) && (text.Contains("LYRICS_B") || text.Contains("\"lyrics\"") || text.Contains("SEPARATE") || text.Contains("\"separate\"")))
+                        if (!string.IsNullOrEmpty(text) && (text.Contains("LYRICS_B") || text.Contains("\"lyrics\"") || text.Contains("SEPARATE") || text.Contains("\"separate\"") || text.Contains("BEATSCHORDS") || text.Contains("\"beatschords\"")))
                         {
                             try
                             {
@@ -397,6 +398,18 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                                                         }
                                                     }
                                                 }
+                                                else if (nameVal == "BEATSCHORDS_A")
+                                                {
+                                                    if (op.TryGetProperty("status", out var opStatus))
+                                                    {
+                                                        var statusVal = opStatus.GetString();
+                                                        if (!string.IsNullOrEmpty(statusVal))
+                                                        {
+                                                            beatschordsOperationStatus = statusVal;
+                                                            Console.WriteLine($"[BOT-PASSO] Estado de BEATSCHORDS_A monitorado via GraphQL: {statusVal}");
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -429,6 +442,19 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                                                     {
                                                         separateOperationStatus = statusVal;
                                                         Console.WriteLine($"[BOT-PASSO] Estado de summary.v1.separate monitorado via GraphQL: {statusVal}");
+                                                    }
+                                                }
+                                            }
+                                            // Verifica beatschords
+                                            if (v1Prop.TryGetProperty("beatschords", out var beatschordsProp) && beatschordsProp.ValueKind == System.Text.Json.JsonValueKind.Object)
+                                            {
+                                                if (beatschordsProp.TryGetProperty("status", out var statusProp))
+                                                {
+                                                    var statusVal = statusProp.GetString();
+                                                    if (!string.IsNullOrEmpty(statusVal))
+                                                    {
+                                                        beatschordsOperationStatus = statusVal;
+                                                        Console.WriteLine($"[BOT-PASSO] Estado de summary.v1.beatschords monitorado via GraphQL: {statusVal}");
                                                     }
                                                 }
                                             }
@@ -1003,6 +1029,33 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             if (!separateFinished)
             {
                 Console.WriteLine("[BOT-PASSO] [Aviso] Limite de 15 minutos atingido sem confirmação via GraphQL. Prosseguindo por timeout...");
+            }
+
+            // Agora aguarda opcionalmente a finalização de cifras e metrônomo (BEATSCHORDS_A) por até 180s adicionais (não-fatal)
+            if (beatschordsOperationStatus != "COMPLETED" && beatschordsOperationStatus != "FAILED")
+            {
+                Console.WriteLine("[BOT-PASSO] Stems concluídas! Aguardando até 180s adicionais para finalização de cifras/metrônomo (BEATSCHORDS_A)...");
+                for (int extraSec = 1; extraSec <= 180; extraSec++)
+                {
+                    if (beatschordsOperationStatus == "COMPLETED" || beatschordsOperationStatus == "FAILED")
+                    {
+                        break;
+                    }
+                    if (extraSec % 10 == 0)
+                    {
+                        Console.WriteLine($"[BOT-PASSO] Aguardando BEATSCHORDS_A via GraphQL... (Segundo {extraSec}/180) - Status atual: {beatschordsOperationStatus ?? "PENDING"}");
+                    }
+                    await Task.Delay(1000, stoppingToken);
+                }
+            }
+
+            if (beatschordsOperationStatus == "COMPLETED")
+            {
+                Console.WriteLine("[BOT-PASSO] Cifras/metrônomo (BEATSCHORDS_A) processados com sucesso!");
+            }
+            else
+            {
+                Console.WriteLine($"[BOT-PASSO] [Aviso] BEATSCHORDS_A não concluiu com êxito (Status: {beatschordsOperationStatus ?? "TIMEOUT"}). Prosseguindo sem metrônomo/cifras garantidos.");
             }
 
             // Realiza um F5/refresh na página para carregar as stems prontas e reestruturar a DOM de forma limpa
