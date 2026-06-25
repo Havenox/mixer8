@@ -106,6 +106,10 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
     * **Monitoramento Resiliente via GraphQL**: O worker agora monitora ativamente a operação `BEATSCHORDS_A` via GraphQL. O processamento das stems principais (`SEPARATE_CUSTOM`) é tratado como falha fatal, enquanto as cifras e batidas (`BEATSCHORDS_A`) e letras (`LYRICS_B`) são tratadas como falhas não-fatais. O bot aguarda até 180 segundos adicionais por `BEATSCHORDS_A` após a conclusão das stems. Se expirar ou falhar, prossegue normalmente com o download apenas das stems e cifras/letras parciais obtidas.
     * **Descompressão Segura na API**: O `TracksController.cs` valida cada entrada de arquivo de texto: restringe o tamanho máximo de descompressão a 2MB (Anti-Zip Bomb), valida a estrutura dos dados através de parse com `System.Text.Json.JsonDocument` descartando dados inválidos (Anti-XSS/Malware) e grava os arquivos em caminhos estáticos fixados no servidor via `Path.Combine`, neutralizando ataques de Path Traversal (*Zip Slip*).
     * **Serviço Estático**: Cifras e letras são salvas como arquivos físicos estáticos independentes em `wwwroot/stems/{TrackId}/chords.json` e `lyrics.json`, prontas para escala stateless de CDN e Object Storage (S3/R2).
+24. **Exibição Dinâmica do Acorde Atual no Player (Desktop e Mobile)**:
+    * **Contexto de Transposição Global**: O estado de transposição de tom (`transpose`) foi movido para o `PlayerContext.tsx` global para sincronizar cifras e áudio de forma coerente. Mudar o tom no modal de letras reflete instantaneamente em todo o app. O estado é resetado ao carregar novas faixas.
+    * **Mapeamento e Exibição de Acordes**: O player (`MesaPlayer.tsx`) baixa sob demanda o `/chords.json` da música ativa, calcula o acorde correspondente ao `currentTime` e o exibe como uma tag verde sutil (`bg-brand-green/10`, `border-brand-green/30`) apenas durante a reprodução.
+    * **Alinhamento Responsivo**: No desktop, a tag Stems se move para cima ao lado do título da música, e a de acorde surge abaixo ao lado do artista. No mobile, a tag é renderizada inline na mesma linha do artista para otimizar espaço.
 
 ---
 
