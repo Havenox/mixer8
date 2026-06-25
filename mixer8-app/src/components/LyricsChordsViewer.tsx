@@ -207,7 +207,7 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
       {currentChordName && (
         <div className="bg-brand-hover/30 border-b border-brand-hover py-3 px-6 flex flex-col items-center justify-center shrink-0">
           <span className="text-[10px] text-brand-gray uppercase tracking-wider font-bold mb-0.5">Acorde Atual</span>
-          <span className="text-3xl md:text-4xl font-black text-brand-green tracking-wider uppercase animate-pulse-slow">
+          <span className="text-3xl md:text-4xl font-black text-brand-green tracking-wider animate-pulse-slow">
             {currentChordName}
           </span>
         </div>
