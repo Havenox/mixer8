@@ -300,19 +300,21 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                     if (url.Contains("chords.json") || url.Contains("BEATSCHORDS"))
                     {
                         var text = await response.TextAsync();
-                        if (!string.IsNullOrEmpty(text))
+                        // Garante que é o JSON real de acordes (um array contendo curr_beat_time) e não a URL assinada de download
+                        if (!string.IsNullOrEmpty(text) && text.Contains("curr_beat_time") && text.TrimStart().StartsWith("["))
                         {
                             chordsJsonData = text;
-                            Console.WriteLine($"[BOT-PASSO] Chords JSON capturado com sucesso! (Tamanho: {text.Length} bytes)");
+                            Console.WriteLine($"[BOT-PASSO] Chords JSON real capturado com sucesso! (Tamanho: {text.Length} bytes)");
                         }
                     }
                     else if (url.Contains("lyrics.json") || url.Contains("LYRICS") || url.Contains("transcription"))
                     {
                         var text = await response.TextAsync();
-                        if (!string.IsNullOrEmpty(text))
+                        // Garante que é o JSON real de letras (contendo chaves text/words) e não a URL assinada de download
+                        if (!string.IsNullOrEmpty(text) && (text.Contains("\"text\"") || text.Contains("\"words\"") || text.Contains("\"lyrics\"")))
                         {
                             lyricsJsonData = text;
-                            Console.WriteLine($"[BOT-PASSO] Lyrics JSON capturado com sucesso! (Tamanho: {text.Length} bytes)");
+                            Console.WriteLine($"[BOT-PASSO] Lyrics JSON real capturado com sucesso! (Tamanho: {text.Length} bytes)");
                         }
                     }
                 }
@@ -883,6 +885,52 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             catch (Exception ex)
             {
                 Console.WriteLine($"[BOT-PASSO] [Aviso] Timeout ou lentidão ao recarregar a página ({ex.Message}). Continuando mesmo assim...");
+            }
+
+            // Tenta clicar preventivamente no botão "Letras" ou "Lyrics" na DAW para forçar o Moises a gerar e retornar a letra
+            try
+            {
+                playerFrame = await GetActivePlayerFrameAsync(page);
+                Console.WriteLine("[BOT-PASSO] Procurando botão de Letras/Lyrics na DAW...");
+                var lyricsSelectors = new[]
+                {
+                    "button:has-text('Letras')",
+                    "button:has-text('Lyrics')",
+                    "div[role='button']:has-text('Letras')",
+                    "div[role='button']:has-text('Lyrics')",
+                    "span:has-text('Letras')",
+                    "span:has-text('Lyrics')",
+                    "button[class*='lyrics']",
+                    "button[class*='Lyrics']",
+                    "div[class*='lyrics']",
+                    "div[class*='Lyrics']",
+                    "button[class*='lyric']",
+                    "button[class*='Lyric']"
+                };
+
+                bool lyricsClicked = false;
+                foreach (var selector in lyricsSelectors)
+                {
+                    var locator = playerFrame != null ? playerFrame.Locator(selector).First : page.Locator(selector).First;
+                    if (await locator.CountAsync() > 0 && await locator.IsVisibleAsync())
+                    {
+                        Console.WriteLine($"[BOT-PASSO] Botão de letras localizado via seletor: '{selector}'. Efetuando clique...");
+                        await locator.ClickAsync(new LocatorClickOptions { Timeout = 5000 });
+                        lyricsClicked = true;
+                        Console.WriteLine("[BOT-PASSO] Clique no botão de letras realizado! Aguardando 3 segundos...");
+                        await Task.Delay(3000, stoppingToken);
+                        break;
+                    }
+                }
+
+                if (!lyricsClicked)
+                {
+                    Console.WriteLine("[BOT-PASSO] [Aviso] Botão de letras/lyrics não localizado na interface da DAW.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[BOT-DEBUG] Falha ao acionar botão de letras na DAW: {ex.Message}");
             }
 
             Console.WriteLine("[BOT-PASSO] Iniciando monitoramento do botão 'Exportar'...");
