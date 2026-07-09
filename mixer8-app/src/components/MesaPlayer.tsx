@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { usePlayer } from '../context/PlayerContext';
 import { 
   Play, Pause, SkipBack, SkipForward, Volume2, 
@@ -82,14 +82,48 @@ export const MesaPlayer: React.FC = () => {
 
   const [showMixer, setShowMixer] = useState(false);
   const [showLyricsModal, setShowLyricsModal] = useState(false);
-  const [isDraggingProgress, setIsDraggingProgress] = useState(false);
-  const [dragProgressTime, setDragProgressTime] = useState(0);
+  const [sliderValue, setSliderValue] = useState<number | null>(null);
   
   const [isExpandedMobile, setIsExpandedMobile] = useState(false);
   const [showMobileMixer, setShowMobileMixer] = useState(false);
 
-  const displayTime = isDraggingProgress ? dragProgressTime : currentTime;
+  const displayTime = sliderValue ?? currentTime;
   const progressPercent = (displayTime / (duration || 1)) * 100;
+
+  // Atalhos globais de teclado (Espaço para play/pause, Setas Esquerda/Direita para +/- 1s)
+  const stateRef = useRef({ currentTime, duration });
+  useEffect(() => {
+    stateRef.current = { currentTime, duration };
+  }, [currentTime, duration]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' || 
+        target.tagName === 'TEXTAREA' || 
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        togglePlay();
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        seek(Math.max(0, stateRef.current.currentTime - 1));
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        seek(Math.min(stateRef.current.duration || 0, stateRef.current.currentTime + 1));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [togglePlay, seek]);
 
   // Se nenhuma música foi carregada ainda, o player fica 100% oculto no rodapé (Zero Mocks)
   if (!currentTrack) {
@@ -260,22 +294,16 @@ export const MesaPlayer: React.FC = () => {
               max={duration || 100}
               step="0.1"
               value={displayTime}
-              onMouseDown={() => {
-                setIsDraggingProgress(true);
-                setDragProgressTime(currentTime);
-              }}
-              onTouchStart={() => {
-                setIsDraggingProgress(true);
-                setDragProgressTime(currentTime);
-              }}
-              onChange={(e) => setDragProgressTime(parseFloat(e.target.value))}
+              onChange={(e) => setSliderValue(parseFloat(e.target.value))}
               onMouseUp={(e) => {
-                setIsDraggingProgress(false);
-                seek(parseFloat((e.target as HTMLInputElement).value));
+                const val = parseFloat((e.target as HTMLInputElement).value);
+                seek(val);
+                setSliderValue(null);
               }}
               onTouchEnd={(e) => {
-                setIsDraggingProgress(false);
-                seek(parseFloat((e.target as HTMLInputElement).value));
+                const val = parseFloat((e.target as HTMLInputElement).value);
+                seek(val);
+                setSliderValue(null);
               }}
               className="flex-1 accent-brand-green dynamic-progress h-1 md:h-1.5 rounded-lg appearance-none cursor-pointer min-w-0"
               style={{ '--slider-progress': `${progressPercent}%` } as React.CSSProperties}
@@ -503,22 +531,16 @@ export const MesaPlayer: React.FC = () => {
             max={duration || 100}
             step="1"
             value={displayTime}
-            onMouseDown={() => {
-              setIsDraggingProgress(true);
-              setDragProgressTime(currentTime);
-            }}
-            onTouchStart={() => {
-              setIsDraggingProgress(true);
-              setDragProgressTime(currentTime);
-            }}
-            onChange={(e) => setDragProgressTime(parseFloat(e.target.value))}
+            onChange={(e) => setSliderValue(parseFloat(e.target.value))}
             onMouseUp={(e) => {
-              setIsDraggingProgress(false);
-              seek(parseFloat((e.target as HTMLInputElement).value));
+              const val = parseFloat((e.target as HTMLInputElement).value);
+              seek(val);
+              setSliderValue(null);
             }}
             onTouchEnd={(e) => {
-              setIsDraggingProgress(false);
-              seek(parseFloat((e.target as HTMLInputElement).value));
+              const val = parseFloat((e.target as HTMLInputElement).value);
+              seek(val);
+              setSliderValue(null);
             }}
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
           />
@@ -647,22 +669,16 @@ export const MesaPlayer: React.FC = () => {
               max={duration || 100}
               step="0.1"
               value={displayTime}
-              onMouseDown={() => {
-                setIsDraggingProgress(true);
-                setDragProgressTime(currentTime);
-              }}
-              onTouchStart={() => {
-                setIsDraggingProgress(true);
-                setDragProgressTime(currentTime);
-              }}
-              onChange={(e) => setDragProgressTime(parseFloat(e.target.value))}
+              onChange={(e) => setSliderValue(parseFloat(e.target.value))}
               onMouseUp={(e) => {
-                setIsDraggingProgress(false);
-                seek(parseFloat((e.target as HTMLInputElement).value));
+                const val = parseFloat((e.target as HTMLInputElement).value);
+                seek(val);
+                setSliderValue(null);
               }}
               onTouchEnd={(e) => {
-                setIsDraggingProgress(false);
-                seek(parseFloat((e.target as HTMLInputElement).value));
+                const val = parseFloat((e.target as HTMLInputElement).value);
+                seek(val);
+                setSliderValue(null);
               }}
               className="w-full accent-brand-green dynamic-progress h-1.5 rounded-lg appearance-none cursor-pointer"
               style={{ '--slider-progress': `${progressPercent}%` } as React.CSSProperties}
