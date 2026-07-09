@@ -299,11 +299,18 @@ export const MesaPlayer: React.FC = () => {
                 const val = parseFloat((e.target as HTMLInputElement).value);
                 seek(val);
                 setSliderValue(null);
+                (e.target as HTMLInputElement).blur();
               }}
               onTouchEnd={(e) => {
                 const val = parseFloat((e.target as HTMLInputElement).value);
                 seek(val);
                 setSliderValue(null);
+                (e.target as HTMLInputElement).blur();
+              }}
+              onKeyDown={(e) => {
+                if (['ArrowLeft', 'ArrowRight', ' ', 'Spacebar'].includes(e.key)) {
+                  e.preventDefault();
+                }
               }}
               className="flex-1 accent-brand-green dynamic-progress h-1 md:h-1.5 rounded-lg appearance-none cursor-pointer min-w-0"
               style={{ '--slider-progress': `${progressPercent}%` } as React.CSSProperties}
@@ -536,11 +543,18 @@ export const MesaPlayer: React.FC = () => {
               const val = parseFloat((e.target as HTMLInputElement).value);
               seek(val);
               setSliderValue(null);
+              (e.target as HTMLInputElement).blur();
             }}
             onTouchEnd={(e) => {
               const val = parseFloat((e.target as HTMLInputElement).value);
               seek(val);
               setSliderValue(null);
+              (e.target as HTMLInputElement).blur();
+            }}
+            onKeyDown={(e) => {
+              if (['ArrowLeft', 'ArrowRight', ' ', 'Spacebar'].includes(e.key)) {
+                e.preventDefault();
+              }
             }}
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
           />
@@ -674,11 +688,18 @@ export const MesaPlayer: React.FC = () => {
                 const val = parseFloat((e.target as HTMLInputElement).value);
                 seek(val);
                 setSliderValue(null);
+                (e.target as HTMLInputElement).blur();
               }}
               onTouchEnd={(e) => {
                 const val = parseFloat((e.target as HTMLInputElement).value);
                 seek(val);
                 setSliderValue(null);
+                (e.target as HTMLInputElement).blur();
+              }}
+              onKeyDown={(e) => {
+                if (['ArrowLeft', 'ArrowRight', ' ', 'Spacebar'].includes(e.key)) {
+                  e.preventDefault();
+                }
               }}
               className="w-full accent-brand-green dynamic-progress h-1.5 rounded-lg appearance-none cursor-pointer"
               style={{ '--slider-progress': `${progressPercent}%` } as React.CSSProperties}

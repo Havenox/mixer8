@@ -107,7 +107,21 @@ input[type="range"]::-webkit-slider-thumb {
   transition: transform 0.1s ease, background-color 0.1s ease;
 }
 
-input[type="range"]::-webkit-slider-thumb:hover {
+/* Quando está em hover (mas não ativo), esconde o thumb para precisão de clique */
+input[type="range"]:hover::-webkit-slider-thumb {
+  width: 0px;
+  height: 0px;
+  opacity: 0;
+}
+
+/* Quando está ativo (clicado/arrastando), mostra o thumb */
+input[type="range"]:active::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  opacity: 1;
+}
+
+input[type="range"]:active::-webkit-slider-thumb:hover {
   transform: scale(1.25);
   background: #1ed760;
 }
@@ -129,7 +143,21 @@ input[type="range"]::-moz-range-thumb {
   transition: transform 0.1s ease, background-color 0.1s ease;
 }
 
-input[type="range"]::-moz-range-thumb:hover {
+/* Quando está em hover (mas não ativo), esconde o thumb no Firefox */
+input[type="range"]:hover::-moz-range-thumb {
+  width: 0px;
+  height: 0px;
+  opacity: 0;
+}
+
+/* Quando está ativo (clicado/arrastando), mostra o thumb no Firefox */
+input[type="range"]:active::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  opacity: 1;
+}
+
+input[type="range"]:active::-moz-range-thumb:hover {
   transform: scale(1.25);
   background: #1ed760;
 }
