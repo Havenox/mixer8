@@ -792,8 +792,13 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             // Prepara arquivo com nome amigável para o Moises (renomeado temporariamente para "Musica - Artista")
             var rawTitle = track.TrackTitle ?? "";
             var rawArtist = track.ArtistName ?? "";
-            var safeTitle = string.Concat(rawTitle.Split(Path.GetInvalidFileNameChars())).Trim();
-            var safeArtist = string.Concat(rawArtist.Split(Path.GetInvalidFileNameChars())).Trim();
+            
+            // Remove acentos e caracteres não-ASCII para evitar falhas silenciosas na assinatura/upload do Moises
+            var asciiTitle = RemoveAccentsAndNonAscii(rawTitle);
+            var asciiArtist = RemoveAccentsAndNonAscii(rawArtist);
+
+            var safeTitle = string.Concat(asciiTitle.Split(Path.GetInvalidFileNameChars())).Trim();
+            var safeArtist = string.Concat(asciiArtist.Split(Path.GetInvalidFileNameChars())).Trim();
             
             // Caso a sanitização resulte em vazio, cai de volta para o ID original
             var friendlyFilename = $"{(!string.IsNullOrEmpty(safeTitle) ? safeTitle : track.TrackId.ToString())} - {(!string.IsNullOrEmpty(safeArtist) ? safeArtist : "Desconhecido")}.opus";
@@ -1579,6 +1584,28 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             catch {}
         }
         return null;
+    }
+
+    private static string RemoveAccentsAndNonAscii(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return text;
+
+        var normalizedString = text.Normalize(System.Text.NormalizationForm.FormD);
+        var sb = new System.Text.StringBuilder();
+
+        foreach (var c in normalizedString)
+        {
+            var category = System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c);
+            if (category != System.Globalization.UnicodeCategory.NonSpacingMark)
+            {
+                if (c >= 32 && c <= 126)
+                {
+                    sb.Append(c);
+                }
+            }
+        }
+
+        return sb.ToString().Normalize(System.Text.NormalizationForm.FormC).Trim();
     }
 }
 
