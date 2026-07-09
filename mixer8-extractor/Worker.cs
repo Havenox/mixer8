@@ -163,6 +163,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         string? lyricsOperationStatus = null;
         string? separateOperationStatus = null;
         string? beatschordsOperationStatus = null;
+        string? tempUploadFile = null;
         try
         {
             // Atualiza status de processamento da música
@@ -788,20 +789,34 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
 
             await Task.Delay(Random.Shared.Next(1000, 1500), stoppingToken);
 
+            // Prepara arquivo com nome amigável para o Moises (renomeado temporariamente para "Musica - Artista")
+            var rawTitle = track.TrackTitle ?? "";
+            var rawArtist = track.ArtistName ?? "";
+            var safeTitle = string.Concat(rawTitle.Split(Path.GetInvalidFileNameChars())).Trim();
+            var safeArtist = string.Concat(rawArtist.Split(Path.GetInvalidFileNameChars())).Trim();
+            
+            // Caso a sanitização resulte em vazio, cai de volta para o ID original
+            var friendlyFilename = $"{(!string.IsNullOrEmpty(safeTitle) ? safeTitle : track.TrackId.ToString())} - {(!string.IsNullOrEmpty(safeArtist) ? safeArtist : "Desconhecido")}.opus";
+            tempUploadFile = Path.Combine(downloadsDir, friendlyFilename);
+
+            logger.LogInformation($"[WORKER] Criando cópia temporária do arquivo de upload como '{friendlyFilename}'...");
+            Console.WriteLine($"[BOT-PASSO] Criando cópia temporária do arquivo como '{friendlyFilename}' para envio ao Moises...");
+            File.Copy(originalFile, tempUploadFile, overwrite: true);
+
             // Preenche o input de arquivo local
             var fileInputSelector = "input[type='file']";
             Console.WriteLine($"[BOT-PASSO] Aguardando campo de entrada de arquivos locais ('{fileInputSelector}')...");
             if (interactionFrame != null)
             {
                 await interactionFrame.WaitForSelectorAsync(fileInputSelector, new FrameWaitForSelectorOptions { State = WaitForSelectorState.Attached, Timeout = 20000 });
-                Console.WriteLine($"[BOT-PASSO] Input de arquivo localizado! Injetando arquivo local: {originalFile}");
-                await interactionFrame.Locator(fileInputSelector).SetInputFilesAsync(originalFile);
+                Console.WriteLine($"[BOT-PASSO] Input de arquivo localizado! Injetando arquivo local: {tempUploadFile}");
+                await interactionFrame.Locator(fileInputSelector).SetInputFilesAsync(tempUploadFile);
             }
             else
             {
                 await page.WaitForSelectorAsync(fileInputSelector, new PageWaitForSelectorOptions { State = WaitForSelectorState.Attached, Timeout = 20000 });
-                Console.WriteLine($"[BOT-PASSO] Input de arquivo localizado! Injetando arquivo local: {originalFile}");
-                await page.Locator(fileInputSelector).SetInputFilesAsync(originalFile);
+                Console.WriteLine($"[BOT-PASSO] Input de arquivo localizado! Injetando arquivo local: {tempUploadFile}");
+                await page.Locator(fileInputSelector).SetInputFilesAsync(tempUploadFile);
             }
             
             logger.LogInformation("[WORKER] PASSO: Arquivo original enviado para o Moises. Aguardando processamento e validação...");
@@ -1430,6 +1445,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                     var localAudioFile = Path.Combine(downloadsDir, $"{track.TrackId}.opus");
                     if (File.Exists(localZipPath)) File.Delete(localZipPath);
                     if (File.Exists(localAudioFile)) File.Delete(localAudioFile);
+                    if (!string.IsNullOrEmpty(tempUploadFile) && File.Exists(tempUploadFile)) File.Delete(tempUploadFile);
                 }
                 catch (Exception ex)
                 {
