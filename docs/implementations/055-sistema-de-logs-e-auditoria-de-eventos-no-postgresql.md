@@ -110,6 +110,7 @@ Quando o administrador altera o nível de acesso de um usuário (por exemplo, el
 *   **Categoria "Play" e Badges Coloridos**: Isolamos os eventos de reprodução de faixas, playlists e álbuns em uma categoria dedicada `"Play"`. No frontend, demos badges coloridos a cada tipo de categoria (ex: verde para `Play`, roxo para `Auth`, azul para `API` e âmbar para `System`) para tornar a auditoria visualmente premium e rápida.
 *   **Busca Global Imune a Acentos**: Expandimos a busca case/accent-insensitive para toda a aplicação. Na biblioteca de músicas, implementamos via `EF.Functions.Unaccent` e `EF.Functions.ILike` no PostgreSQL. Na listagem de playlists, implementamos de forma client-side no React com uma rotina JavaScript usando `normalize("NFD").replace(/[\u0300-\u036f]/g, "")`.
 *   **Auditoria de Edições de Músicas**: Instrumentamos a rota `PUT /api/Tracks/{id}` para auditar modificações. A rota agora compara os valores originais com os atualizados (título, artista, visibilidade, nova imagem de capa, quantidade de stems excluídas, substituídas ou adicionadas) e gera um log detalhado de auditoria classificado como `Warning`.
+*   **Proteção contra Importações Duplicadas do YouTube**: O endpoint `ImportUrl` agora verifica se o ID de vídeo extraído já existe no banco (`DownloadUrl`). Em caso positivo, retorna um erro `409 Conflict`. O frontend exibe um toast na cor âmbar alertando o usuário, fecha o modal e preenche a busca global para filtrar a música existente na biblioteca.
 
 ---
 
