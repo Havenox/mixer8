@@ -105,11 +105,20 @@ Quando o administrador altera o nível de acesso de um usuário (por exemplo, el
 
 ---
 
+### 5. Polling Contínuo e Categoria "Play" Dedicada
+*   **Polling Contínuo**: Removemos a restrição de página na aba de logs do CRM. O polling agora roda continuamente em qualquer nível de rolagem infinita. Ao clicar no badge flutuante de novos logs ou rolar de volta ao topo, a lista mescla as novas entradas e reseta a paginação para a Página 1 (`setPage(1)`) de forma transparente.
+*   **Categoria "Play" e Badges Coloridos**: Isolamos os eventos de reprodução de faixas, playlists e álbuns em uma categoria dedicada `"Play"`. No frontend, demos badges coloridos a cada tipo de categoria (ex: verde para `Play`, roxo para `Auth`, azul para `API` e âmbar para `System`) para tornar a auditoria visualmente premium e rápida.
+*   **Busca Global Imune a Acentos**: Expandimos a busca case/accent-insensitive para toda a aplicação. Na biblioteca de músicas, implementamos via `EF.Functions.Unaccent` e `EF.Functions.ILike` no PostgreSQL. Na listagem de playlists, implementamos de forma client-side no React com uma rotina JavaScript usando `normalize("NFD").replace(/[\u0300-\u036f]/g, "")`.
+*   **Auditoria de Edições de Músicas**: Instrumentamos a rota `PUT /api/Tracks/{id}` para auditar modificações. A rota agora compara os valores originais com os atualizados (título, artista, visibilidade, nova imagem de capa, quantidade de stems excluídas, substituídas ou adicionadas) e gera um log detalhado de auditoria classificado como `Warning`.
+
+---
+
 ## 🎯 Impacto e Resultado
 * **Centralização de Observabilidade**: logs de todos os componentes do ecossistema agora residem no mesmo banco de dados relacional.
 * **Depuração Ágil**: Erros de rede (como falhas de comunicação com a API) são registrados com detalhes completos e stack traces.
 * **Interface CRM Administrativa Dinâmica**: Refatoramos o Painel de Controle para usar abas (*Configurações*, *Usuários*, *Logs do Sistema*). O operador conta com visualização ultra compacta das linhas de log (máxima densidade), expansão sob demanda, rolagem contínua via scroll infinito (`IntersectionObserver`), busca inteligente baseada em `unaccent` e filtros de severidade.
 * **Prevenção contra Exposição de IDs**: Nomes amigáveis e emails de usuários são expostos no CRM em vez de UUIDs incompreensíveis.
+* **Rastreabilidade Fina de Modificações**: Qualquer edição em músicas e arquivos associados é devidamente logada com os detalhes de "antes" e "depois".
 
 ---
 **Nota do Desenvolvedor:** *Utilizar `ON DELETE SET NULL` foi a chave para manter o histórico de auditoria. Do contrário, ao deletar uma track por moderação, perderíamos os registros de logs de auditoria mostrando que aquela track causou erros ou quando ela foi carregada.*
