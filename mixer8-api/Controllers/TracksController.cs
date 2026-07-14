@@ -57,10 +57,10 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var searchLower = search.ToLower();
+            var searchPattern = $"%{search}%";
             query = query.Where(t => 
-                t.TrackTitle.ToLower().Contains(searchLower) || 
-                t.ArtistName.ToLower().Contains(searchLower)
+                EF.Functions.ILike(EF.Functions.Unaccent(t.TrackTitle), EF.Functions.Unaccent(searchPattern)) || 
+                EF.Functions.ILike(EF.Functions.Unaccent(t.ArtistName), EF.Functions.Unaccent(searchPattern))
             );
         }
 

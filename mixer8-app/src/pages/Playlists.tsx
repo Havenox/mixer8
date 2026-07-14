@@ -29,11 +29,20 @@ export const Playlists: React.FC = () => {
   const [searchInput, setSearchInput] = useState('');
   const [showAll, setShowAll] = useState(false);
 
+  // Helper para normalizar texto removendo acentos e pontuação (case/accent insensitive)
+  const normalizeText = (text: string) => {
+    return text
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+  };
+
   // Filtragem das playlists em memória (client-side)
   const filteredPlaylists = playlists.filter(p => {
+    const query = normalizeText(searchInput);
     const matchesSearch = 
-      p.Name.toLowerCase().includes(searchInput.toLowerCase()) ||
-      (p.Description && p.Description.toLowerCase().includes(searchInput.toLowerCase()));
+      normalizeText(p.Name).includes(query) ||
+      (p.Description && normalizeText(p.Description).includes(query));
 
     const matchesVisibility = showAll ? true : p.Visibility === 'Public';
 
