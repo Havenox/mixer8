@@ -1515,7 +1515,12 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         using var transaction = await dbContext.Database.BeginTransactionAsync();
         try
         {
-            // 1. Atualizar metadados textuais
+            // 1. Guardar valores antigos para log
+            var oldTitle = track.TrackTitle;
+            var oldArtist = track.ArtistName;
+            var oldVisibility = track.Visibility;
+
+            // 2. Atualizar metadados textuais
             track.TrackTitle = request.TrackTitle.Trim();
             track.ArtistName = request.ArtistName.Trim();
 
@@ -1797,6 +1802,28 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             }
 
             await dbContext.SaveChangesAsync();
+
+            // Montar log de alterações de auditoria
+            var changesList = new List<string>();
+            if (oldTitle != track.TrackTitle) changesList.Add($"Título alterado de '{oldTitle}' para '{track.TrackTitle}'");
+            if (oldArtist != track.ArtistName) changesList.Add($"Artista alterado de '{oldArtist}' para '{track.ArtistName}'");
+            if (oldVisibility != track.Visibility) changesList.Add($"Visibilidade alterada de '{oldVisibility}' para '{track.Visibility}'");
+            if (hasNewCoverFile) changesList.Add("Imagem de capa atualizada");
+            if (deletedStemIds.Count > 0) changesList.Add($"{deletedStemIds.Count} stems excluídas");
+            
+            var replacedStemCount = Request.Form.Files.Count(f => f.Name.StartsWith("ReplaceStem_"));
+            if (replacedStemCount > 0) changesList.Add($"{replacedStemCount} stems substituídas");
+
+            if (request.Files != null && request.Files.Count > 0)
+            {
+                changesList.Add($"{request.Files.Count} novos arquivos de stems/ZIP adicionados");
+            }
+
+            var changesSummary = string.Join(", ", changesList);
+            if (string.IsNullOrEmpty(changesSummary)) changesSummary = "Nenhuma alteração de metadados detectada";
+
+            await dbContext.LogEventAsync("API", "Warning", $"Música '{track.TrackTitle}' editada pelo administrador.", $"Alterações: {changesSummary}", track.TrackId, userId);
+
             await transaction.CommitAsync();
 
             var updatedTrack = await dbContext.Tracks
