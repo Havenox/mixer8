@@ -447,15 +447,20 @@ export const Admin: React.FC = () => {
             <div className="bg-brand-card border border-brand-hover p-4 rounded-md flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg">
               
               {/* Campo de Busca */}
-              <div className="relative flex-1 max-w-[450px]">
-                <Search className="absolute left-3 top-3 w-4 h-4 text-brand-gray" />
-                <input 
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Buscar por mensagem, música, usuário..."
-                  className="w-full bg-black border border-brand-hover rounded pl-9 pr-3 py-2 text-xs text-white placeholder-brand-gray focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green"
-                />
+              <div className="relative flex-1 max-w-[550px] flex items-center gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-3 w-4 h-4 text-brand-gray" />
+                  <input 
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Buscar por mensagem, música, usuário..."
+                    className="w-full bg-black border border-brand-hover rounded pl-9 pr-3 py-2 text-xs text-white placeholder-brand-gray focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green"
+                  />
+                </div>
+                <span className="text-[11px] text-brand-gray shrink-0 font-bold bg-brand-hover px-2.5 py-1.5 rounded border border-brand-hover select-none">
+                  {totalLogs} logs
+                </span>
               </div>
 
               {/* Controles de Filtros */}
