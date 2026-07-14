@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Mixer8.Waveformer.Domain;
 using Mixer8.Waveformer.Infrastructure;
 using System;
+using System.Diagnostics;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
@@ -43,11 +44,12 @@ public class Worker(
 
     private async Task<bool> ProcessNextStemAsync(CancellationToken stoppingToken)
     {
+        Stem? stem = null;
         using var transaction = await dbContext.Database.BeginTransactionAsync(stoppingToken);
         try
         {
             // Busca uma stem sem waveform associada usando skip locked
-            var stem = await dbContext.Stems
+            stem = await dbContext.Stems
                 .FromSqlRaw(@"
                     SELECT s.* FROM ""Stems"" s
                     WHERE NOT EXISTS (
@@ -70,73 +72,71 @@ public class Worker(
 
             logger.LogInformation($"[WAVEFORM] Iniciando processamento da stem: {stem.StemId} ({stem.StemType})");
 
-            using var response = await httpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, stoppingToken);
+            using var request = new HttpRequestMessage(HttpMethod.Get, downloadUrl);
+            using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, stoppingToken);
             response.EnsureSuccessStatusCode();
-            using var inputStream = await response.Content.ReadAsStreamAsync(stoppingToken);
 
-            const int sampleRate = 8000;
-            const int pointsPerSecond = 20;
-            int samplesPerPoint = sampleRate / pointsPerSecond;
-            int bytesPerPoint = samplesPerPoint * 2;
+            using var audioStream = await response.Content.ReadAsStreamAsync(stoppingToken);
 
-            var startInfo = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = "ffmpeg",
-                Arguments = $"-y -i pipe:0 -f s16le -ac 1 -ar {sampleRate} pipe:1",
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = false,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
+            // Inicia o processo do ffmpeg para ler áudio da entrada padrão (pipe:0)
+            using var process = new Process();
+            process.StartInfo.FileName = "ffmpeg";
+            process.StartInfo.Arguments = "-i pipe:0 -f s16le -ac 1 -ar 8000 -";
+            process.StartInfo.UseShellExecute = false;
+            process.StartInfo.RedirectStandardInput = true;
+            process.StartInfo.RedirectStandardOutput = true;
+            process.StartInfo.CreateNoWindow = true;
 
-            using var process = new System.Diagnostics.Process { StartInfo = startInfo };
             process.Start();
 
+            // Copia o áudio baixado do endpoint diretamente para o stdin do FFmpeg na memória
             var copyTask = Task.Run(async () =>
             {
                 try
                 {
-                    await inputStream.CopyToAsync(process.StandardInput.BaseStream, stoppingToken);
-                    process.StandardInput.Close();
+                    await audioStream.CopyToAsync(process.StandardInput.BaseStream, stoppingToken);
                 }
                 catch (Exception ex)
                 {
-                    logger.LogWarning($"[WAVEFORM] Erro gravando no stdin do ffmpeg: {ex.Message}");
-                    try { process.StandardInput.Close(); } catch { }
+                    logger.LogDebug($"[WAVEFORM DEBUG] Escrita no stdin do FFmpeg encerrada: {ex.Message}");
+                }
+                finally
+                {
+                    process.StandardInput.Close();
                 }
             }, stoppingToken);
 
-            var points = new List<int>();
-            var buffer = new byte[bytesPerPoint];
+            // Lê a saída s16le (PCM 16-bit mono 8000Hz) em blocos
             var stdoutStream = process.StandardOutput.BaseStream;
+            var points = new List<int>();
+            
+            // Cada ponto da waveform representa o maior pico de amplitude de um bloco de 800 bytes
+            // A taxa de amostragem é 8000Hz (PCM 16-bit = 2 bytes por amostra).
+            // 800 bytes = 400 amostras. A 8000 amostras por segundo, 400 amostras duram exatamente 0.05 segundos (50ms).
+            // Isso produz 20 pontos de waveform por segundo de áudio.
+            var buffer = new byte[800];
+            int bytesRead;
 
-            while (true)
+            while ((bytesRead = await stdoutStream.ReadAsync(buffer, 0, buffer.Length, stoppingToken)) > 0)
             {
-                int bytesRead = 0;
-                while (bytesRead < bytesPerPoint)
-                {
-                    int read = await stdoutStream.ReadAsync(buffer, bytesRead, bytesPerPoint - bytesRead, stoppingToken);
-                    if (read <= 0) break;
-                    bytesRead += read;
-                }
-
-                if (bytesRead == 0) break;
+                int samples = bytesRead / 2;
+                if (samples == 0) continue;
 
                 int maxVal = 0;
-                for (int i = 0; i < bytesRead; i += 2)
+                for (int i = 0; i < samples; i++)
                 {
-                    if (i + 1 < bytesRead)
+                    // Lê cada amostra short (Int16) com sinal
+                    short sample = BitConverter.ToInt16(buffer, i * 2);
+                    
+                    // Aplica cast para int antes do Abs para evitar System.OverflowException em short.MinValue (-32768)
+                    int val = Math.Abs((int)sample);
+                    if (val > maxVal)
                     {
-                        short sample = BitConverter.ToInt16(buffer, i);
-                        int absSample = Math.Abs((int)sample);
-                        if (absSample > maxVal)
-                        {
-                            maxVal = absSample;
-                        }
+                        maxVal = val;
                     }
                 }
 
+                // Normaliza o pico lido em relação ao limite máximo absoluto de 16-bit (32768) na escala de 0 a 100
                 int normalized = (int)Math.Round((maxVal / 32768.0) * 100.0);
                 points.Add(normalized);
             }
@@ -170,7 +170,7 @@ public class Worker(
                     }
 
                     dbContext.Stems.Remove(stem);
-                    await dbContext.SaveChangesAsync(stoppingToken);
+                    await dbContext.LogEventAsync("Waveformer", "Warning", $"Stem '{stem.StemType}' removida por ser silenciosa (Pico maximo: {maxPeak}%).", $"AudioUrl: {stem.AudioUrl}", stem.TrackId, cancellationToken: stoppingToken);
                     await transaction.CommitAsync(stoppingToken);
 
                     logger.LogInformation($"[WAVEFORM SILENCE SUCCESS] Registro da stem silenciosa {stem.StemId} removido do banco.");
@@ -194,7 +194,7 @@ public class Worker(
             };
 
             dbContext.StemWaveforms.Add(waveform);
-            await dbContext.SaveChangesAsync(stoppingToken);
+            await dbContext.LogEventAsync("Waveformer", "Success", $"Waveform gerada para a stem '{stem.StemType}' ({points.Count} pontos).", $"AudioUrl: {stem.AudioUrl}", stem.TrackId, cancellationToken: stoppingToken);
             await transaction.CommitAsync(stoppingToken);
 
             logger.LogInformation($"[WAVEFORM SUCCESS] Waveform processada com sucesso para a stem: {stem.StemId} ({points.Count} pontos).");
@@ -204,6 +204,11 @@ public class Worker(
         {
             await transaction.RollbackAsync(stoppingToken);
             logger.LogError(ex, $"[WAVEFORM ERROR] Falha no processamento da stem.");
+            try
+            {
+                await dbContext.LogEventAsync("Waveformer", "Error", $"Falha ao gerar waveform para a stem '{stem?.StemType}'.", ex.ToString(), stem?.TrackId, cancellationToken: stoppingToken);
+            }
+            catch {}
             return false;
         }
     }

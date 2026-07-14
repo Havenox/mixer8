@@ -62,6 +62,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                     await db.SaveChangesAsync(stoppingToken);
                     await transaction.CommitAsync(stoppingToken);
                     logger.LogInformation($"[DOWNLOADER] Música '{track.TrackTitle}' capturada com sucesso para download.");
+                    await db.LogEventAsync("Downloader", "Info", $"Música '{track.TrackTitle}' capturada na fila de downloads (Link: {track.DownloadUrl}).", null, track.TrackId, cancellationToken: stoppingToken);
                 }
             }
             catch (Exception ex)
@@ -139,6 +140,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 if (uploadSuccess)
                 {
                     logger.LogInformation($"[DOWNLOADER] Upload HTTP bem-sucedido para {track.TrackId}. Limpando arquivo local...");
+                    await updateDb.LogEventAsync("Downloader", "Success", $"Download e upload de mídia original concluídos com sucesso para '{dbTrack.TrackTitle}'.", null, dbTrack.TrackId, cancellationToken: stoppingToken);
                     try
                     {
                         if (File.Exists(finalFilePath))
@@ -165,6 +167,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                     {
                         logger.LogError($"[DOWNLOADER] Falha no download ou no upload via HTTP para {track.TrackId}. Marcando como Falhou.");
                         dbTrack.ExtractionStatus = "Falhou";
+                        await updateDb.LogEventAsync("Downloader", "Error", $"Falha no download/upload da mídia para a música '{dbTrack.TrackTitle}'.", null, dbTrack.TrackId, cancellationToken: stoppingToken);
                         await updateDb.SaveChangesAsync(stoppingToken);
                     }
                     else

@@ -130,6 +130,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                     await db.SaveChangesAsync(stoppingToken);
                     await transaction.CommitAsync(stoppingToken);
                     logger.LogInformation($"[WORKER] Música '{track.TrackTitle}' capturada com sucesso para processamento.");
+                    await db.LogEventAsync("Extractor", "Info", $"Música '{track.TrackTitle}' capturada na fila do Extrator. Iniciando processamento do bot no Moises.ai.", null, track.TrackId, cancellationToken: stoppingToken);
                 }
             }
             catch (Exception ex)
@@ -1426,6 +1427,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             }
 
             logger.LogInformation($"[WORKER SUCCESS] Música '{track.TrackTitle}' finalizada, stems convertidas para Opus e persistidas no banco com sucesso!");
+            await db.LogEventAsync("Extractor", "Success", $"Extração e conversão de stems finalizada com sucesso para a música '{track.TrackTitle}'.", null, track.TrackId, cancellationToken: stoppingToken);
         }
         catch (Exception ex)
         {
@@ -1434,6 +1436,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             if (dbTrack != null)
             {
                 dbTrack.ExtractionStatus = "Falhou";
+                await db.LogEventAsync("Extractor", "Error", $"Falha catastrófica no fluxo de extração da música '{track.TrackTitle}'.", ex.ToString(), track.TrackId, cancellationToken: stoppingToken);
             }
             await db.SaveChangesAsync(stoppingToken);
         }

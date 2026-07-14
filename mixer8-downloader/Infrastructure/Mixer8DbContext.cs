@@ -9,6 +9,7 @@ public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbCont
     public DbSet<Track> Tracks { get; set; } = null!;
     public DbSet<Stem> Stems { get; set; } = null!;
     public DbSet<SystemSetting> SystemSettings { get; set; } = null!;
+    public DbSet<SystemEvent> SystemEvents { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -18,16 +19,40 @@ public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbCont
         modelBuilder.Entity<Track>().ToTable("Tracks");
         modelBuilder.Entity<Stem>().ToTable("Stems");
         modelBuilder.Entity<SystemSetting>().ToTable("SystemSettings");
+        modelBuilder.Entity<SystemEvent>().ToTable("SystemEvents");
 
         modelBuilder.Entity<User>().HasKey(u => u.UserId);
         modelBuilder.Entity<Track>().HasKey(t => t.TrackId);
         modelBuilder.Entity<Stem>().HasKey(s => s.StemId);
         modelBuilder.Entity<SystemSetting>().HasKey(s => s.Key);
+        modelBuilder.Entity<SystemEvent>().HasKey(se => se.EventId);
 
         modelBuilder.Entity<Track>()
             .HasMany(t => t.Stems)
             .WithOne()
             .HasForeignKey(s => s.TrackId)
             .OnDelete(DeleteBehavior.Cascade);
+    }
+
+    public async Task LogEventAsync(
+        string category,
+        string level,
+        string message,
+        string? details = null,
+        Guid? trackId = null,
+        Guid? userId = null,
+        System.Threading.CancellationToken cancellationToken = default)
+    {
+        var evt = new SystemEvent
+        {
+            Category = category,
+            Level = level,
+            Message = message,
+            Details = details,
+            TrackId = trackId,
+            UserId = userId
+        };
+        SystemEvents.Add(evt);
+        await SaveChangesAsync(cancellationToken);
     }
 }

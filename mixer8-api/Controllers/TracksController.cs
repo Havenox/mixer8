@@ -356,6 +356,8 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         dbContext.Tracks.Add(track);
         await dbContext.SaveChangesAsync();
 
+        await dbContext.LogEventAsync("API", "Info", $"Música '{track.TrackTitle}' enviada por upload.", null, track.TrackId, userId);
+
         return Ok(track);
     }
 
@@ -879,6 +881,8 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
 
             dbContext.Tracks.Add(track);
             await dbContext.SaveChangesAsync();
+
+            await dbContext.LogEventAsync("API", "Info", $"Música '{track.TrackTitle}' enviada por upload direto.", null, track.TrackId, userId);
 
             return Ok(track);
         }
@@ -1413,6 +1417,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         using var transaction = await dbContext.Database.BeginTransactionAsync();
         try
         {
+            await dbContext.LogEventAsync("API", "Warning", $"Música '{track.TrackTitle}' (Artista: {track.ArtistName}) foi excluída permanentemente pelo administrador.", null, null, userId);
             dbContext.Tracks.Remove(track);
             await dbContext.SaveChangesAsync();
 
@@ -1838,6 +1843,9 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             track.WeekPlayCount++;
             dbContext.TrackPlays.Add(new TrackPlay { TrackId = track.TrackId, PlayedAt = DateTime.UtcNow });
             trackIncremented = true;
+
+            var logUserId = userIdClaim != null && Guid.TryParse(userIdClaim, out var parsedUid) ? parsedUid : (Guid?)null;
+            await dbContext.LogEventAsync("API", "Info", $"Música '{track.TrackTitle}' reproduzida (Chave: {userKey})", null, track.TrackId, logUserId);
 
             var cacheOptions = new MemoryCacheEntryOptions
             {
