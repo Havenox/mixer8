@@ -50,8 +50,10 @@ public class Worker(
             var stem = await dbContext.Stems
                 .FromSqlRaw(@"
                     SELECT s.* FROM ""Stems"" s
-                    LEFT JOIN ""StemWaveforms"" sw ON s.""StemId"" = sw.""StemId""
-                    WHERE sw.""StemId"" IS NULL
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM ""StemWaveforms"" sw
+                        WHERE s.""StemId"" = sw.""StemId""
+                    )
                     ORDER BY s.""CreatedAt"" ASC
                     LIMIT 1
                     FOR UPDATE SKIP LOCKED")
@@ -121,13 +123,13 @@ public class Worker(
 
                 if (bytesRead == 0) break;
 
-                short maxVal = 0;
+                int maxVal = 0;
                 for (int i = 0; i < bytesRead; i += 2)
                 {
                     if (i + 1 < bytesRead)
                     {
                         short sample = BitConverter.ToInt16(buffer, i);
-                        short absSample = Math.Abs(sample);
+                        int absSample = Math.Abs((int)sample);
                         if (absSample > maxVal)
                         {
                             maxVal = absSample;
