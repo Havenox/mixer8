@@ -419,6 +419,40 @@ public class AuthController(Mixer8DbContext dbContext, IConfiguration configurat
 
         return Ok(response);
     }
+
+    [Authorize]
+    [HttpPost("RefreshToken")]
+    public async Task<IActionResult> RefreshToken()
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(new { ErrorMessage = "INVALID_TOKEN_CLAIMS" });
+        }
+
+        var user = await dbContext.Users
+            .Include(u => u.UserRole)
+            .Include(u => u.UserProfile)
+            .FirstOrDefaultAsync(u => u.UserId == userId);
+
+        if (user == null || !user.IsActive)
+        {
+            return NotFound(new { ErrorMessage = "USER_NOT_FOUND_OR_INACTIVE" });
+        }
+
+        var roleStr = user.UserRole.Role.ToString();
+        var secret = configuration["JWT_SECRET"] ?? "sua_chave_secreta_jwt_aqui_minimo_32_caracteres";
+        var expirationDays = Convert.ToInt32(configuration["JWT_EXPIRATION_DAYS"] ?? "7");
+        var token = SecurityHelper.GenerateJwtToken(user, roleStr, secret, expirationDays);
+
+        return Ok(new AuthResponse
+        {
+            Token = token,
+            Email = user.Email,
+            UserRole = roleStr,
+            UserName = user.UserProfile?.UserName ?? user.Email.Split('@')[0]
+        });
+    }
 }
 
 public class RegisterRequest

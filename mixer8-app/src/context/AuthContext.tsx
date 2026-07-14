@@ -7,6 +7,7 @@ interface IAuthContext extends IAuthState {
   Register: (email: string, password: string, username: string) => Promise<{ success: boolean; error?: string }>;
   Logout: () => void;
   UpdateCurrentUser: (user: IUser) => void;
+  RefreshTokenClaims: () => Promise<void>;
   openLoginModal: () => void;
   closeLoginModal: () => void;
   isLoginModalOpen: boolean;
@@ -184,6 +185,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }));
   };
 
+  const RefreshTokenClaims = async () => {
+    const savedToken = localStorage.getItem('mixer8_token');
+    if (!savedToken) return;
+    try {
+      const res = await fetch(`${API_URL}/Auth/RefreshToken`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${savedToken}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        localStorage.setItem('mixer8_token', data.Token);
+        
+        const meRes = await fetch(`${API_URL}/Auth/Me`, {
+          headers: {
+            'Authorization': `Bearer ${data.Token}`
+          }
+        });
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          setState({
+            IsAuthenticated: true,
+            CurrentUser: meData,
+            Token: data.Token
+          });
+        }
+      }
+    } catch {
+      // Falha silenciosa
+    }
+  };
+
   const Logout = () => {
     localStorage.removeItem('mixer8_token');
     setState({
@@ -194,7 +228,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ ...state, Login, Register, Logout, UpdateCurrentUser, openLoginModal, closeLoginModal, isLoginModalOpen }}>
+    <AuthContext.Provider value={{ ...state, Login, Register, Logout, UpdateCurrentUser, RefreshTokenClaims, openLoginModal, closeLoginModal, isLoginModalOpen }}>
       {!isLoading && children}
       {isLoginModalOpen && <LoginModal onClose={closeLoginModal} />}
     </AuthContext.Provider>

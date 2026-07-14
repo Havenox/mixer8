@@ -71,6 +71,21 @@ Para manter a confidencialidade e a densidade de informação ideal no painel:
 2.  **Design Ultra Compacto**: Para garantir que caibam o máximo de registros na área visível da tela, as linhas de log são finas por padrão (altura mínima de 36px), exibindo apenas o Nível (badge pequeno), Categoria (badge), Data/Hora (fonte mono-espaçada) e a Mensagem truncada. Metadados extras de relacionamentos e o bloco de código formatado do campo `Details` (para stack traces) são revelados apenas após clique expansivo.
 3.  **Scroll Infinito (Auto-Fetch)**: A navegação por páginas foi substituída por um fluxo contínuo de rolagem (infinite scroll) utilizando a API nativa `IntersectionObserver` do navegador. À medida que o operador rola a página de logs, lotes subsequentes de 20 registros são carregados e adicionados de forma reativa e assíncrona.
 
+
+### 4. Gerenciamento e Auditoria de Usuários (CRM)
+Para permitir que administradores controlem o acesso do sistema Mixer8 diretamente do painel CRM, refatoramos a aba **Usuários Ativos** para seguir os mesmos padrões de design e otimização dos logs de auditoria:
+
+*   **Padrão Consistente**: Adicionamos busca imune a acentos (via `unaccent`), filtragem por função (Admin, Moderator, Paid PRO, Free Tier) e rolagem contínua (Scroll Infinito com `IntersectionObserver` em lotes de 20).
+*   **Ações Administrativas**: Administradores podem visualizar detalhes completos do perfil (Nome Completo, UserName, Bio, Telefone, Avatar) expandindo a linha com um clique, bem como alterar a função do usuário (Role) por meio de um seletor e botão de salvar.
+*   **Prevenção de Auto-Rebaixamento**: O sistema previne que o último administrador ativo altere sua própria função para evitar que o sistema fique sem um administrador responsável.
+*   **Instrumentação de Auditoria**: Toda alteração de papel é registrada automaticamente na tabela `"SystemEvents"` com nível `Warning`, detalhando quem realizou a alteração e o usuário afetado.
+
+#### Solução de Renovação Silenciosa de Claims (JWT)
+Quando o administrador altera o nível de acesso de um usuário (por exemplo, elevando-o de Free Tier para Paid PRO), o token JWT atual desse usuário contém claims antigas assinadas. Para evitar que o usuário precise efetuar logoff e login manualmente:
+1.  Expusemos o endpoint `POST /api/Auth/RefreshToken` (autenticado), que consulta a função atualizada do usuário diretamente no banco de dados e gera um novo token assinado com as claims atualizadas.
+2.  No frontend, o método `RefreshTokenClaims` no `AuthContext` faz essa requisição silenciosamente. Se o próprio administrador alterar sua função, a atualização ocorre no mesmo instante no estado global e no `localStorage`.
+3.  Quando outros usuários têm suas funções atualizadas, a renovação pode ser disparada automaticamente ao detectar erros `403` ou durante a verificação de sessão inicial do aplicativo.
+
 ---
 
 ## 🛠️ Implementação Técnica
