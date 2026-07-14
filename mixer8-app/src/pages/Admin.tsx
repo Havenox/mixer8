@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
   Shield, 
@@ -8,8 +8,6 @@ import {
   ClipboardList, 
   Search, 
   ArrowUpDown, 
-  ChevronLeft, 
-  ChevronRight,
   Database
 } from 'lucide-react';
 
@@ -42,7 +40,7 @@ export const Admin: React.FC = () => {
   const [logs, setLogs] = useState<any[]>([]);
   const [totalLogs, setTotalLogs] = useState(0);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -50,6 +48,9 @@ export const Admin: React.FC = () => {
   const [level, setLevel] = useState('');
   const [sortDescending, setSortDescending] = useState(true);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
+
+  // Ref para o elemento de scroll infinito
+  const observerRef = useRef<HTMLDivElement | null>(null);
 
   // Debounce do campo de busca
   useEffect(() => {
@@ -59,10 +60,14 @@ export const Admin: React.FC = () => {
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Resetar página ao alterar filtros
+  // Resetar lista de logs e carregar página 1 quando mudar filtros/busca/ordem
   useEffect(() => {
-    setPage(1);
-  }, [debouncedSearch, category, level]);
+    if (activeTab === 'logs') {
+      setPage(1);
+      setHasMore(true);
+      fetchLogs(1, false);
+    }
+  }, [debouncedSearch, category, level, sortDescending, activeTab]);
 
   const fetchUsers = async () => {
     if (!Token) return;
@@ -119,12 +124,12 @@ export const Admin: React.FC = () => {
     }
   };
 
-  const fetchLogs = async () => {
+  const fetchLogs = async (pageNum: number, isAppend: boolean) => {
     if (!Token) return;
     setIsLoadingLogs(true);
     try {
       const queryParams = new URLSearchParams({
-        page: page.toString(),
+        page: pageNum.toString(),
         pageSize: '20',
         search: debouncedSearch,
         category: category,
@@ -139,9 +144,18 @@ export const Admin: React.FC = () => {
       });
       if (res.ok) {
         const data = await res.json();
-        setLogs(data.Items);
+        if (isAppend) {
+          setLogs(prev => {
+            // Evitar itens duplicados por causa do React StrictMode
+            const existingIds = new Set(prev.map(item => item.EventId));
+            const newItems = data.Items.filter((item: any) => !existingIds.has(item.EventId));
+            return [...prev, ...newItems];
+          });
+        } else {
+          setLogs(data.Items);
+        }
         setTotalLogs(data.TotalCount);
-        setTotalPages(data.TotalPages);
+        setHasMore(pageNum < data.TotalPages);
       }
     } catch {
       // Ignora falha silenciosa
@@ -150,16 +164,42 @@ export const Admin: React.FC = () => {
     }
   };
 
+  const loadMoreLogs = () => {
+    if (isLoadingLogs || !hasMore) return;
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchLogs(nextPage, true);
+  };
+
+  // Setup do IntersectionObserver para scroll infinito
+  useEffect(() => {
+    if (activeTab !== 'logs' || !hasMore || isLoadingLogs) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadMoreLogs();
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    );
+
+    const currentRef = observerRef.current;
+    if (currentRef) {
+      observer.observe(currentRef);
+    }
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+    };
+  }, [page, hasMore, isLoadingLogs, activeTab]);
+
   useEffect(() => {
     fetchUsers();
     fetchSystemSettings();
   }, []);
-
-  useEffect(() => {
-    if (activeTab === 'logs') {
-      fetchLogs();
-    }
-  }, [page, debouncedSearch, category, level, sortDescending, activeTab]);
 
   if (CurrentUser?.UserRole !== 'Admin' && CurrentUser?.UserRole !== 'Moderator') {
     return (
@@ -462,13 +502,9 @@ export const Admin: React.FC = () => {
 
             </div>
 
-            {/* Listagem de Logs */}
+            {/* Listagem de Logs (Design Compacto) */}
             <div className="bg-brand-card border border-brand-hover rounded-md shadow-xl overflow-hidden">
-              {isLoadingLogs ? (
-                <div className="text-center py-12 text-sm text-brand-gray animate-pulse font-semibold flex items-center justify-center gap-2">
-                  <Database className="w-5 h-5 text-brand-green animate-spin" /> Carregando logs de auditoria...
-                </div>
-              ) : logs.length === 0 ? (
+              {logs.length === 0 && !isLoadingLogs ? (
                 <div className="text-center py-12 text-sm text-brand-gray font-semibold">
                   Nenhum log encontrado para os filtros selecionados.
                 </div>
@@ -476,40 +512,50 @@ export const Admin: React.FC = () => {
                 <div className="divide-y divide-brand-hover">
                   {logs.map((log: any) => {
                     const isExpanded = expandedLogId === log.EventId;
+                    const hasExtraInfo = log.Details || log.TrackTitle || log.UserEmail || log.UserName;
                     return (
                       <div 
                         key={log.EventId} 
-                        className={`flex flex-col hover:bg-zinc-900/50 transition-colors ${isExpanded ? 'bg-zinc-900/30' : ''}`}
+                        className={`flex flex-col border-b border-brand-hover hover:bg-zinc-900/50 transition-colors ${isExpanded ? 'bg-zinc-900/30' : ''}`}
                       >
-                        {/* Linha Principal do Log */}
+                        {/* Linha Principal do Log (Ultra Compacta) */}
                         <div 
-                          onClick={() => log.Details ? setExpandedLogId(isExpanded ? null : log.EventId) : null}
-                          className={`flex flex-col lg:flex-row lg:items-center justify-between p-4 gap-4 text-xs ${log.Details ? 'cursor-pointer' : ''}`}
+                          onClick={() => setExpandedLogId(isExpanded ? null : log.EventId)}
+                          className="flex items-center justify-between p-2 px-3 gap-3 text-xs cursor-pointer select-none min-h-[36px]"
                         >
-                          <div className="flex flex-col gap-2 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              {/* Nível do Log */}
-                              <span className={`px-2 py-0.5 rounded-[3px] text-[10px] font-black tracking-wider uppercase border ${getLevelBadgeStyle(log.Level)}`}>
-                                {log.Level}
-                              </span>
-                              {/* Categoria */}
-                              <span className="bg-brand-hover text-white px-2 py-0.5 rounded-[3px] text-[10px] font-bold border border-brand-hover">
-                                {log.Category}
-                              </span>
-                              {/* Data/Hora */}
-                              <span className="text-brand-gray text-[10px]">
-                                {formatTimestamp(log.Timestamp)}
-                              </span>
-                            </div>
-
-                            {/* Mensagem Principal */}
-                            <p className="text-white font-medium m-0 leading-relaxed text-sm">
+                          <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                            {/* Nível do Log */}
+                            <span className={`px-1.5 py-0.5 rounded-[3px] text-[8px] font-black tracking-wider uppercase border shrink-0 ${getLevelBadgeStyle(log.Level)}`}>
+                              {log.Level}
+                            </span>
+                            {/* Categoria */}
+                            <span className="bg-brand-hover text-white px-1.5 py-0.5 rounded-[3px] text-[8px] font-bold border border-brand-hover shrink-0">
+                              {log.Category}
+                            </span>
+                            {/* Data/Hora */}
+                            <span className="text-brand-gray text-[9px] shrink-0 font-mono">
+                              {formatTimestamp(log.Timestamp)}
+                            </span>
+                            {/* Mensagem Principal (Truncada se recolhido) */}
+                            <span className={`text-white font-medium text-xs min-w-0 ${isExpanded ? 'whitespace-normal' : 'truncate'}`}>
                               {log.Message}
-                            </p>
+                            </span>
+                          </div>
 
+                          {/* Indicador visual de que há mais conteúdo */}
+                          {hasExtraInfo && (
+                            <span className="text-[10px] text-brand-gray shrink-0 font-semibold px-2 py-0.5 rounded bg-brand-hover hover:text-white transition-colors">
+                              {isExpanded ? 'Recolher' : 'Expandir'}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Detalhes Expansíveis (Acoplados: Música, Usuário e Stack Trace) */}
+                        {isExpanded && (
+                          <div className="px-3 pb-3 pt-1 flex flex-col gap-2.5 animate-in slide-in-from-top-1 duration-150">
                             {/* Entidades Relacionadas (Música e Usuário) */}
                             {(log.TrackTitle || log.UserEmail || log.UserName) && (
-                              <div className="flex flex-wrap gap-2.5 mt-1">
+                              <div className="flex flex-wrap gap-2 border-t border-brand-hover pt-2">
                                 {log.TrackTitle && (
                                   <span className="text-[10px] bg-brand-green/10 border border-brand-green/20 text-brand-green px-2 py-0.5 rounded font-medium">
                                     🎵 Música: {log.TrackTitle}
@@ -522,22 +568,16 @@ export const Admin: React.FC = () => {
                                 )}
                               </div>
                             )}
-                          </div>
 
-                          {/* Indicador de expansão (se houver detalhes) */}
-                          {log.Details && (
-                            <div className="text-[10px] text-brand-gray bg-brand-hover hover:text-white px-2.5 py-1.5 rounded border border-brand-hover font-semibold shrink-0 self-start lg:self-center transition-colors">
-                              {isExpanded ? 'Ocultar Detalhes' : 'Ver Detalhes'}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Detalhes Expansíveis */}
-                        {isExpanded && log.Details && (
-                          <div className="px-4 pb-4 animate-in slide-in-from-top-2 duration-200">
-                            <pre className="bg-black text-rose-400 p-3.5 rounded text-[11px] font-mono border border-brand-hover overflow-x-auto leading-relaxed max-h-[300px] whitespace-pre-wrap">
-                              {log.Details}
-                            </pre>
+                            {/* Detalhes do Log (ex: Stack Trace) */}
+                            {log.Details && (
+                              <div className="flex flex-col gap-1">
+                                <span className="text-[8px] font-bold text-brand-gray tracking-wide uppercase">Detalhes Técnicos / Stack Trace:</span>
+                                <pre className="bg-black text-rose-400 p-2.5 rounded text-[10px] font-mono border border-brand-hover overflow-x-auto leading-relaxed max-h-[300px] whitespace-pre-wrap">
+                                  {log.Details}
+                                </pre>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -545,33 +585,22 @@ export const Admin: React.FC = () => {
                   })}
                 </div>
               )}
+
+              {/* Status de Loading no Bottom (Scroll Infinito) */}
+              {isLoadingLogs && (
+                <div className="text-center py-4 text-xs text-brand-gray animate-pulse font-semibold flex items-center justify-center gap-2 bg-zinc-950/20 border-t border-brand-hover">
+                  <Database className="w-4 h-4 text-brand-green animate-spin" /> Carregando mais logs...
+                </div>
+              )}
+
+              {/* Elemento observador invisible para trigger do scroll */}
+              {hasMore && <div ref={observerRef} className="h-4" />}
             </div>
 
-            {/* Paginação */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between bg-brand-card border border-brand-hover p-4 rounded-md shadow-lg text-xs">
-                <span className="text-brand-gray">
-                  Exibindo página <strong className="text-white">{page}</strong> de <strong className="text-white">{totalPages}</strong> ({totalLogs} logs no total)
-                </span>
-                
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setPage(p => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                    className="p-2 bg-brand-hover hover:bg-zinc-800 text-white rounded cursor-pointer disabled:opacity-30 disabled:hover:bg-brand-hover active:scale-95 disabled:scale-100 transition-all border border-brand-hover"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                    disabled={page === totalPages}
-                    className="p-2 bg-brand-hover hover:bg-zinc-800 text-white rounded cursor-pointer disabled:opacity-30 disabled:hover:bg-brand-hover active:scale-95 disabled:scale-100 transition-all border border-brand-hover"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            )}
+            {/* Contador total de logs */}
+            <div className="text-right text-[10px] text-brand-gray px-1">
+              Total de logs encontrados: <strong className="text-white">{totalLogs}</strong>
+            </div>
 
           </div>
         )}

@@ -66,9 +66,10 @@ Os logs residem na tabela `"SystemEvents"`. Para alimentar o CRM Administrativo 
 Para garantir que buscas como "bateria" encontrem "BATERIA" ou "batería", ativamos a extensão **`unaccent`** no PostgreSQL via migração EF Core. Na consulta LINQ da API, realizamos a tradução da busca utilizando `EF.Functions.Unaccent` e `EF.Functions.ILike`.
 
 #### Interface Visual e Privacidade de Dados
-Para manter a confidencialidade e legibilidade técnica dos dados:
-1.  A API projeta um DTO realizando `LEFT JOIN` com `Tracks`, `Users` e `UserProfiles`. Em vez de exibir UUIDs crus, o CRM renderiza links amigáveis como **🎵 Música: {TrackTitle}** e **👤 Usuário: {UserName || UserEmail}**.
-2.  O frontend exibe badges coloridos para os níveis do log e permite expandir as linhas para visualizar o campo `Details` (formatado como bloco de código para stack traces de erros).
+Para manter a confidencialidade e a densidade de informação ideal no painel:
+1.  A API projeta um DTO realizando `LEFT JOIN` com `Tracks`, `Users` e `UserProfiles`. Em vez de exibir UUIDs crus, o CRM renderiza links amigáveis como **🎵 Música: {TrackTitle}** e **👤 Usuário: {UserName || UserEmail}** apenas quando expandido.
+2.  **Design Ultra Compacto**: Para garantir que caibam o máximo de registros na área visível da tela, as linhas de log são finas por padrão (altura mínima de 36px), exibindo apenas o Nível (badge pequeno), Categoria (badge), Data/Hora (fonte mono-espaçada) e a Mensagem truncada. Metadados extras de relacionamentos e o bloco de código formatado do campo `Details` (para stack traces) são revelados apenas após clique expansivo.
+3.  **Scroll Infinito (Auto-Fetch)**: A navegação por páginas foi substituída por um fluxo contínuo de rolagem (infinite scroll) utilizando a API nativa `IntersectionObserver` do navegador. À medida que o operador rola a página de logs, lotes subsequentes de 20 registros são carregados e adicionados de forma reativa e assíncrona.
 
 ---
 
@@ -92,8 +93,8 @@ Para manter a confidencialidade e legibilidade técnica dos dados:
 ## 🎯 Impacto e Resultado
 * **Centralização de Observabilidade**: logs de todos os componentes do ecossistema agora residem no mesmo banco de dados relacional.
 * **Depuração Ágil**: Erros de rede (como falhas de comunicação com a API) são registrados com detalhes completos e stack traces.
-* **Interface CRM Administrativa Dinâmica**: Refatoramos o Painel de Controle para usar abas (*Configurações*, *Usuários*, *Logs do Sistema*). O operador tem total visibilidade dos eventos com controles avançados de paginação (20 por página), busca unaccent imune a acentuação e filtros de severidade.
-* **Prevenção contra Exposição de IDs**: Nomes amigáveis e emails de usuários são expostos em vez de UUIDs incompreensíveis.
+* **Interface CRM Administrativa Dinâmica**: Refatoramos o Painel de Controle para usar abas (*Configurações*, *Usuários*, *Logs do Sistema*). O operador conta com visualização ultra compacta das linhas de log (máxima densidade), expansão sob demanda, rolagem contínua via scroll infinito (`IntersectionObserver`), busca inteligente baseada em `unaccent` e filtros de severidade.
+* **Prevenção contra Exposição de IDs**: Nomes amigáveis e emails de usuários são expostos no CRM em vez de UUIDs incompreensíveis.
 
 ---
 **Nota do Desenvolvedor:** *Utilizar `ON DELETE SET NULL` foi a chave para manter o histórico de auditoria. Do contrário, ao deletar uma track por moderação, perderíamos os registros de logs de auditoria mostrando que aquela track causou erros ou quando ela foi carregada.*
