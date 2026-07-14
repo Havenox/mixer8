@@ -946,6 +946,38 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
     }
 
     [AllowAnonymous]
+    [HttpGet("{id}/waveforms")]
+    public async Task<IActionResult> GetTrackWaveforms(Guid id)
+    {
+        var trackExists = await dbContext.Tracks.AnyAsync(t => t.TrackId == id);
+        if (!trackExists)
+        {
+            return NotFound(new { ErrorMessage = "TRACK_NOT_FOUND" });
+        }
+
+        var waveforms = await dbContext.Stems
+            .Where(s => s.TrackId == id)
+            .Select(s => new
+            {
+                s.StemType,
+                Points = s.Waveform != null ? s.Waveform.Points : new List<int>()
+            })
+            .ToListAsync();
+
+        var result = new Dictionary<string, List<int>>();
+        foreach (var w in waveforms)
+        {
+            result[w.StemType] = w.Points;
+        }
+
+        return Ok(new
+        {
+            TrackId = id,
+            Waveforms = result
+        });
+    }
+
+    [AllowAnonymous]
     [HttpPost("{id}/ProcessStemsZip")]
     [DisableRequestSizeLimit]
     public async Task<IActionResult> ProcessStemsZip(Guid id, [FromForm] IFormFile? file)

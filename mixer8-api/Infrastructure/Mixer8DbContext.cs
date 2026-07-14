@@ -13,6 +13,7 @@ public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbCont
     public DbSet<UserProfile> UserProfiles { get; set; } = null!;
     public DbSet<Track> Tracks { get; set; } = null!;
     public DbSet<Stem> Stems { get; set; } = null!;
+    public DbSet<StemWaveform> StemWaveforms { get; set; } = null!;
     public DbSet<Playlist> Playlists { get; set; } = null!;
     public DbSet<PlaylistTrack> PlaylistTracks { get; set; } = null!;
     public DbSet<PlaylistCollaborator> PlaylistCollaborators { get; set; } = null!;
@@ -31,6 +32,7 @@ public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbCont
         modelBuilder.Entity<UserProfile>().ToTable("UserProfiles");
         modelBuilder.Entity<Track>().ToTable("Tracks");
         modelBuilder.Entity<Stem>().ToTable("Stems");
+        modelBuilder.Entity<StemWaveform>().ToTable("StemWaveforms");
         modelBuilder.Entity<Playlist>().ToTable("Playlists");
         modelBuilder.Entity<PlaylistTrack>().ToTable("PlaylistTracks");
         modelBuilder.Entity<PlaylistCollaborator>().ToTable("PlaylistCollaborators");
@@ -45,6 +47,7 @@ public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbCont
         modelBuilder.Entity<UserProfile>().HasKey(up => up.UserProfileId);
         modelBuilder.Entity<Track>().HasKey(t => t.TrackId);
         modelBuilder.Entity<Stem>().HasKey(s => s.StemId);
+        modelBuilder.Entity<StemWaveform>().HasKey(sw => sw.StemId);
         modelBuilder.Entity<Playlist>().HasKey(p => p.PlaylistId);
         modelBuilder.Entity<PlaylistTrack>().HasKey(pt => new { pt.PlaylistId, pt.TrackId });
         modelBuilder.Entity<PlaylistCollaborator>().HasKey(pc => new { pc.PlaylistId, pc.UserId });
@@ -96,6 +99,18 @@ public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbCont
             .WithOne()
             .HasForeignKey(s => s.TrackId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Configura relacionamento 1-para-1 de Stem e StemWaveform
+        modelBuilder.Entity<Stem>()
+            .HasOne(s => s.Waveform)
+            .WithOne()
+            .HasForeignKey<StemWaveform>(sw => sw.StemId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Mapeia Points como integer[] no PostgreSQL
+        modelBuilder.Entity<StemWaveform>()
+            .Property(sw => sw.Points)
+            .HasColumnType("integer[]");
 
         // Configura relacionamento Track-Album
         modelBuilder.Entity<Track>()

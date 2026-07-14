@@ -45,6 +45,24 @@ services:
       - ${EXTRACTOR_DOWNLOADS_DIR:-./mixer8-extractor/downloads}:/app/downloads
 
   # =========================================================================
+  # 1.2 MICROSERVIÇO: Waveformer (mixer8-waveformer - .NET 10 FFmpeg Waveform Worker)
+  # =========================================================================
+  mixer8-waveformer:
+    image: mixer8-waveformer:latest
+    build:
+      context: ./mixer8-waveformer
+      dockerfile: Dockerfile
+    container_name: mixer8_waveformer
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - DOTNET_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
+      - API_URL=http://api:5000
+    depends_on:
+      - api
+
+  # =========================================================================
   # 2. MICROSERVIÇO: Banco de Dados (PostgreSQL) - Externo (Comentado)
   # =========================================================================
   # db:
