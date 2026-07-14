@@ -62,6 +62,7 @@ export const Admin: React.FC = () => {
   const [level, setLevel] = useState('');
   const [sortDescending, setSortDescending] = useState(true);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
+  const [newLogsQueue, setNewLogsQueue] = useState<any[]>([]);
 
   // Refs para scroll infinito
   const logsObserverRef = useRef<HTMLDivElement | null>(null);
@@ -100,6 +101,91 @@ export const Admin: React.FC = () => {
       fetchUsers(1, false);
     }
   }, [usersDebouncedSearch, usersRole, usersSortDescending, activeTab]);
+
+  // Limpar fila de novos logs quando mudar de aba ou de filtros
+  useEffect(() => {
+    setNewLogsQueue([]);
+  }, [activeTab, debouncedSearch, category, level, sortDescending]);
+
+  // Polling automático para novos logs (apenas se estiver na Página 1)
+  useEffect(() => {
+    if (activeTab !== 'logs' || page !== 1 || isLoadingLogs) return;
+
+    let intervalId: any;
+
+    const pollLatestLogs = async () => {
+      if (document.visibilityState !== 'visible' || !Token) return;
+
+      try {
+        const queryParams = new URLSearchParams({
+          page: '1',
+          pageSize: '20',
+          search: debouncedSearch,
+          category: category,
+          level: level,
+          sortBy: 'timestamp',
+          sortDescending: sortDescending.toString()
+        });
+
+        const res = await fetch(`${API_URL}/SystemEvents?${queryParams}`, {
+          headers: {
+            'Authorization': `Bearer ${Token}`
+          }
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setLogs(prev => {
+            const existingIds = new Set(prev.map(item => item.EventId));
+            const newItems = data.Items.filter((item: any) => !existingIds.has(item.EventId));
+
+            if (newItems.length > 0) {
+              setTotalLogs(data.TotalCount);
+
+              if (window.scrollY < 100) {
+                return [...newItems, ...prev];
+              } else {
+                setNewLogsQueue(prevQueue => {
+                  const queueIds = new Set(prevQueue.map(item => item.EventId));
+                  const unseenQueueItems = newItems.filter((item: any) => !queueIds.has(item.EventId));
+                  return [...unseenQueueItems, ...prevQueue];
+                });
+                return prev;
+              }
+            }
+            return prev;
+          });
+        }
+      } catch {
+        // Ignora falha de rede silenciosamente
+      }
+    };
+
+    intervalId = setInterval(pollLatestLogs, 8000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [activeTab, page, isLoadingLogs, debouncedSearch, category, level, sortDescending, Token]);
+
+  // Se o usuário rolar de volta para o topo e tiver logs pendentes, mescla-os automaticamente
+  useEffect(() => {
+    if (activeTab !== 'logs' || newLogsQueue.length === 0) return;
+
+    const handleScroll = () => {
+      if (window.scrollY < 50) {
+        setLogs(prev => {
+          const existingIds = new Set(prev.map(item => item.EventId));
+          const unseen = newLogsQueue.filter(item => !existingIds.has(item.EventId));
+          return [...unseen, ...prev];
+        });
+        setNewLogsQueue([]);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [newLogsQueue, activeTab]);
 
   const fetchUsers = async (pageNum: number, isAppend: boolean) => {
     if (!Token) return;
@@ -794,7 +880,27 @@ export const Admin: React.FC = () => {
             </div>
 
             {/* Listagem de Logs (Design Compacto) */}
-            <div className="bg-brand-card border border-brand-hover rounded-md shadow-xl overflow-hidden">
+            <div className="relative">
+              {newLogsQueue.length > 0 && (
+                <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <button 
+                    onClick={() => {
+                      setLogs(prev => {
+                        const existingIds = new Set(prev.map(item => item.EventId));
+                        const unseen = newLogsQueue.filter(item => !existingIds.has(item.EventId));
+                        return [...unseen, ...prev];
+                      });
+                      setNewLogsQueue([]);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className="bg-brand-green text-black text-[11px] font-bold px-3.5 py-1.5 rounded-full shadow-2xl flex items-center gap-1.5 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-brand-green/30 select-none"
+                  >
+                    <span>✨ {newLogsQueue.length} novos logs (atualizar)</span>
+                  </button>
+                </div>
+              )}
+
+              <div className="bg-brand-card border border-brand-hover rounded-md shadow-xl overflow-hidden">
               {logs.length === 0 && !isLoadingLogs ? (
                 <div className="text-center py-12 text-sm text-brand-gray font-semibold">
                   Nenhum log encontrado para os filtros selecionados.
@@ -887,6 +993,7 @@ export const Admin: React.FC = () => {
               {/* Elemento observador invisible para trigger do scroll */}
               {hasMore && <div ref={logsObserverRef} className="h-4" />}
             </div>
+          </div>
 
             {/* Contador total de logs */}
             <div className="text-right text-[10px] text-brand-gray px-1">
