@@ -107,9 +107,9 @@ export const Admin: React.FC = () => {
     setNewLogsQueue([]);
   }, [activeTab, debouncedSearch, category, level, sortDescending]);
 
-  // Polling automático para novos logs (apenas se estiver na Página 1)
+  // Polling automático para novos logs (ativo mesmo após rolagem profunda)
   useEffect(() => {
-    if (activeTab !== 'logs' || page !== 1 || isLoadingLogs) return;
+    if (activeTab !== 'logs' || isLoadingLogs) return;
 
     let intervalId: any;
 
@@ -166,7 +166,7 @@ export const Admin: React.FC = () => {
     return () => {
       clearInterval(intervalId);
     };
-  }, [activeTab, page, isLoadingLogs, debouncedSearch, category, level, sortDescending, Token]);
+  }, [activeTab, isLoadingLogs, debouncedSearch, category, level, sortDescending, Token]);
 
   // Se o usuário rolar de volta para o topo e tiver logs pendentes, mescla-os automaticamente
   useEffect(() => {
@@ -180,6 +180,7 @@ export const Admin: React.FC = () => {
           return [...unseen, ...prev];
         });
         setNewLogsQueue([]);
+        setPage(1); // Reseta a paginação ao mesclar no topo
       }
     };
 
@@ -891,6 +892,7 @@ export const Admin: React.FC = () => {
                         return [...unseen, ...prev];
                       });
                       setNewLogsQueue([]);
+                      setPage(1); // Reseta a paginação ao atualizar
                       window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
                     className="bg-brand-green text-black text-[11px] font-bold px-3.5 py-1.5 rounded-full shadow-2xl flex items-center gap-1.5 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-brand-green/30 select-none"
