@@ -34,12 +34,22 @@ export const Dashboard: React.FC = () => {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showAll, setShowAll] = useState(false);
 
+  const [toastMessage, setToastMessage] = useState('');
+  const [showToast, setShowToast] = useState(false);
+
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(searchInput);
     }, 300);
     return () => clearTimeout(handler);
   }, [searchInput]);
+
+  useEffect(() => {
+    if (showToast) {
+      const timer = setTimeout(() => setShowToast(false), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [showToast]);
 
   const [trackToDelete, setTrackToDelete] = useState<ITrack | null>(null);
   const [trackToReview, setTrackToReview] = useState<ITrack | null>(null);
@@ -538,8 +548,23 @@ export const Dashboard: React.FC = () => {
         ]);
       } else {
         const errorData = await res.json();
-        setUploadProgress(prev => [...prev, `[ERRO API] Falha ao importar link: ${errorData.ErrorMessage || 'Erro Desconhecido'}`]);
-        setTimeout(() => setIsUploading(false), 4000);
+        if (res.status === 409 || errorData.ErrorMessage === 'TRACK_ALREADY_EXISTS') {
+          const trackTitle = errorData.TrackTitle || 'Música existente';
+          setToastMessage(`A música "${trackTitle}" já existe na plataforma! Redirecionando para a busca...`);
+          setShowToast(true);
+
+          setDownloadUrl('');
+          setSongName('');
+          setArtistName('');
+          setIsUploading(false);
+          navigate('/dashboard'); // Fecha o modal de upload
+
+          setSearchInput(downloadUrl.trim());
+          setDebouncedSearch(downloadUrl.trim());
+        } else {
+          setUploadProgress(prev => [...prev, `[ERRO API] Falha ao importar link: ${errorData.ErrorMessage || 'Erro Desconhecido'}`]);
+          setTimeout(() => setIsUploading(false), 4000);
+        }
       }
     } catch {
       setUploadProgress(prev => [...prev, `[ERRO DE CONEXÃO] Não foi possível conectar com o servidor API.`]);
@@ -1500,6 +1525,14 @@ export const Dashboard: React.FC = () => {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Toast Notificação de Duplicado */}
+      {showToast && (
+        <div className="fixed bottom-20 md:bottom-28 right-4 md:right-8 bg-amber-400 text-black px-4.5 py-3 rounded-lg shadow-2xl flex items-center gap-2.5 font-bold text-xs z-[200] animate-in slide-in-from-bottom duration-300 select-none border border-amber-500/20">
+          <ShieldAlert className="w-4 h-4 shrink-0" />
+          <span>{toastMessage}</span>
         </div>
       )}
 

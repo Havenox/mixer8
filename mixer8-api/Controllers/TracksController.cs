@@ -58,9 +58,11 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         if (!string.IsNullOrWhiteSpace(search))
         {
             var searchPattern = $"%{search}%";
+            var youtubeId = ExtractYouTubeVideoIdOrUrl(search);
             query = query.Where(t => 
                 EF.Functions.ILike(EF.Functions.Unaccent(t.TrackTitle), EF.Functions.Unaccent(searchPattern)) || 
-                EF.Functions.ILike(EF.Functions.Unaccent(t.ArtistName), EF.Functions.Unaccent(searchPattern))
+                EF.Functions.ILike(EF.Functions.Unaccent(t.ArtistName), EF.Functions.Unaccent(searchPattern)) ||
+                (!string.IsNullOrEmpty(t.DownloadUrl) && t.DownloadUrl == youtubeId)
             );
         }
 
@@ -379,6 +381,13 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         if (string.IsNullOrWhiteSpace(request.TrackTitle) || string.IsNullOrWhiteSpace(request.ArtistName))
         {
             return BadRequest(new { ErrorMessage = "METADATA_REQUIRED" });
+        }
+
+        var videoIdOrUrl = ExtractYouTubeVideoIdOrUrl(request.DownloadUrl);
+        var existingTrack = await dbContext.Tracks.FirstOrDefaultAsync(t => t.DownloadUrl == videoIdOrUrl);
+        if (existingTrack != null)
+        {
+            return Conflict(new { ErrorMessage = "TRACK_ALREADY_EXISTS", TrackId = existingTrack.TrackId, TrackTitle = existingTrack.TrackTitle });
         }
 
         var track = new Track
