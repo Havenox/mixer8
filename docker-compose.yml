@@ -61,6 +61,9 @@ services:
       - API_URL=http://api:5000
     depends_on:
       - api
+    volumes:
+      # Mapeamento físico para todo o wwwroot (stems, playlists, profiles, etc.)
+      - ./mixer8-api/wwwroot:/app/wwwroot
 
   # =========================================================================
   # 2. MICROSERVIÇO: Banco de Dados (PostgreSQL) - Externo (Comentado)
