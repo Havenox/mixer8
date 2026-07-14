@@ -1853,7 +1853,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             trackIncremented = true;
 
             var logUserId = userIdClaim != null && Guid.TryParse(userIdClaim, out var parsedUid) ? parsedUid : (Guid?)null;
-            await dbContext.LogEventAsync("API", "Info", $"Música '{track.TrackTitle}' reproduzida (Chave: {userKey})", null, track.TrackId, logUserId);
+            await dbContext.LogEventAsync("Play", "Info", $"Música '{track.TrackTitle}' reproduzida (Chave: {userKey})", null, track.TrackId, logUserId);
 
             var cacheOptions = new MemoryCacheEntryOptions
             {
@@ -1874,6 +1874,9 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                 {
                     playlist.PlayCount++;
                     playlistIncremented = true;
+
+                    var logUserId = userIdClaim != null && Guid.TryParse(userIdClaim, out var parsedUid) ? parsedUid : (Guid?)null;
+                    await dbContext.LogEventAsync("Play", "Info", $"Playlist '{playlist.Name}' reproduzida (Chave: {userKey})", null, null, logUserId);
 
                     var cacheOptions = new MemoryCacheEntryOptions
                     {
@@ -1896,6 +1899,9 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                 {
                     album.PlayCount++;
                     albumIncremented = true;
+
+                    var logUserId = userIdClaim != null && Guid.TryParse(userIdClaim, out var parsedUid) ? parsedUid : (Guid?)null;
+                    await dbContext.LogEventAsync("Play", "Info", $"Álbum '{album.Title}' reproduzido (Chave: {userKey})", null, null, logUserId);
 
                     var cacheOptions = new MemoryCacheEntryOptions
                     {

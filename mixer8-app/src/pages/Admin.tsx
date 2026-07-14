@@ -492,6 +492,21 @@ export const Admin: React.FC = () => {
     }
   };
 
+  const getCategoryBadgeStyle = (cat: string) => {
+    switch (cat) {
+      case 'Play':
+        return 'bg-brand-green/10 text-brand-green border border-brand-green/20';
+      case 'Auth':
+        return 'bg-purple-500/10 text-purple-400 border border-purple-500/20';
+      case 'API':
+        return 'bg-sky-500/10 text-sky-400 border border-sky-500/20';
+      case 'System':
+        return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
+      default:
+        return 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20';
+    }
+  };
+
   const formatTimestamp = (isoString: string) => {
     try {
       const date = new Date(isoString);
@@ -846,6 +861,7 @@ export const Admin: React.FC = () => {
                   className="bg-black border border-brand-hover rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-green cursor-pointer"
                 >
                   <option value="">Todas Categorias</option>
+                  <option value="Play">Reprodução (Play)</option>
                   <option value="API">API</option>
                   <option value="Extractor">Extractor</option>
                   <option value="Downloader">Downloader</option>
@@ -928,7 +944,7 @@ export const Admin: React.FC = () => {
                               {log.Level}
                             </span>
                             {/* Categoria */}
-                            <span className="bg-brand-hover text-white px-1.5 py-0.5 rounded-[3px] text-[8px] font-bold border border-brand-hover shrink-0">
+                            <span className={`px-1.5 py-0.5 rounded-[3px] text-[8px] font-bold border shrink-0 ${getCategoryBadgeStyle(log.Category)}`}>
                               {log.Category}
                             </span>
                             {/* Data/Hora */}
