@@ -84,6 +84,8 @@ public class AuthController(Mixer8DbContext dbContext, IConfiguration configurat
         dbContext.UserProfiles.Add(userProfile);
         await dbContext.SaveChangesAsync();
 
+        await dbContext.LogEventAsync("Auth", "Info", $"Novo usuário registrado: '{userProfile.UserName}' ({user.Email}).", null, null, user.UserId);
+
         var secret = configuration["JWT_SECRET"] ?? "sua_chave_secreta_jwt_aqui_minimo_32_caracteres";
         var expirationDays = Convert.ToInt32(configuration["JWT_EXPIRATION_DAYS"] ?? "7");
         var token = SecurityHelper.GenerateJwtToken(user, roleStr, secret, expirationDays);
@@ -274,6 +276,8 @@ public class AuthController(Mixer8DbContext dbContext, IConfiguration configurat
 
         await dbContext.SaveChangesAsync();
 
+        await dbContext.LogEventAsync("Auth", "Info", $"Perfil do usuário '{user.UserProfile.UserName}' atualizado.", null, null, userId);
+
         var roleStr = user.UserRole.Role.ToString();
         var secret = configuration["JWT_SECRET"] ?? "sua_chave_secreta_jwt_aqui_minimo_32_caracteres";
         var expirationDays = Convert.ToInt32(configuration["JWT_EXPIRATION_DAYS"] ?? "7");
@@ -341,6 +345,8 @@ public class AuthController(Mixer8DbContext dbContext, IConfiguration configurat
             user.UserProfile.AvatarUrl = avatarUrl;
             user.UserProfile.UpdatedAt = DateTime.UtcNow;
             await dbContext.SaveChangesAsync();
+
+            await dbContext.LogEventAsync("Auth", "Info", $"Avatar do usuário '{user.UserProfile.UserName}' atualizado.", $"AvatarUrl: {avatarUrl}", null, userId);
         }
 
         return Ok(new { AvatarUrl = avatarUrl });

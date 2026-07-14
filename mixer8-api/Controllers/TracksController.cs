@@ -396,6 +396,8 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         dbContext.Tracks.Add(track);
         await dbContext.SaveChangesAsync();
 
+        await dbContext.LogEventAsync("API", "Info", $"Música '{track.TrackTitle}' importada por URL externa ({request.DownloadUrl}).", null, track.TrackId, userId);
+
         return Ok(track);
     }
 
@@ -565,6 +567,8 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         }
 
         await dbContext.SaveChangesAsync();
+
+        await dbContext.LogEventAsync("API", "Info", $"Mídia original recebida e convertida em Opus para '{track.TrackTitle}'.", null, track.TrackId, track.UploadedBy);
 
         return Ok(track);
     }
@@ -1154,6 +1158,10 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             track.Duration = maxDuration;
 
             await dbContext.SaveChangesAsync();
+
+            var stemsSummary = string.Join(", ", stemsList.Select(s => s.StemType));
+            await dbContext.LogEventAsync("API", "Info", $"Stems processadas e convertidas para a música '{track.TrackTitle}' ({stemsList.Count} stems extraídas).", $"Stems: {stemsSummary}", track.TrackId, track.UploadedBy);
+
             await transaction.CommitAsync();
 
             // Limpeza dos arquivos temporários de downloads para economizar armazenamento

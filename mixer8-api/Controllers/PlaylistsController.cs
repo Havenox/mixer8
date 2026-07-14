@@ -68,6 +68,8 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
         dbContext.Playlists.Add(playlist);
         await dbContext.SaveChangesAsync();
 
+        await dbContext.LogEventAsync("API", "Info", $"Playlist '{playlist.Name}' criada pelo usuário.", null, null, userId);
+
         var ownerEmail = await dbContext.Users
             .Where(u => u.UserId == userId)
             .Select(u => u.Email)
@@ -378,6 +380,8 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
         }
 
         await dbContext.SaveChangesAsync();
+
+        await dbContext.LogEventAsync("API", "Info", $"Playlist '{playlist.Name}' atualizada pelo usuário.", null, null, userId);
         return Ok(playlist);
     }
 
@@ -413,6 +417,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             }
         }
 
+        await dbContext.LogEventAsync("API", "Warning", $"Playlist '{playlist.Name}' excluída pelo usuário.", null, null, userId);
         dbContext.Playlists.Remove(playlist);
         await dbContext.SaveChangesAsync();
         return Ok(new { Success = true });
@@ -465,6 +470,8 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
         dbContext.PlaylistTracks.Add(playlistTrack);
         await dbContext.SaveChangesAsync();
 
+        await dbContext.LogEventAsync("API", "Info", $"Música adicionada à playlist '{playlist.Name}'.", null, request.TrackId, userId);
+
         return Ok(new { Success = true });
     }
 
@@ -495,6 +502,8 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
 
         dbContext.PlaylistTracks.Remove(playlistTrack);
         await dbContext.SaveChangesAsync();
+
+        await dbContext.LogEventAsync("API", "Info", $"Música removida da playlist '{playlist.Name}'.", null, trackId, userId);
 
         return Ok(new { Success = true });
     }
