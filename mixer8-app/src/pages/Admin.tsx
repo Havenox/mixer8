@@ -1,12 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Shield, AlertTriangle } from 'lucide-react';
+import { 
+  Shield, 
+  AlertTriangle, 
+  Settings, 
+  Users, 
+  ClipboardList, 
+  Search, 
+  ArrowUpDown, 
+  ChevronLeft, 
+  ChevronRight,
+  Database
+} from 'lucide-react';
 
 import { API_URL } from '../config';
 
 export const Admin: React.FC = () => {
   const { CurrentUser, Token } = useAuth();
   
+  // Controle de abas
+  const [activeTab, setActiveTab] = useState<'settings' | 'users' | 'logs'>('settings');
+
   // Estado dos usuários cadastrados no banco de dados
   const [users, setUsers] = useState<{ UserId: string; Email: string; UserRole: string; CreatedAt: string }[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
@@ -23,6 +37,32 @@ export const Admin: React.FC = () => {
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [settingsSuccess, setSettingsSuccess] = useState(false);
   const [settingsError, setSettingsError] = useState('');
+
+  // Estados dos logs de sistema
+  const [logs, setLogs] = useState<any[]>([]);
+  const [totalLogs, setTotalLogs] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [category, setCategory] = useState('');
+  const [level, setLevel] = useState('');
+  const [sortDescending, setSortDescending] = useState(true);
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
+
+  // Debounce do campo de busca
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Resetar página ao alterar filtros
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, category, level]);
 
   const fetchUsers = async () => {
     if (!Token) return;
@@ -79,10 +119,47 @@ export const Admin: React.FC = () => {
     }
   };
 
+  const fetchLogs = async () => {
+    if (!Token) return;
+    setIsLoadingLogs(true);
+    try {
+      const queryParams = new URLSearchParams({
+        page: page.toString(),
+        pageSize: '20',
+        search: debouncedSearch,
+        category: category,
+        level: level,
+        sortBy: 'timestamp',
+        sortDescending: sortDescending.toString()
+      });
+      const res = await fetch(`${API_URL}/SystemEvents?${queryParams}`, {
+        headers: {
+          'Authorization': `Bearer ${Token}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLogs(data.Items);
+        setTotalLogs(data.TotalCount);
+        setTotalPages(data.TotalPages);
+      }
+    } catch {
+      // Ignora falha silenciosa
+    } finally {
+      setIsLoadingLogs(false);
+    }
+  };
+
   useEffect(() => {
     fetchUsers();
     fetchSystemSettings();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'logs') {
+      fetchLogs();
+    }
+  }, [page, debouncedSearch, category, level, sortDescending, activeTab]);
 
   if (CurrentUser?.UserRole !== 'Admin' && CurrentUser?.UserRole !== 'Moderator') {
     return (
@@ -103,11 +180,9 @@ export const Admin: React.FC = () => {
     setSettingsSuccess(false);
 
     try {
-      // Reconstrói a string de roles
       const roles: string[] = [];
       Object.entries(offlineRoles).forEach(([role, enabled]) => {
         if (enabled) {
-          // Salva com casing correto esperado
           const properCase = role === 'paiduser' ? 'PaidUser' : role.charAt(0).toUpperCase() + role.slice(1);
           roles.push(properCase);
         }
@@ -134,7 +209,6 @@ export const Admin: React.FC = () => {
 
       if (res.ok) {
         setSettingsSuccess(true);
-        // Dispara evento customizado para notificar outras partes do app (como o PlayerContext)
         window.dispatchEvent(new CustomEvent('system-settings-changed'));
         setTimeout(() => setSettingsSuccess(false), 3000);
       } else {
@@ -148,6 +222,28 @@ export const Admin: React.FC = () => {
     }
   };
 
+  const getLevelBadgeStyle = (level: string) => {
+    switch (level) {
+      case 'Success':
+        return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+      case 'Error':
+        return 'bg-rose-500/10 text-rose-400 border border-rose-500/20';
+      case 'Warning':
+        return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
+      default:
+        return 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20';
+    }
+  };
+
+  const formatTimestamp = (isoString: string) => {
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleString('pt-BR');
+    } catch {
+      return isoString;
+    }
+  };
+
   return (
     <div className="flex flex-col gap-8 animate-in fade-in duration-300 select-none">
       
@@ -157,16 +253,49 @@ export const Admin: React.FC = () => {
           <h1 className="text-3xl font-black tracking-tight m-0 text-white flex items-center gap-2">
             <Shield className="w-8 h-8 text-brand-green" /> Painel de Controle CRM
           </h1>
-          <p className="text-sm text-brand-gray">Administre usuários e parametrize as configurações globais de acesso aos recursos premium do sistema.</p>
+          <p className="text-sm text-brand-gray">Gerencie usuários, configurações e consulte logs de auditoria do sistema Mixer8.</p>
         </div>
       </div>
 
-      {/* Seção Central de 2 Colunas */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Tabs Navigation */}
+      <div className="flex border-b border-brand-hover gap-1">
+        <button
+          onClick={() => setActiveTab('settings')}
+          className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition-all cursor-pointer ${
+            activeTab === 'settings'
+              ? 'border-brand-green text-brand-green bg-brand-hover/10 font-black'
+              : 'border-transparent text-brand-gray hover:text-white hover:bg-brand-hover/5'
+          }`}
+        >
+          <Settings className="w-4 h-4" /> Configurações
+        </button>
+        <button
+          onClick={() => setActiveTab('users')}
+          className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition-all cursor-pointer ${
+            activeTab === 'users'
+              ? 'border-brand-green text-brand-green bg-brand-hover/10 font-black'
+              : 'border-transparent text-brand-gray hover:text-white hover:bg-brand-hover/5'
+          }`}
+        >
+          <Users className="w-4 h-4" /> Usuários Ativos
+        </button>
+        <button
+          onClick={() => setActiveTab('logs')}
+          className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition-all cursor-pointer ${
+            activeTab === 'logs'
+              ? 'border-brand-green text-brand-green bg-brand-hover/10 font-black'
+              : 'border-transparent text-brand-gray hover:text-white hover:bg-brand-hover/5'
+          }`}
+        >
+          <ClipboardList className="w-4 h-4" /> Logs do Sistema
+        </button>
+      </div>
+
+      {/* Conteúdo da Aba Ativa */}
+      <div className="animate-in fade-in duration-300">
         
-        <div className="lg:col-span-2 flex flex-col gap-6">
-          {/* Caixa de Parametrização de Recursos Premium (Global Settings) */}
-          <div className="bg-brand-card border border-brand-hover p-6 rounded-md flex flex-col gap-4 shadow-xl">
+        {activeTab === 'settings' && (
+          <div className="bg-brand-card border border-brand-hover p-6 rounded-md flex flex-col gap-4 shadow-xl max-w-[800px]">
             <div className="flex flex-col gap-1 border-b border-brand-hover pb-3">
               <h2 className="text-base font-bold text-white flex items-center gap-2 m-0">
                 ⚙️ Configurações Globais (Recursos Premium)
@@ -182,7 +311,6 @@ export const Admin: React.FC = () => {
               </div>
             )}
 
-            {/* Feature 1: Download Offline */}
             <div className="flex flex-col gap-3">
               <span className="text-xs font-bold text-white flex items-center gap-2">
                 📥 Permissões para Download Offline
@@ -211,7 +339,6 @@ export const Admin: React.FC = () => {
                 ))}
               </div>
 
-              {/* Roles customizadas */}
               <div className="flex flex-col gap-1.5 mt-2">
                 <label className="text-xs font-semibold text-brand-gray">Funções Customizadas Adicionais (separadas por vírgula)</label>
                 <input 
@@ -225,7 +352,6 @@ export const Admin: React.FC = () => {
               </div>
             </div>
 
-            {/* Botão Salvar */}
             <button 
               onClick={handleSaveSettings}
               disabled={isSavingSettings}
@@ -234,38 +360,37 @@ export const Admin: React.FC = () => {
               {isSavingSettings ? 'Salvando Configurações...' : 'Salvar Configurações'}
               {settingsSuccess && <span className="text-xs text-black font-normal bg-white px-2 py-0.5 rounded ml-2 animate-bounce">Salvo!</span>}
             </button>
-
           </div>
-        </div>
+        )}
 
-        {/* Coluna Direita: CRM Lista de Usuários */}
-        <div className="flex flex-col gap-6">
-          <div className="bg-brand-card border border-brand-hover p-6 rounded-md flex flex-col gap-4 shadow-xl">
+        {activeTab === 'users' && (
+          <div className="bg-brand-card border border-brand-hover p-6 rounded-md flex flex-col gap-4 shadow-xl max-w-[800px]">
             <div className="flex flex-col gap-1 border-b border-brand-hover pb-3">
               <h2 className="text-base font-bold text-white flex items-center gap-2 m-0">
                 👥 Usuários Ativos (CRM)
               </h2>
+              <p className="text-xs text-brand-gray">Relação de todos os usuários registrados no sistema.</p>
             </div>
 
             <div className="flex flex-col gap-3 text-xs">
               {isLoadingUsers ? (
-                <div className="text-xs text-brand-gray animate-pulse font-semibold">
+                <div className="text-xs text-brand-gray animate-pulse font-semibold py-4">
                   Carregando usuários do CRM...
                 </div>
               ) : users.length === 0 ? (
-                <div className="text-xs text-brand-gray font-semibold">
+                <div className="text-xs text-brand-gray font-semibold py-4">
                   Nenhum usuário cadastrado no banco.
                 </div>
               ) : (
                 users.map(user => (
-                  <div key={user.UserId} className="flex items-center justify-between border-b border-brand-hover pb-2">
-                    <div className="flex flex-col">
-                      <span className="font-bold text-white">{user.Email}</span>
-                      <span className={`text-[10px] font-semibold ${user.UserRole === 'Admin' ? 'text-brand-green' : user.UserRole === 'Moderator' ? 'text-blue-400' : 'text-brand-gray'}`}>
+                  <div key={user.UserId} className="flex items-center justify-between border-b border-brand-hover pb-3 pt-1">
+                    <div className="flex flex-col gap-1">
+                      <span className="font-bold text-white text-sm">{user.Email}</span>
+                      <span className={`text-[10px] font-bold ${user.UserRole === 'Admin' ? 'text-brand-green' : user.UserRole === 'Moderator' ? 'text-blue-400' : 'text-brand-gray'}`}>
                         {user.UserRole === 'Admin' ? 'ADMINISTRADOR' : user.UserRole === 'Moderator' ? 'MODERADOR' : user.UserRole === 'PaidUser' ? 'USUÁRIO PREMIUM' : 'USUÁRIO COMUM'}
                       </span>
                     </div>
-                    <span className="text-[10px] bg-brand-hover text-white px-2 py-0.5 rounded border border-brand-hover">
+                    <span className="text-[10px] bg-brand-hover text-white px-2 py-1 rounded border border-brand-hover font-semibold">
                       {user.UserRole === 'PaidUser' || user.UserRole === 'Admin' ? 'Paid PRO' : 'Free Tier'}
                     </span>
                   </div>
@@ -273,7 +398,183 @@ export const Admin: React.FC = () => {
               )}
             </div>
           </div>
-        </div>
+        )}
+
+        {activeTab === 'logs' && (
+          <div className="flex flex-col gap-4">
+            
+            {/* Filtros e Busca */}
+            <div className="bg-brand-card border border-brand-hover p-4 rounded-md flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg">
+              
+              {/* Campo de Busca */}
+              <div className="relative flex-1 max-w-[450px]">
+                <Search className="absolute left-3 top-3 w-4 h-4 text-brand-gray" />
+                <input 
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar por mensagem, música, usuário..."
+                  className="w-full bg-black border border-brand-hover rounded pl-9 pr-3 py-2 text-xs text-white placeholder-brand-gray focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green"
+                />
+              </div>
+
+              {/* Controles de Filtros */}
+              <div className="flex flex-wrap items-center gap-3">
+                
+                {/* Filtro de Categoria */}
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="bg-black border border-brand-hover rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-green cursor-pointer"
+                >
+                  <option value="">Todas Categorias</option>
+                  <option value="API">API</option>
+                  <option value="Extractor">Extractor</option>
+                  <option value="Downloader">Downloader</option>
+                  <option value="Waveformer">Waveformer</option>
+                  <option value="Auth">Auth</option>
+                  <option value="System">System</option>
+                </select>
+
+                {/* Filtro de Nível */}
+                <select
+                  value={level}
+                  onChange={(e) => setLevel(e.target.value)}
+                  className="bg-black border border-brand-hover rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-green cursor-pointer"
+                >
+                  <option value="">Todos Níveis</option>
+                  <option value="Info">Info</option>
+                  <option value="Success">Success</option>
+                  <option value="Warning">Warning</option>
+                  <option value="Error">Error</option>
+                </select>
+
+                {/* Ordenação */}
+                <button
+                  onClick={() => setSortDescending(prev => !prev)}
+                  className="flex items-center gap-2 bg-brand-hover border border-brand-hover hover:bg-zinc-800 text-white rounded px-3 py-2 text-xs font-semibold cursor-pointer active:scale-95 transition-all"
+                  title="Inverter ordem do tempo"
+                >
+                  <ArrowUpDown className="w-3.5 h-3.5" />
+                  <span>{sortDescending ? 'Mais Recentes' : 'Mais Antigos'}</span>
+                </button>
+              </div>
+
+            </div>
+
+            {/* Listagem de Logs */}
+            <div className="bg-brand-card border border-brand-hover rounded-md shadow-xl overflow-hidden">
+              {isLoadingLogs ? (
+                <div className="text-center py-12 text-sm text-brand-gray animate-pulse font-semibold flex items-center justify-center gap-2">
+                  <Database className="w-5 h-5 text-brand-green animate-spin" /> Carregando logs de auditoria...
+                </div>
+              ) : logs.length === 0 ? (
+                <div className="text-center py-12 text-sm text-brand-gray font-semibold">
+                  Nenhum log encontrado para os filtros selecionados.
+                </div>
+              ) : (
+                <div className="divide-y divide-brand-hover">
+                  {logs.map((log: any) => {
+                    const isExpanded = expandedLogId === log.EventId;
+                    return (
+                      <div 
+                        key={log.EventId} 
+                        className={`flex flex-col hover:bg-zinc-900/50 transition-colors ${isExpanded ? 'bg-zinc-900/30' : ''}`}
+                      >
+                        {/* Linha Principal do Log */}
+                        <div 
+                          onClick={() => log.Details ? setExpandedLogId(isExpanded ? null : log.EventId) : null}
+                          className={`flex flex-col lg:flex-row lg:items-center justify-between p-4 gap-4 text-xs ${log.Details ? 'cursor-pointer' : ''}`}
+                        >
+                          <div className="flex flex-col gap-2 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              {/* Nível do Log */}
+                              <span className={`px-2 py-0.5 rounded-[3px] text-[10px] font-black tracking-wider uppercase border ${getLevelBadgeStyle(log.Level)}`}>
+                                {log.Level}
+                              </span>
+                              {/* Categoria */}
+                              <span className="bg-brand-hover text-white px-2 py-0.5 rounded-[3px] text-[10px] font-bold border border-brand-hover">
+                                {log.Category}
+                              </span>
+                              {/* Data/Hora */}
+                              <span className="text-brand-gray text-[10px]">
+                                {formatTimestamp(log.Timestamp)}
+                              </span>
+                            </div>
+
+                            {/* Mensagem Principal */}
+                            <p className="text-white font-medium m-0 leading-relaxed text-sm">
+                              {log.Message}
+                            </p>
+
+                            {/* Entidades Relacionadas (Música e Usuário) */}
+                            {(log.TrackTitle || log.UserEmail || log.UserName) && (
+                              <div className="flex flex-wrap gap-2.5 mt-1">
+                                {log.TrackTitle && (
+                                  <span className="text-[10px] bg-brand-green/10 border border-brand-green/20 text-brand-green px-2 py-0.5 rounded font-medium">
+                                    🎵 Música: {log.TrackTitle}
+                                  </span>
+                                )}
+                                {(log.UserEmail || log.UserName) && (
+                                  <span className="text-[10px] bg-sky-500/10 border border-sky-500/20 text-sky-400 px-2 py-0.5 rounded font-medium">
+                                    👤 Usuário: {log.UserName || log.UserEmail}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Indicador de expansão (se houver detalhes) */}
+                          {log.Details && (
+                            <div className="text-[10px] text-brand-gray bg-brand-hover hover:text-white px-2.5 py-1.5 rounded border border-brand-hover font-semibold shrink-0 self-start lg:self-center transition-colors">
+                              {isExpanded ? 'Ocultar Detalhes' : 'Ver Detalhes'}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Detalhes Expansíveis */}
+                        {isExpanded && log.Details && (
+                          <div className="px-4 pb-4 animate-in slide-in-from-top-2 duration-200">
+                            <pre className="bg-black text-rose-400 p-3.5 rounded text-[11px] font-mono border border-brand-hover overflow-x-auto leading-relaxed max-h-[300px] whitespace-pre-wrap">
+                              {log.Details}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Paginação */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between bg-brand-card border border-brand-hover p-4 rounded-md shadow-lg text-xs">
+                <span className="text-brand-gray">
+                  Exibindo página <strong className="text-white">{page}</strong> de <strong className="text-white">{totalPages}</strong> ({totalLogs} logs no total)
+                </span>
+                
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="p-2 bg-brand-hover hover:bg-zinc-800 text-white rounded cursor-pointer disabled:opacity-30 disabled:hover:bg-brand-hover active:scale-95 disabled:scale-100 transition-all border border-brand-hover"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                    className="p-2 bg-brand-hover hover:bg-zinc-800 text-white rounded cursor-pointer disabled:opacity-30 disabled:hover:bg-brand-hover active:scale-95 disabled:scale-100 transition-all border border-brand-hover"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+          </div>
+        )}
 
       </div>
 

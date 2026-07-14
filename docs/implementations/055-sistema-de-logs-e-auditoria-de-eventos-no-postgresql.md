@@ -52,16 +52,23 @@ await dbContext.LogEventAsync(
 *   `Warning`: Comportamentos fora do comum mas esperados (ex: "Stem removida por ser silenciosa").
 *   `Error`: Exceções lançadas ou interrupções de fluxo (ex: salvar o `ex.ToString()` nos detalhes).
 
-### 3. Como Consumir os Logs
-Os logs residem na tabela `"SystemEvents"` e podem ser consultados via SQL direto ou expostos futuramente em endpoints OData/REST da API para alimentação de um CRM administrativo no frontend.
+### 3. Como Consumir os Logs (API & Frontend)
+Os logs residem na tabela `"SystemEvents"`. Para alimentar o CRM Administrativo no frontend, expusemos um endpoint robusto de paginação e filtragem:
 
-*Exemplo de consulta SQL para auditoria de uma música:*
-```sql
-SELECT "Timestamp", "Category", "Level", "Message", "Details"
-FROM "SystemEvents"
-WHERE "TrackId" = 'ID-DA-MUSICA'
-ORDER BY "Timestamp" ASC;
-```
+*   **Endpoint**: `GET /api/SystemEvents` (Acesso restrito: `Admin, Moderator`)
+*   **Parâmetros de Query**:
+    *   `page` e `pageSize`: Paginação controlada (padrão: 20 registros por página).
+    *   `search`: Filtro de busca inteligente (case/accent-insensitive).
+    *   `category` e `level`: Filtros por categoria e severidade.
+    *   `sortBy` e `sortDescending`: Ordenação de tempo.
+
+#### Busca Inteligente Imune a Acentos (`unaccent` do PostgreSQL)
+Para garantir que buscas como "bateria" encontrem "BATERIA" ou "batería", ativamos a extensão **`unaccent`** no PostgreSQL via migração EF Core. Na consulta LINQ da API, realizamos a tradução da busca utilizando `EF.Functions.Unaccent` e `EF.Functions.ILike`.
+
+#### Interface Visual e Privacidade de Dados
+Para manter a confidencialidade e legibilidade técnica dos dados:
+1.  A API projeta um DTO realizando `LEFT JOIN` com `Tracks`, `Users` e `UserProfiles`. Em vez de exibir UUIDs crus, o CRM renderiza links amigáveis como **🎵 Música: {TrackTitle}** e **👤 Usuário: {UserName || UserEmail}**.
+2.  O frontend exibe badges coloridos para os níveis do log e permite expandir as linhas para visualizar o campo `Details` (formatado como bloco de código para stack traces de erros).
 
 ---
 
@@ -85,7 +92,8 @@ ORDER BY "Timestamp" ASC;
 ## 🎯 Impacto e Resultado
 * **Centralização de Observabilidade**: logs de todos os componentes do ecossistema agora residem no mesmo banco de dados relacional.
 * **Depuração Ágil**: Erros de rede (como falhas de comunicação com a API) são registrados com detalhes completos e stack traces.
-* **Pronto para CRM/Painel**: A base de dados está totalmente pavimentada para a criação de um CRM administrativo no frontend do Mixer8.
+* **Interface CRM Administrativa Dinâmica**: Refatoramos o Painel de Controle para usar abas (*Configurações*, *Usuários*, *Logs do Sistema*). O operador tem total visibilidade dos eventos com controles avançados de paginação (20 por página), busca unaccent imune a acentuação e filtros de severidade.
+* **Prevenção contra Exposição de IDs**: Nomes amigáveis e emails de usuários são expostos em vez de UUIDs incompreensíveis.
 
 ---
 **Nota do Desenvolvedor:** *Utilizar `ON DELETE SET NULL` foi a chave para manter o histórico de auditoria. Do contrário, ao deletar uma track por moderação, perderíamos os registros de logs de auditoria mostrando que aquela track causou erros ou quando ela foi carregada.*
