@@ -6,7 +6,9 @@
 ---
 
 ## 🚀 Desafio de Engenharia
-A complexidade de monitorar fluxos assíncronos que transitam entre múltiplos microsserviços (API, Extrator, Downloader, Waveformer) dificulta a depuração de falhas de rede, erros de download e problemas de concorrência. Não havia um rastreamento unificado para auditar o que aconteceu com uma música (ex: quem enviou, por que falhou a extração, quando foi mixada, quem a deletou).
+A complexidade de monitorar fluxos assíncronos que transitam entre múltiplos microsserviços (API, Extrator, Downloader, Waveformer) dificulta a depuração de falhas de rede, erros de download e problemas de concorrência. Não havia um rastreamento unificado para auditar o ciclo de vida das faixas (quem enviou o arquivo original, quem importou via URL, quando a mídia foi baixada e quando as stems foram extraídas). 
+
+Além disso, ações críticas do usuário (novos cadastros, atualizações de dados de perfil/senha, alteração de avatar, criação de playlists e adição/remoção de faixas delas) ocorriam de forma invisível, impossibilitando qualquer auditoria por parte dos administradores.
 
 A solução precisava ser leve, de fácil implantação e centralizada, sem introduzir ferramentas pesadas de mensageria ou brokers de eventos adicionais (como RabbitMQ ou Kafka).
 
@@ -70,7 +72,10 @@ ORDER BY "Timestamp" ASC;
 *   **Contextos dos Workers**: Mapeados como tabelas locais espelhadas compartilhando o mesmo nome físico no PostgreSQL.
 
 ### Instrumentação
-*   **API**: Registra reproduções em `RecordPlay`, uploads em `Upload`/`UploadDirect` e deleções permanentes.
+*   **API / Endpoints**:
+    *   **Faixas (`TracksController`)**: Registro de reprodução de faixas (`RecordPlay`), uploads locais (`Upload`), chunked uploads (`UploadDirect`), importações por link externo (`ImportUrl`), downloads/conversões de mídias concluídos (`ImportCompleted`), finalização do processamento do ZIP com a relação de quais stems foram criadas (`ProcessStemsZip`) e exclusão física de faixas por administradores.
+    *   **Contas (`AuthController`)**: Registro de novas contas (`Register`), atualizações de biografia/senha (`UpdateProfile`) e upload de imagem de avatar (`UploadAvatar`).
+    *   **Playlists (`PlaylistsController`)**: Registro de criação de playlists (`CreatePlaylist`), atualizações de metadados/capa (`UpdatePlaylist`), exclusões físicas (`DeletePlaylist`), adições de faixas (`AddTrackToPlaylist`) e remoções de faixas (`RemoveTrackFromPlaylist`).
 *   **Extractor**: Registra capturas de fila, progresso do bot no Moises e sucessos/erros catastróficos.
 *   **Downloader**: Registra capturas de fila, progresso do yt-dlp e status de upload da mídia original.
 *   **Waveformer**: Registra geração de waveforms, exclusão de faixas vazias e falhas de conexão/FFmpeg (em transações isoladas de erro).
