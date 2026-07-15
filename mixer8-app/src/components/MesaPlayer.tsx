@@ -549,7 +549,7 @@ export const MesaPlayer: React.FC = () => {
             />
             {/* Pequena bolinha verde sutil (thumb) */}
             <div 
-              className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-brand-green shadow-[0_0_6px_#1db954] opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+              className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-brand-green shadow-[0_0_6px_#1db954] opacity-100 transition-opacity"
               style={{ left: `calc(${progressPercent}% - 5px)` }}
             />
           </div>

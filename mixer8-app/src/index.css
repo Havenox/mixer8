@@ -97,32 +97,18 @@ input[type="range"]::-webkit-slider-runnable-track {
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border-radius: 9999px;
   background: #1db954;
   cursor: pointer;
-  margin-top: -4px; /* Centraliza verticalmente no track de 6px */
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  margin-top: -3px; /* Centraliza verticalmente no track de 6px */
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   transition: transform 0.1s ease, background-color 0.1s ease;
 }
 
-/* Quando está em hover (mas não ativo), esconde o thumb para precisão de clique */
 input[type="range"]:hover::-webkit-slider-thumb {
-  width: 0px;
-  height: 0px;
-  opacity: 0;
-}
-
-/* Quando está ativo (clicado/arrastando), mostra o thumb */
-input[type="range"]:active::-webkit-slider-thumb {
-  width: 14px;
-  height: 14px;
-  opacity: 1;
-}
-
-input[type="range"]:active::-webkit-slider-thumb:hover {
-  transform: scale(1.25);
+  transform: scale(1.2);
   background: #1ed760;
 }
 
@@ -133,31 +119,18 @@ input[type="range"]::-moz-range-track {
 }
 
 input[type="range"]::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border-radius: 9999px;
   background: #1db954;
   cursor: pointer;
   border: none;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   transition: transform 0.1s ease, background-color 0.1s ease;
 }
 
-/* Quando está em hover (mas não ativo), esconde o thumb no Firefox */
 input[type="range"]:hover::-moz-range-thumb {
-  width: 0px;
-  height: 0px;
-  opacity: 0;
-}
-
-/* Quando está ativo (clicado/arrastando), mostra o thumb no Firefox */
-input[type="range"]:active::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  opacity: 1;
-}
-
-input[type="range"]:active::-moz-range-thumb:hover {
-  transform: scale(1.25);
+  transform: scale(1.2);
   background: #1ed760;
 }
+
