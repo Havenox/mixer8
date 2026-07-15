@@ -472,14 +472,16 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
 
       {/* 2. CONTEÚDO PRINCIPAL (Mesa de Som com rolagem) */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden bg-brand-dark">
-        {/* Barra superior transparente */}
-        <div className="h-16 items-center justify-end px-8 select-none shrink-0 border-b border-brand-hover hidden md:flex">
-        </div>
-
-        {/* Scroll Container para as Páginas */}
-        <div className="flex-1 overflow-y-auto px-4 md:px-8 pt-22 md:pt-6 pb-24 md:pb-28">
-          {children}
-        </div>
+        {/* Scroll Container para as Páginas (Condicionado para DAW em tela cheia) */}
+        {location.pathname === '/daw' ? (
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            {children}
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto px-4 md:px-8 pt-22 md:pt-6 pb-24 md:pb-28">
+            {children}
+          </div>
+        )}
       </div>
 
       {/* 3. PERSISTENT AUDIO PLAYER */}

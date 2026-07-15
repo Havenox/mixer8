@@ -291,7 +291,7 @@ export const DawView: React.FC = () => {
   });
 
   return (
-    <div className="flex flex-col h-full min-h-[82vh] bg-brand-dark text-white rounded-xl border border-brand-hover overflow-hidden select-none animate-in fade-in duration-300" ref={containerRef}>
+    <div className="flex flex-col h-full bg-[#0d0d0d] text-white select-none animate-in fade-in duration-300" ref={containerRef}>
       
       {/* 1. TOPO: Identificação e Ações da Faixa */}
       <div className="flex items-center justify-between px-6 py-4 bg-black/40 border-b border-brand-hover shrink-0">
@@ -424,7 +424,7 @@ export const DawView: React.FC = () => {
         <div className="flex-1 overflow-y-auto relative">
 
           {/* Renderização de Linhas (Tracks) */}
-          <div className="flex flex-col gap-1.5 py-2">
+          <div className="flex flex-col gap-2 py-3 pr-4">
             {sortedStems.map((stem) => {
               const stemName = stem.StemType;
               const volume = stemsVolume[stemName] ?? (stemName === 'Metrônomo' ? 0.0 : 1.0);
@@ -440,13 +440,13 @@ export const DawView: React.FC = () => {
               return (
                 <div 
                   key={stem.StemId} 
-                  className={`h-22 rounded-[6px] overflow-hidden flex transition-all duration-200 border border-brand-hover/5 shadow-sm ${
-                    isSilenced ? 'bg-black/40 opacity-40' : 'bg-black/10 hover:bg-black/20'
+                  className={`h-22 flex items-center transition-all duration-200 ${
+                    isSilenced ? 'opacity-40' : ''
                   }`}
                 >
                   
                   {/* PISTA ESQUERDA: Console de Controles (Faders e Panning) */}
-                  <div className="w-[240px] border-r border-brand-hover p-3.5 flex items-center justify-between gap-4 shrink-0 select-none bg-black/20">
+                  <div className="w-[240px] pr-4 flex items-center justify-between gap-4 shrink-0 select-none">
                     {/* Coluna 1: M/S + Nome (Topo) e Slider Volume (Base) */}
                     <div className="flex-1 flex flex-col gap-2 min-w-0">
                       {/* Mute/Solo + Nome do Canal */}
@@ -514,7 +514,7 @@ export const DawView: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* PISTA DIREITA: Canvas de Waveform com fundo fosco sólido */}
+                  {/* PISTA DIREITA: Canvas de Waveform com fundo fosco sólido em pílulas individuais */}
                   <div 
                     onClick={(e) => {
                       if (!tracksTimelineRef.current || !duration) return;
@@ -523,7 +523,7 @@ export const DawView: React.FC = () => {
                       const percent = Math.max(0, Math.min(1.0, offsetX / rect.width));
                       seek(percent * duration);
                     }}
-                    className="flex-1 h-full relative cursor-pointer overflow-hidden bg-[#1db954] select-none"
+                    className="flex-1 h-full relative cursor-pointer overflow-hidden rounded-[8px] bg-[#1db954] select-none shadow-[0_1px_3px_rgba(0,0,0,0.3)] border border-[#1aa34a]/10"
                   >
                     {/* Linha Central sutil do track de fundo */}
                     <div className="absolute left-0 right-0 h-[1px] bg-brand-hover/10 top-1/2 z-10 pointer-events-none" />
