@@ -5,13 +5,15 @@ interface RotaryKnobProps {
   onChange: (newValue: number) => void;
   size?: number; // Largura/altura em pixels
   label?: string; // Nome sob o knob
+  hideLabels?: boolean;
 }
 
 export const RotaryKnob: React.FC<RotaryKnobProps> = ({
   value,
   onChange,
   size = 46,
-  label = 'PAN'
+  label = 'PAN',
+  hideLabels = false
 }) => {
   const isDragging = useRef(false);
   const startY = useRef(0);
@@ -190,12 +192,16 @@ export const RotaryKnob: React.FC<RotaryKnobProps> = ({
       </div>
 
       {/* Label de Valor & Texto de Balanço */}
-      <span className="text-[9px] font-black text-brand-gray tracking-wider mt-1 truncate max-w-full select-none text-center">
-        {label}
-      </span>
-      <span className="text-[8px] font-mono font-bold text-brand-green select-none leading-none mt-0.5">
-        {getPanText()}
-      </span>
+      {!hideLabels && (
+        <>
+          <span className="text-[9px] font-black text-brand-gray tracking-wider mt-1 truncate max-w-full select-none text-center">
+            {label}
+          </span>
+          <span className="text-[8px] font-mono font-bold text-brand-green select-none leading-none mt-0.5">
+            {getPanText()}
+          </span>
+        </>
+      )}
     </div>
   );
 };

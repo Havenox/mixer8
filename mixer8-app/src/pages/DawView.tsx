@@ -424,7 +424,7 @@ export const DawView: React.FC = () => {
         <div className="flex-1 overflow-y-auto relative">
 
           {/* Renderização de Linhas (Tracks) */}
-          <div className="flex flex-col">
+          <div className="flex flex-col gap-1.5 py-2">
             {sortedStems.map((stem) => {
               const stemName = stem.StemType;
               const volume = stemsVolume[stemName] ?? (stemName === 'Metrônomo' ? 0.0 : 1.0);
@@ -440,22 +440,20 @@ export const DawView: React.FC = () => {
               return (
                 <div 
                   key={stem.StemId} 
-                  className={`h-22 border-b border-brand-hover flex transition-all duration-200 ${
+                  className={`h-22 rounded-[6px] overflow-hidden flex transition-all duration-200 border border-brand-hover/5 shadow-sm ${
                     isSilenced ? 'bg-black/40 opacity-40' : 'bg-black/10 hover:bg-black/20'
                   }`}
                 >
                   
                   {/* PISTA ESQUERDA: Console de Controles (Faders e Panning) */}
-                  <div className="w-[240px] border-r border-brand-hover p-3 flex flex-col gap-2 shrink-0 select-none bg-black/20">
-                    {/* Título & Mute/Solo */}
-                    <div className="flex justify-between items-center">
-                      <span className="text-[11px] font-black tracking-wide text-white uppercase truncate max-w-[130px]">{stemName}</span>
-                      
-                      {/* Botões M e S */}
-                      <div className="flex items-center gap-1 shrink-0">
+                  <div className="w-[240px] border-r border-brand-hover p-3.5 flex items-center justify-between gap-4 shrink-0 select-none bg-black/20">
+                    {/* Coluna 1: M/S + Nome (Topo) e Slider Volume (Base) */}
+                    <div className="flex-1 flex flex-col gap-2 min-w-0">
+                      {/* Mute/Solo + Nome do Canal */}
+                      <div className="flex items-center gap-1.5 select-none">
                         <button
                           onClick={() => toggleStemMute(stemName)}
-                          className={`w-5 h-5 rounded-[3px] flex items-center justify-center text-[9px] font-black transition-all border cursor-pointer ${
+                          className={`w-5 h-5 rounded-[3px] flex items-center justify-center text-[9px] font-black transition-all border cursor-pointer shrink-0 ${
                             isMuted
                               ? 'bg-red-600 text-white border-red-600'
                               : 'bg-[#222] hover:bg-red-600/70 hover:text-white hover:border-red-600/70 text-brand-gray border-transparent'
@@ -466,7 +464,7 @@ export const DawView: React.FC = () => {
                         </button>
                         <button
                           onClick={() => toggleStemSolo(stemName)}
-                          className={`w-5 h-5 rounded-[3px] flex items-center justify-center text-[9px] font-black transition-all border cursor-pointer ${
+                          className={`w-5 h-5 rounded-[3px] flex items-center justify-center text-[9px] font-black transition-all border cursor-pointer shrink-0 ${
                             isSoloed
                               ? 'bg-amber-400 text-black border-amber-400'
                               : 'bg-[#222] hover:bg-amber-400/80 hover:text-black hover:border-amber-400/80 text-brand-gray border-transparent'
@@ -475,13 +473,11 @@ export const DawView: React.FC = () => {
                         >
                           S
                         </button>
+                        <span className="text-[11px] font-black tracking-wide text-white uppercase truncate ml-1">{stemName}</span>
                       </div>
-                    </div>
 
-                    {/* Fader Físico de Volume & Knob de Pan */}
-                    <div className="flex items-center gap-3.5 w-full">
-                      {/* Fader Deslizante Estilo Mesa (Sem bolinha) */}
-                      <div className="flex-1 flex items-center gap-1.5 min-w-0">
+                      {/* Fader de Volume */}
+                      <div className="flex items-center gap-1.5 min-w-0">
                         <Volume2 className="w-3.5 h-3.5 text-brand-gray shrink-0" />
                         <input
                           type="range"
@@ -493,21 +489,28 @@ export const DawView: React.FC = () => {
                           className="w-full fader-input appearance-none bg-transparent cursor-pointer"
                         />
                       </div>
+                    </div>
 
-                      {/* Knob Rotativo de Pan (Ocultado em stems Mono) */}
-                      <div className="shrink-0 flex items-center justify-center min-w-[50px] min-h-[46px]">
-                        {!mono ? (
+                    {/* Coluna 2: Panning Knob (L/R) ou MONO */}
+                    <div className="shrink-0 flex items-center justify-center min-w-[50px]">
+                      {!mono ? (
+                        <div className="flex flex-col items-center select-none shrink-0 relative">
                           <RotaryKnob 
                             value={pan}
                             onChange={(val) => setStemPan(stemName, val)}
+                            size={36}
+                            hideLabels={true}
                           />
-                        ) : (
-                          // Espaçador cego para manter alinhamento
-                          <div className="flex flex-col items-center select-none" style={{ width: 62 }}>
-                            <span className="text-[8px] font-bold text-brand-gray/20 uppercase tracking-widest leading-none border border-dashed border-[#222] rounded p-1.5 px-2 text-center">MONO</span>
+                          <div className="flex justify-between w-[48px] text-[8px] font-black text-brand-gray/50 mt-0.5 leading-none">
+                            <span>L</span>
+                            <span>R</span>
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center select-none" style={{ width: 50 }}>
+                          <span className="text-[8px] font-bold text-brand-gray/25 uppercase tracking-widest leading-none border border-dashed border-[#222] rounded p-1.5 px-2 text-center">MONO</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
