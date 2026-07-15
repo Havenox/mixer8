@@ -5,9 +5,11 @@ import { RotaryKnob } from '../components/RotaryKnob';
 import { 
   ChevronLeft, Play, Pause, Loader2, 
   ShieldAlert, Sliders, Volume2, 
-  Disc, Music4
+  Disc, Music4, ZoomIn, ZoomOut
 } from 'lucide-react';
 import { API_URL, SERVER_URL } from '../config';
+
+const ZOOM_STEPS = [1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0, 16.0];
 
 export const DawView: React.FC = () => {
   const navigate = useNavigate();
@@ -36,8 +38,177 @@ export const DawView: React.FC = () => {
   const tracksTimelineRef = useRef<HTMLDivElement>(null);
   const isDraggingPlayhead = useRef(false);
 
+  const rulerScrollRef = useRef<HTMLDivElement>(null);
+  const trackScrollRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const playheadScrollRef = useRef<HTMLDivElement>(null);
+  const playheadLineRef = useRef<HTMLDivElement>(null);
+  const [zoomLevel, setZoomLevel] = useState(1.0);
+
   // Monitora largura da tela para responsividade síncrona
   const [isDesktopOrTablet, setIsDesktopOrTablet] = useState(window.innerWidth >= 768);
+
+  // Limpa refs quando mudar track ou stems
+  useEffect(() => {
+    trackScrollRefs.current = [];
+  }, [currentTrack]);
+
+  const handleZoomIn = () => {
+    setZoomLevel(prev => {
+      const idx = ZOOM_STEPS.indexOf(prev);
+      if (idx !== -1 && idx < ZOOM_STEPS.length - 1) {
+        return ZOOM_STEPS[idx + 1];
+      }
+      return prev;
+    });
+  };
+
+  const handleZoomOut = () => {
+    setZoomLevel(prev => {
+      const idx = ZOOM_STEPS.indexOf(prev);
+      if (idx > 0) {
+        return ZOOM_STEPS[idx - 1];
+      }
+      return prev;
+    });
+  };
+
+  const handleZoomReset = () => {
+    setZoomLevel(1.0);
+  };
+
+  // Gera os marcadores de segundos com base no nível de zoom
+  const getTicks = () => {
+    if (!duration) return [];
+    const numTicks = Math.max(5, Math.floor(5 * zoomLevel));
+    const ticks = [];
+    for (let i = 0; i <= numTicks; i++) {
+      ticks.push((i / numTicks) * duration);
+    }
+    return ticks;
+  };
+
+  const ticks = getTicks();
+
+  const isSyncingScroll = useRef(false);
+
+  const handleHorizontalScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (isSyncingScroll.current) return;
+    isSyncingScroll.current = true;
+    const scrollLeft = e.currentTarget.scrollLeft;
+
+    if (rulerScrollRef.current && rulerScrollRef.current !== e.currentTarget) {
+      rulerScrollRef.current.scrollLeft = scrollLeft;
+    }
+
+    if (playheadScrollRef.current && playheadScrollRef.current !== e.currentTarget) {
+      playheadScrollRef.current.scrollLeft = scrollLeft;
+    }
+
+    trackScrollRefs.current.forEach((ref) => {
+      if (ref && ref !== e.currentTarget) {
+        ref.scrollLeft = scrollLeft;
+      }
+    });
+
+    // Reset lock in the next frame
+    requestAnimationFrame(() => {
+      isSyncingScroll.current = false;
+    });
+  };
+
+  // Acompanhamento automático de página durante a reprodução com Zoom
+  useEffect(() => {
+    if (!isPlaying || zoomLevel <= 1.0 || !rulerScrollRef.current) return;
+    
+    const container = rulerScrollRef.current;
+    const viewportWidth = container.clientWidth;
+    const totalWidth = container.scrollWidth;
+    if (viewportWidth <= 0 || totalWidth <= 0) return;
+
+    // Posição da agulha em pixels
+    const playheadX = (currentTime / duration) * totalWidth;
+    
+    // Página atual visível (baseado no scrollLeft atual)
+    const currentScroll = container.scrollLeft;
+    
+    // Se a agulha passou do limite do viewport visível (página seguinte)
+    // ou se voltou antes da página visível (por loop/seek)
+    if (playheadX > currentScroll + viewportWidth || playheadX < currentScroll) {
+      const pageIndex = Math.floor(playheadX / viewportWidth);
+      const targetScroll = pageIndex * viewportWidth;
+      
+      isSyncingScroll.current = true;
+      
+      container.scrollLeft = targetScroll;
+      
+      if (playheadScrollRef.current) {
+        playheadScrollRef.current.scrollLeft = targetScroll;
+      }
+      
+      trackScrollRefs.current.forEach((ref) => {
+        if (ref) ref.scrollLeft = targetScroll;
+      });
+
+      // Libera trava
+      requestAnimationFrame(() => {
+        isSyncingScroll.current = false;
+      });
+    }
+  }, [currentTime, isPlaying, zoomLevel, duration]);
+
+  const lastTimeRef = useRef(currentTime);
+  const interpolatedTimeRef = useRef(currentTime);
+  const lastFrameTimeRef = useRef(0);
+
+  // Sincroniza o tempo interpolado com o tempo real toda vez que o estado currentTime muda
+  useEffect(() => {
+    interpolatedTimeRef.current = currentTime;
+    lastTimeRef.current = currentTime;
+    lastFrameTimeRef.current = performance.now();
+  }, [currentTime]);
+
+  // Loop de Animação a 60fps da Agulha (DOM Direta)
+  useEffect(() => {
+    if (!isPlaying || duration <= 0) {
+      // Se pausado, garante que a agulha esteja no local exato do currentTime
+      if (playheadLineRef.current) {
+        const pct = (currentTime / duration) * 100;
+        playheadLineRef.current.style.left = `${pct}%`;
+      }
+      return;
+    }
+
+    let animId: number;
+    lastFrameTimeRef.current = performance.now();
+
+    const updatePlayheadPosition = () => {
+      if (isDraggingPlayhead.current) {
+        animId = requestAnimationFrame(updatePlayheadPosition);
+        return;
+      }
+
+      const now = performance.now();
+      const delta = (now - lastFrameTimeRef.current) / 1000;
+      lastFrameTimeRef.current = now;
+
+      // Incrementa o tempo de forma contínua
+      interpolatedTimeRef.current = Math.min(duration, interpolatedTimeRef.current + delta);
+
+      // Atualiza a posição da agulha diretamente na DOM (0% a 100%)
+      if (playheadLineRef.current) {
+        const pct = (interpolatedTimeRef.current / duration) * 100;
+        playheadLineRef.current.style.left = `${pct}%`;
+      }
+
+      animId = requestAnimationFrame(updatePlayheadPosition);
+    };
+
+    animId = requestAnimationFrame(updatePlayheadPosition);
+
+    return () => {
+      cancelAnimationFrame(animId);
+    };
+  }, [isPlaying, duration]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -82,82 +253,90 @@ export const DawView: React.FC = () => {
     return type === 'voz' || type === 'vocal' || type === 'vocais' || type === 'baixo' || type === 'metrônomo';
   };
 
-  // Lógica de Renderização das Waveforms nos Canvas (Estática)
+  // Lógica de Renderização das Waveforms nos Canvas (Estática e Responsiva)
   useEffect(() => {
     if (loading || Object.keys(waveforms).length === 0 || !currentTrack) return;
 
+    let frameId: number;
+
     const renderAllCanvas = () => {
-      const activeStemsList = currentTrack.Stems || [];
-      activeStemsList.forEach(stem => {
-        const canvas = document.getElementById(`canvas-${stem.StemType}`) as HTMLCanvasElement;
-        if (!canvas) return;
+      // Cancela frames pendentes para evitar multiplas chamadas
+      cancelAnimationFrame(frameId);
+      
+      frameId = requestAnimationFrame(() => {
+        const activeStemsList = currentTrack.Stems || [];
+        activeStemsList.forEach(stem => {
+          const canvas = document.getElementById(`canvas-${stem.StemType}`) as HTMLCanvasElement;
+          if (!canvas) return;
 
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return;
 
-        const points = waveforms[stem.StemType] || [];
-        const width = canvas.offsetWidth;
-        const height = canvas.offsetHeight;
+          const points = waveforms[stem.StemType] || [];
+          const width = canvas.offsetWidth;
+          const height = canvas.offsetHeight;
+          if (width === 0 || height === 0) return;
 
-        // Ajusta pixel ratio do canvas para alta resolução
-        const dpr = window.devicePixelRatio || 1;
-        canvas.width = width * dpr;
-        canvas.height = height * dpr;
-        ctx.scale(dpr, dpr);
+          // Ajusta pixel ratio do canvas para alta resolução
+          const dpr = window.devicePixelRatio || 1;
+          canvas.width = width * dpr;
+          canvas.height = height * dpr;
+          ctx.scale(dpr, dpr);
 
-        // Fundo transparente
-        ctx.clearRect(0, 0, width, height);
+          // Fundo transparente
+          ctx.clearRect(0, 0, width, height);
 
-        if (points.length === 0) {
-          // Linha central preta se não houver dados
-          ctx.strokeStyle = '#000000';
-          ctx.lineWidth = 1.5;
+          if (points.length === 0) {
+            // Linha central preta se não houver dados
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(0, height / 2);
+            ctx.lineTo(width, height / 2);
+            ctx.stroke();
+            return;
+          }
+
+          // Desenha a forma de onda contínua sólida usando todos os pontos do banco
+          ctx.beginPath();
+          
+          // Caminho do envelope superior (da esquerda para a direita)
+          for (let i = 0; i < points.length; i++) {
+            const x = (i / (points.length - 1 || 1)) * width;
+            const rawVal = points[i] || 0;
+            const absVal = Math.min(100, Math.abs(rawVal));
+            const amplitude = (absVal / 100.0) * (height * 0.42); // Máximo de 84% da altura
+            const y = height / 2 - amplitude;
+            
+            if (i === 0) {
+              ctx.moveTo(x, y);
+            } else {
+              ctx.lineTo(x, y);
+            }
+          }
+
+          // Caminho do envelope inferior (da direita para a esquerda)
+          for (let i = points.length - 1; i >= 0; i--) {
+            const x = (i / (points.length - 1 || 1)) * width;
+            const rawVal = points[i] || 0;
+            const absVal = Math.min(100, Math.abs(rawVal));
+            const amplitude = (absVal / 100.0) * (height * 0.42);
+            const y = height / 2 + amplitude;
+            ctx.lineTo(x, y);
+          }
+
+          ctx.closePath();
+          ctx.fillStyle = '#000000';
+          ctx.fill();
+
+          // Linha central preta fina cortando o meio da waveform
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+          ctx.lineWidth = 1;
           ctx.beginPath();
           ctx.moveTo(0, height / 2);
           ctx.lineTo(width, height / 2);
           ctx.stroke();
-          return;
-        }
-
-        // Desenha a forma de onda contínua sólida usando todos os pontos do banco
-        ctx.beginPath();
-        
-        // Caminho do envelope superior (da esquerda para a direita)
-        for (let i = 0; i < points.length; i++) {
-          const x = (i / (points.length - 1 || 1)) * width;
-          const rawVal = points[i] || 0;
-          const absVal = Math.min(100, Math.abs(rawVal));
-          const amplitude = (absVal / 100.0) * (height * 0.42); // Máximo de 84% da altura
-          const y = height / 2 - amplitude;
-          
-          if (i === 0) {
-            ctx.moveTo(x, y);
-          } else {
-            ctx.lineTo(x, y);
-          }
-        }
-
-        // Caminho do envelope inferior (da direita para a esquerda)
-        for (let i = points.length - 1; i >= 0; i--) {
-          const x = (i / (points.length - 1 || 1)) * width;
-          const rawVal = points[i] || 0;
-          const absVal = Math.min(100, Math.abs(rawVal));
-          const amplitude = (absVal / 100.0) * (height * 0.42);
-          const y = height / 2 + amplitude;
-          ctx.lineTo(x, y);
-        }
-
-        ctx.closePath();
-        ctx.fillStyle = '#000000';
-        ctx.fill();
-
-        // Linha central preta fina cortando o meio da waveform
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(0, height / 2);
-        ctx.lineTo(width, height / 2);
-        ctx.stroke();
+        });
       });
     };
 
@@ -168,8 +347,11 @@ export const DawView: React.FC = () => {
       renderAllCanvas();
     };
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [waveforms, loading, currentTrack]);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      cancelAnimationFrame(frameId);
+    };
+  }, [waveforms, loading, currentTrack, zoomLevel]);
 
   // Lógica de Seek ao clicar/arrastar na timeline
   const handleTimelineInteraction = (clientX: number) => {
@@ -326,6 +508,38 @@ export const DawView: React.FC = () => {
 
         {/* Informações Auxiliares (Design de DAW) */}
         <div className="flex items-center gap-5">
+          {/* Controles de Zoom (Estilo DAW Profissional) */}
+          <div className="flex items-center gap-1 bg-black/30 border border-brand-hover rounded-md p-1 select-none">
+            <button
+              onClick={handleZoomOut}
+              disabled={zoomLevel === 1.0}
+              className="p-1.5 rounded text-brand-gray hover:text-white transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Afastar Zoom (Zoom Out)"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+            <span className="text-[10px] font-bold font-mono text-brand-gray/80 px-1 min-w-[32px] text-center">
+              {zoomLevel.toFixed(1)}x
+            </span>
+            <button
+              onClick={handleZoomIn}
+              disabled={zoomLevel === 16.0}
+              className="p-1.5 rounded text-brand-gray hover:text-white transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Aproximar Zoom (Zoom In)"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+            {zoomLevel > 1.0 && (
+              <button
+                onClick={handleZoomReset}
+                className="p-1.5 rounded text-brand-green hover:text-brand-green/80 transition-colors cursor-pointer text-[9px] font-black uppercase px-2"
+                title="Ajustar à Tela"
+              >
+                Ajustar
+              </button>
+            )}
+          </div>
+
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-black/20 border border-brand-hover rounded-md text-[10px] font-bold text-brand-green tracking-wide">
             <Sliders className="w-3.5 h-3.5" />
             <span>SESSÃO MULTIFAIXAS ({sortedStems.length} STEMS)</span>
@@ -358,26 +572,33 @@ export const DawView: React.FC = () => {
         {/* Agulha de Playhead Vertical (Linha contínua cruzando a DAW - Por cima da régua e faixas) */}
         {duration > 0 && !loading && (
           <div 
-            className="absolute left-[264px] right-6 top-0 bottom-0 pointer-events-none z-30"
+            ref={playheadScrollRef}
+            onScroll={handleHorizontalScroll}
+            className="absolute left-[264px] right-6 top-0 bottom-0 pointer-events-none z-30 overflow-x-auto overflow-y-hidden scrollbar-none"
           >
             <div 
-              className="absolute top-0 bottom-0 w-[1.5px] bg-white/45 pointer-events-none"
-              style={{ 
-                left: `${(currentTime / duration) * 100}%`,
-                transition: isDraggingPlayhead.current ? 'none' : 'left 80ms linear'
-              }}
+              style={{ width: `${zoomLevel * 100}%` }}
+              className="h-full relative pointer-events-none"
             >
-              {/* Cabeça grossa da agulha apontando para baixo (Estilo Moises/Audacity) posicionada na régua */}
               <div 
-                className="absolute bg-white border border-brand-gray/40 rounded-sm shadow-md"
+                ref={playheadLineRef}
+                className="absolute top-0 bottom-0 w-[1.5px] bg-white/45 pointer-events-none"
                 style={{ 
-                  width: '14px', 
-                  height: '16px', 
-                  top: '10px',
-                  left: '-6.25px',
-                  clipPath: 'polygon(0% 0%, 100% 0%, 100% 60%, 50% 100%, 0% 60%)' 
+                  left: `${(currentTime / duration) * 100}%`
                 }}
-              />
+              >
+                {/* Cabeça grossa da agulha apontando para baixo (Estilo Moises/Audacity) posicionada na régua */}
+                <div 
+                  className="absolute bg-white border border-brand-gray/40 rounded-sm shadow-md"
+                  style={{ 
+                    width: '14px', 
+                    height: '16px', 
+                    top: '10px',
+                    left: '-6.25px',
+                    clipPath: 'polygon(0% 0%, 100% 0%, 100% 60%, 50% 100%, 0% 60%)' 
+                  }}
+                />
+              </div>
             </div>
           </div>
         )}
@@ -389,43 +610,52 @@ export const DawView: React.FC = () => {
             Canais / Pistas
           </div>
           
-          {/* Régua de Tempo */}
+          {/* Régua de Tempo (Scrollable Wrapper) */}
           <div 
-            ref={tracksTimelineRef}
-            onMouseDown={handleMouseDownTimeline}
-            onTouchStart={handleTouchStartTimeline}
-            className="flex-1 relative cursor-ew-resize overflow-hidden"
+            ref={rulerScrollRef}
+            onScroll={handleHorizontalScroll}
+            className="flex-1 overflow-x-auto overflow-y-hidden ruler-scroll"
           >
-            {/* Ticks estéticos de segundos na régua */}
-            <div className="absolute inset-0 flex justify-between px-2 text-[9px] font-mono font-bold text-brand-gray/60 items-center">
-              <span>0:00</span>
-              {duration > 0 && (
-                <>
-                  <span>{formatTime(duration * 0.25)}</span>
-                  <span>{formatTime(duration * 0.5)}</span>
-                  <span>{formatTime(duration * 0.75)}</span>
-                  <span>{formatTime(duration)}</span>
-                </>
-              )}
-            </div>
+            <div 
+              ref={tracksTimelineRef}
+              onMouseDown={handleMouseDownTimeline}
+              onTouchStart={handleTouchStartTimeline}
+              style={{ width: `${zoomLevel * 100}%` }}
+              className="h-full relative cursor-ew-resize select-none"
+            >
+              {/* Ticks estéticos de segundos na régua */}
+              <div className="absolute inset-0 select-none">
+                {ticks.map((tickTime, idx) => (
+                  <div 
+                    key={idx} 
+                    className="absolute top-0 bottom-0 flex flex-col justify-between items-center py-1 text-[9px] font-mono font-bold text-brand-gray/60"
+                    style={{ left: `${(tickTime / duration) * 100}%`, transform: 'translateX(-50%)' }}
+                  >
+                    <span>{formatTime(tickTime)}</span>
+                    <div className="w-[1px] h-1.5 bg-brand-gray/30" />
+                  </div>
+                ))}
+              </div>
 
-            {/* Linhas de Grid verticais em segundo plano para o restante da DAW */}
-            <div className="absolute inset-0 flex justify-between pointer-events-none opacity-[0.03]">
-              <div className="border-l border-white h-full" />
-              <div className="border-l border-white h-full" style={{ left: '25%' }} />
-              <div className="border-l border-white h-full" style={{ left: '50%' }} />
-              <div className="border-l border-white h-full" style={{ left: '75%' }} />
-              <div className="border-l border-white h-full" style={{ left: '100%' }} />
+              {/* Linhas de Grid verticais em segundo plano para o restante da DAW */}
+              <div className="absolute inset-0 pointer-events-none opacity-[0.03]">
+                {ticks.map((tickTime, idx) => (
+                  <div 
+                    key={idx}
+                    className="absolute top-0 bottom-0 border-l border-white"
+                    style={{ left: `${(tickTime / duration) * 100}%` }}
+                  />
+                ))}
+              </div>
             </div>
           </div>
         </div>
-
         {/* Corpo Principal das Faixas (Scrollable) */}
         <div className="flex-1 overflow-y-auto relative px-6">
 
           {/* Renderização de Linhas (Tracks) */}
           <div className="flex flex-col gap-2 py-3">
-            {sortedStems.map((stem) => {
+            {sortedStems.map((stem, idx) => {
               const stemName = stem.StemType;
               const volume = stemsVolume[stemName] ?? (stemName === 'Metrônomo' ? 0.0 : 1.0);
               const isMuted = stemsMute[stemName] ?? false;
@@ -515,42 +745,50 @@ export const DawView: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* PISTA DIREITA: Canvas de Waveform com fundo fosco sólido em pílulas individuais */}
+                  {/* PISTA DIREITA: Canvas de Waveform com fundo fosco sólido em pílulas individuais (Scrollable) */}
                   <div 
-                    onClick={(e) => {
-                      if (!tracksTimelineRef.current || !duration) return;
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const offsetX = e.clientX - rect.left;
-                      const percent = Math.max(0, Math.min(1.0, offsetX / rect.width));
-                      seek(percent * duration);
-                    }}
-                    className="flex-1 h-full relative cursor-pointer overflow-hidden rounded-[8px] bg-[#1db954] select-none shadow-[0_1px_3px_rgba(0,0,0,0.3)] border border-[#1aa34a]/10"
+                    ref={(el) => { trackScrollRefs.current[idx] = el; }}
+                    onScroll={handleHorizontalScroll}
+                    className="flex-1 h-full overflow-x-auto overflow-y-hidden scrollbar-none rounded-[8px] bg-[#1db954] select-none shadow-[0_1px_3px_rgba(0,0,0,0.3)] border border-[#1aa34a]/10 relative"
                   >
-                    {/* Linha Central sutil do track de fundo */}
-                    <div className="absolute left-0 right-0 h-[1px] bg-brand-hover/10 top-1/2 z-10 pointer-events-none" />
-                    
-                    {/* Linhas de Grade Surtidas de Fundo */}
-                    <div className="absolute inset-0 flex justify-between pointer-events-none opacity-[0.015] z-10">
-                      <div className="border-l border-white h-full" />
-                      <div className="border-l border-white h-full" style={{ left: '25%' }} />
-                      <div className="border-l border-white h-full" style={{ left: '50%' }} />
-                      <div className="border-l border-white h-full" style={{ left: '75%' }} />
-                      <div className="border-l border-white h-full" style={{ left: '100%' }} />
+                    <div 
+                      onClick={(e) => {
+                        if (!tracksTimelineRef.current || !duration) return;
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const offsetX = e.clientX - rect.left;
+                        const percent = Math.max(0, Math.min(1.0, offsetX / rect.width));
+                        seek(percent * duration);
+                      }}
+                      style={{ width: `${zoomLevel * 100}%` }}
+                      className="h-full relative cursor-pointer"
+                    >
+                      {/* Linha Central sutil do track de fundo */}
+                      <div className="absolute left-0 right-0 h-[1px] bg-brand-hover/10 top-1/2 z-10 pointer-events-none" />
+
+                      {/* Linhas de Grade verticais em segundo plano para cada trilha */}
+                      <div className="absolute inset-0 pointer-events-none opacity-[0.05] z-10">
+                        {ticks.map((tickTime, tIdx) => (
+                          <div 
+                            key={tIdx}
+                            className="absolute top-0 bottom-0 border-l border-black"
+                            style={{ left: `${(tickTime / duration) * 100}%` }}
+                          />
+                        ))}
+                      </div>
+
+                      {/* Canvas com a waveform desenhada */}
+                      <canvas 
+                        id={`canvas-${stemName}`}
+                        className="w-full h-full block relative z-20 bg-transparent"
+                      />
                     </div>
-
-                    <canvas 
-                      id={`canvas-${stemName}`}
-                      className="w-full h-full block relative z-20 bg-transparent"
-                    />
                   </div>
-
                 </div>
               );
             })}
           </div>
 
         </div>
-
       </div>
 
       {/* Adições estéticas globais de estilo do console analógico */}
@@ -600,6 +838,29 @@ export const DawView: React.FC = () => {
           cursor: pointer;
           box-shadow: 0 1px 3px rgba(0,0,0,0.6);
           background-image: linear-gradient(to right, transparent 3.5px, #1db954 3.5px, #1db954 5px, transparent 5px);
+        }
+
+        /* Custom scrollbar para a régua */
+        .ruler-scroll::-webkit-scrollbar {
+          height: 4px;
+        }
+        .ruler-scroll::-webkit-scrollbar-track {
+          background: #141414;
+        }
+        .ruler-scroll::-webkit-scrollbar-thumb {
+          background: #333;
+          border-radius: 2px;
+        }
+        .ruler-scroll::-webkit-scrollbar-thumb:hover {
+          background: #1db954;
+        }
+        
+        .scrollbar-none::-webkit-scrollbar {
+          display: none;
+        }
+        .scrollbar-none {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
         }
       `}</style>
 
