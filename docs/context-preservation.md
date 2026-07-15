@@ -235,7 +235,7 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
 27. **Estúdio DAW Multifaixas e Balanço Estéreo (Panning)**:
     * **Engenharia de Áudio (Panning)**: Integrado `StereoPannerNode` na Web Audio API do `PlayerContext.tsx` com estado de `stemsPan` persistido no `localStorage`.
     * **Knob Rotativo Físico e Arraste Linear**: Desenvolvido o componente `<RotaryKnob />` em SVG circular, com agulha indicadora e arraste linear vertical (Y delta) do cursor para precisão. O knob conta com atalho de clique duplo para retornar ao centro (0.0).
-    * **Faders e Visual DAW**: Customizados faders de volume como retângulos de console analógico (sem "bolinhas" nativas). A tela `DawView` conta com waveforms em `<canvas>` 2D individuais por stem, com agulha vertical playhead síncrona e seek por clique/arraste.
+    * **Faders e Visual DAW**: Customizados faders de volume como retângulos de console analógico (sem "bolinhas" nativas). A tela `DawView` conta com waveforms em `<canvas>` 2D de alta densidade (1.5px de largura, 0.5px de espaçamento) pintadas em **preto sólido** sobre fundo **verde fosco do Mixer8** (verde fosco médio `#155f2e` na área reproduzida e verde fosco escuro `#0d2716` na área pendente). A agulha de playhead vertical é **branca brilhante** com guia triangular superior branca.
     * **Regra de Ocultação Mono**: O knob de Pan é condicionalmente ocultado nas pistas mono multifaixas (Voz, Baixo, Metrônomo), sendo visível apenas nas stems estéreo (Bateria, Guitarra, Outros) e na faixa Completo original.
 
 ---
