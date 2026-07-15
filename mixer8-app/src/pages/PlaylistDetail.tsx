@@ -1105,9 +1105,42 @@ export const PlaylistDetail: React.FC = () => {
                             <div className="flex flex-col truncate">
                               <div className="flex items-center gap-2 min-w-0">
                                 <span 
-                                  onClick={(e) => {
+                                  onClick={async (e) => {
                                     e.stopPropagation();
-                                    // Future: navigate(`/tracks/${t.TrackId}`)
+                                    if (isCurrentTrack) {
+                                      navigate('/daw');
+                                      return;
+                                    }
+                                    const trackToPlay = {
+                                      TrackId: t.TrackId,
+                                      TrackTitle: t.TrackTitle,
+                                      ArtistName: t.ArtistName,
+                                      CoverUrl: t.CoverUrl,
+                                      ExtractionStatus: 'Pronto',
+                                      CreatedAt: t.AddedAt,
+                                      Stems: t.Stems.map(s => ({
+                                        StemId: s.StemId,
+                                        TrackId: s.TrackId,
+                                        StemType: s.StemType,
+                                        AudioUrl: s.AudioUrl
+                                      }))
+                                    };
+                                    const tracksQueue = playlist ? playlist.Tracks.map(x => ({
+                                      TrackId: x.TrackId,
+                                      TrackTitle: x.TrackTitle,
+                                      ArtistName: x.ArtistName,
+                                      CoverUrl: x.CoverUrl,
+                                      ExtractionStatus: 'Pronto',
+                                      CreatedAt: x.AddedAt,
+                                      Stems: x.Stems.map(s => ({
+                                        StemId: s.StemId,
+                                        TrackId: s.TrackId,
+                                        StemType: s.StemType,
+                                        AudioUrl: s.AudioUrl
+                                      }))
+                                    })) : [];
+                                    await loadTrack(trackToPlay, playlist?.PlaylistId, undefined, tracksQueue);
+                                    navigate('/daw');
                                   }}
                                   className={`font-bold truncate text-sm hover:underline cursor-pointer ${isCurrentTrack ? 'text-brand-green' : 'text-white'}`}
                                 >
@@ -1279,9 +1312,42 @@ export const PlaylistDetail: React.FC = () => {
                     <div className="flex-1 min-w-0 flex flex-col justify-center">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span 
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
-                            // Future: navigate(`/tracks/${t.TrackId}`)
+                            if (isCurrentTrack) {
+                              navigate('/daw');
+                              return;
+                            }
+                            const trackToPlay = {
+                              TrackId: t.TrackId,
+                              TrackTitle: t.TrackTitle,
+                              ArtistName: t.ArtistName,
+                              CoverUrl: t.CoverUrl,
+                              ExtractionStatus: 'Pronto',
+                              CreatedAt: t.AddedAt,
+                              Stems: t.Stems.map(s => ({
+                                StemId: s.StemId,
+                                TrackId: s.TrackId,
+                                StemType: s.StemType,
+                                AudioUrl: s.AudioUrl
+                              }))
+                            };
+                            const tracksQueue = playlist ? playlist.Tracks.map(x => ({
+                              TrackId: x.TrackId,
+                              TrackTitle: x.TrackTitle,
+                              ArtistName: x.ArtistName,
+                              CoverUrl: x.CoverUrl,
+                              ExtractionStatus: 'Pronto',
+                              CreatedAt: x.AddedAt,
+                              Stems: x.Stems.map(s => ({
+                                StemId: s.StemId,
+                                TrackId: s.TrackId,
+                                StemType: s.StemType,
+                                AudioUrl: s.AudioUrl
+                              }))
+                            })) : [];
+                            await loadTrack(trackToPlay, playlist?.PlaylistId, undefined, tracksQueue);
+                            navigate('/daw');
                           }}
                           className={`font-bold text-sm truncate hover:underline cursor-pointer leading-tight ${
                             isCurrentTrack ? 'text-brand-green' : 'text-white'

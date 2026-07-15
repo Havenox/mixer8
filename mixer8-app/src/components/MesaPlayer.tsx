@@ -196,7 +196,10 @@ export const MesaPlayer: React.FC = () => {
             </div>
           </div>
           <div className="flex flex-col truncate max-w-[80px] xs:max-w-[120px] md:max-w-[150px]">
-            <span className="text-xs md:text-sm font-semibold text-white hover:underline cursor-pointer truncate leading-tight">
+            <span 
+              onClick={() => navigate('/daw')}
+              className="text-xs md:text-sm font-semibold text-white hover:underline cursor-pointer truncate leading-tight"
+            >
               {currentTrack.TrackTitle}
             </span>
             <span className="text-[10px] md:text-xs text-brand-gray/80 hover:text-white cursor-pointer truncate mt-0.5 leading-none">

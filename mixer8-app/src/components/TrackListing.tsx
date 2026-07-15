@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Play, Pause, Disc, Music, Plus, Loader2, Info, MoreVertical, MoreHorizontal 
 } from 'lucide-react';
@@ -31,6 +32,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
   const { CurrentUser } = useAuth();
   const { loadTrack, currentTrack, isPlaying, togglePlay } = usePlayer();
   const { openAddToPlaylist } = usePlaylists();
+  const navigate = useNavigate();
 
   const handlePlayClick = (track: ITrack) => {
     if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando')) return;
@@ -131,7 +133,14 @@ export const TrackListing: React.FC<TrackListingProps> = ({
                     </div>
                     <div className="flex flex-col min-w-0">
                       <span 
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando')) return;
+                          if (!isCurrentLoaded(track)) {
+                            await loadTrack(track, undefined, undefined, tracksQueue || tracks);
+                          }
+                          navigate('/daw');
+                        }}
                         className={`font-bold text-sm truncate cursor-pointer hover:underline ${isLoaded ? 'text-brand-green' : 'text-white'}`}
                       >
                         {track.TrackTitle}
@@ -266,7 +275,14 @@ export const TrackListing: React.FC<TrackListingProps> = ({
                   <div className="flex-1 min-w-0 flex flex-col justify-center">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span 
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando')) return;
+                          if (!isCurrentLoaded(track)) {
+                            await loadTrack(track, undefined, undefined, tracksQueue || tracks);
+                          }
+                          navigate('/daw');
+                        }}
                         className={`font-bold text-sm truncate cursor-pointer hover:underline leading-tight ${
                           isLoaded ? 'text-brand-green' : 'text-white'
                         }`}
@@ -388,7 +404,14 @@ export const TrackListing: React.FC<TrackListingProps> = ({
 
               <div className="flex flex-col gap-1 mb-2">
                 <span 
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando')) return;
+                    if (!isCurrentLoaded(track)) {
+                      await loadTrack(track, undefined, undefined, tracksQueue || tracks);
+                    }
+                    navigate('/daw');
+                  }}
                   className={`font-bold text-sm truncate cursor-pointer hover:underline ${isLoaded ? 'text-brand-green' : 'text-white'}`} 
                   title={track.TrackTitle}
                 >
