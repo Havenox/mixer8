@@ -105,12 +105,21 @@ export const DawView: React.FC = () => {
         canvas.height = height * dpr;
         ctx.scale(dpr, dpr);
 
-        ctx.clearRect(0, 0, width, height);
+        // Desenha fundo verde fosco (antes/depois do playhead)
+        const playheadX = duration > 0 ? (currentTime / duration) * width : 0;
+
+        // 1. Lado esquerdo (já reproduzido) - verde fosco mais aceso
+        ctx.fillStyle = '#155f2e';
+        ctx.fillRect(0, 0, playheadX, height);
+
+        // 2. Lado direito (não reproduzido) - verde fosco bem escuro/opaco
+        ctx.fillStyle = '#0d2716';
+        ctx.fillRect(playheadX, 0, width - playheadX, height);
 
         if (points.length === 0) {
-          // Linha central se não houver dados
-          ctx.strokeStyle = '#282828';
-          ctx.lineWidth = 1;
+          // Linha central preta se não houver dados
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = 1.5;
           ctx.beginPath();
           ctx.moveTo(0, height / 2);
           ctx.lineTo(width, height / 2);
@@ -118,37 +127,27 @@ export const DawView: React.FC = () => {
           return;
         }
 
-        const playheadX = duration > 0 ? (currentTime / duration) * width : 0;
-
-        // Desenha a forma de onda
-        const barWidth = 2;
-        const barGap = 1.5;
+        // Desenha a forma de onda (Barras pretas sólidas densas)
+        const barWidth = 1.5;
+        const barGap = 0.5;
         const totalBarWidth = barWidth + barGap;
         const maxBars = Math.floor(width / totalBarWidth);
 
-        // Desenha picos simétricos
+        // Desenha picos simétricos em preto
+        ctx.fillStyle = '#000000';
         for (let i = 0; i < maxBars; i++) {
           const pointIndex = Math.floor((i / maxBars) * points.length);
           const rawVal = points[pointIndex] || 0;
-          // Normaliza valor de picos (esperado de -32768 a 32767 ou normalizado positivo)
-          const absVal = Math.min(32767, Math.abs(rawVal));
-          const amplitude = (absVal / 32767) * (height * 0.42); // Máximo de 84% da altura
+          // Normaliza valor de picos (esperado de 0 a 100)
+          const absVal = Math.min(100, Math.abs(rawVal));
+          const amplitude = (absVal / 100.0) * (height * 0.42); // Máximo de 84% da altura
           
           const x = i * totalBarWidth;
           const topY = height / 2 - amplitude;
           const bottomY = height / 2 + amplitude;
 
-          // Define cor baseada se o tempo já foi percorrido pela playhead
-          if (x <= playheadX) {
-            ctx.fillStyle = '#1db954'; // Verde tocado
-          } else {
-            ctx.fillStyle = '#404040'; // Cinza não tocado
-          }
-
-          // Desenha barra arredondada
-          ctx.beginPath();
-          ctx.roundRect(x, topY, barWidth, bottomY - topY, 1);
-          ctx.fill();
+          // Desenha barra
+          ctx.fillRect(x, topY, barWidth, bottomY - topY);
         }
       });
     };
@@ -391,14 +390,14 @@ export const DawView: React.FC = () => {
           {/* Agulha de Playhead Vertical (Linha contínua cruzando a DAW) */}
           {duration > 0 && !loading && (
             <div 
-              className="absolute top-0 bottom-0 w-[1.5px] bg-red-500 shadow-[0_0_8px_#ef4444] pointer-events-none z-10"
+              className="absolute top-0 bottom-0 w-[1.5px] bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)] pointer-events-none z-10"
               style={{ 
                 left: `calc(240px + ${(currentTime / duration) * 100}% - 1px)`,
                 transition: isDraggingPlayhead.current ? 'none' : 'left 80ms linear'
               }}
             >
               {/* Alça Triangular da Agulha no Topo */}
-              <div className="absolute -top-1.5 -left-[5px] w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-red-500 shadow-md" />
+              <div className="absolute -top-1.5 -left-[5px] w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-white shadow-md" />
             </div>
           )}
 
