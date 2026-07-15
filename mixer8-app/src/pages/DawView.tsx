@@ -396,17 +396,29 @@ export const DawView: React.FC = () => {
         {/* Corpo Principal das Faixas (Scrollable) */}
         <div className="flex-1 overflow-y-auto relative">
           
-          {/* Agulha de Playhead Vertical (Linha contínua cruzando a DAW) */}
+          {/* Agulha de Playhead Vertical (Linha contínua cruzando a DAW - Delimitada à área de waveforms) */}
           {duration > 0 && !loading && (
             <div 
-              className="absolute top-0 bottom-0 w-[1.5px] bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)] pointer-events-none z-10"
-              style={{ 
-                left: `calc(240px + ${(currentTime / duration) * 100}% - 1px)`,
-                transition: isDraggingPlayhead.current ? 'none' : 'left 80ms linear'
-              }}
+              className="absolute left-[240px] right-0 top-0 bottom-0 pointer-events-none z-30"
             >
-              {/* Alça Triangular da Agulha no Topo */}
-              <div className="absolute -top-1.5 -left-[5px] w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-white shadow-md" />
+              <div 
+                className="absolute top-0 bottom-0 w-[1.5px] bg-white/45 pointer-events-none"
+                style={{ 
+                  left: `${(currentTime / duration) * 100}%`,
+                  transition: isDraggingPlayhead.current ? 'none' : 'left 80ms linear'
+                }}
+              >
+                {/* Cabeça grossa da agulha apontando para baixo (Estilo Moises/Audacity) */}
+                <div 
+                  className="absolute -top-1 bg-white border border-brand-gray/40 rounded-sm shadow-md"
+                  style={{ 
+                    width: '14px', 
+                    height: '16px', 
+                    left: '-6.25px',
+                    clipPath: 'polygon(0% 0%, 100% 0%, 100% 60%, 50% 100%, 0% 60%)' 
+                  }}
+                />
+              </div>
             </div>
           )}
 
@@ -498,7 +510,7 @@ export const DawView: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* PISTA DIREITA: Canvas de Waveform com fundo progressivo via HTML/CSS */}
+                  {/* PISTA DIREITA: Canvas de Waveform com fundo fosco sólido */}
                   <div 
                     onClick={(e) => {
                       if (!tracksTimelineRef.current || !duration) return;
@@ -507,19 +519,8 @@ export const DawView: React.FC = () => {
                       const percent = Math.max(0, Math.min(1.0, offsetX / rect.width));
                       seek(percent * duration);
                     }}
-                    className="flex-1 h-full relative cursor-pointer overflow-hidden bg-[#0d2716] select-none"
+                    className="flex-1 h-full relative cursor-pointer overflow-hidden bg-[#103d1e] select-none"
                   >
-                    {/* Lado esquerdo (já reproduzido) - verde fosco mais aceso */}
-                    {duration > 0 && (
-                      <div 
-                        className="absolute left-0 top-0 bottom-0 bg-[#155f2e] pointer-events-none"
-                        style={{ 
-                          width: `${(currentTime / duration) * 100}%`,
-                          transition: isDraggingPlayhead.current ? 'none' : 'width 80ms linear'
-                        }}
-                      />
-                    )}
-
                     {/* Linha Central sutil do track de fundo */}
                     <div className="absolute left-0 right-0 h-[1px] bg-brand-hover/10 top-1/2 z-10 pointer-events-none" />
                     
