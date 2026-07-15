@@ -355,6 +355,33 @@ export const DawView: React.FC = () => {
           </div>
         ) : null}
 
+        {/* Agulha de Playhead Vertical (Linha contínua cruzando a DAW - Por cima da régua e faixas) */}
+        {duration > 0 && !loading && (
+          <div 
+            className="absolute left-[240px] right-0 top-0 bottom-0 pointer-events-none z-30"
+          >
+            <div 
+              className="absolute top-0 bottom-0 w-[1.5px] bg-white/45 pointer-events-none"
+              style={{ 
+                left: `${(currentTime / duration) * 100}%`,
+                transition: isDraggingPlayhead.current ? 'none' : 'left 80ms linear'
+              }}
+            >
+              {/* Cabeça grossa da agulha apontando para baixo (Estilo Moises/Audacity) posicionada na régua */}
+              <div 
+                className="absolute bg-white border border-brand-gray/40 rounded-sm shadow-md"
+                style={{ 
+                  width: '14px', 
+                  height: '16px', 
+                  top: '10px',
+                  left: '-6.25px',
+                  clipPath: 'polygon(0% 0%, 100% 0%, 100% 60%, 50% 100%, 0% 60%)' 
+                }}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Linha do Tempo (Ruler de Compasso superior) */}
         <div className="h-9 border-b border-brand-hover flex relative select-none shrink-0" style={{ background: '#141414' }}>
           {/* Header de Canto (Alinhado com a largura do painel esquerdo) */}
@@ -395,32 +422,6 @@ export const DawView: React.FC = () => {
 
         {/* Corpo Principal das Faixas (Scrollable) */}
         <div className="flex-1 overflow-y-auto relative">
-          
-          {/* Agulha de Playhead Vertical (Linha contínua cruzando a DAW - Delimitada à área de waveforms) */}
-          {duration > 0 && !loading && (
-            <div 
-              className="absolute left-[240px] right-0 top-0 bottom-0 pointer-events-none z-30"
-            >
-              <div 
-                className="absolute top-0 bottom-0 w-[1.5px] bg-white/45 pointer-events-none"
-                style={{ 
-                  left: `${(currentTime / duration) * 100}%`,
-                  transition: isDraggingPlayhead.current ? 'none' : 'left 80ms linear'
-                }}
-              >
-                {/* Cabeça grossa da agulha apontando para baixo (Estilo Moises/Audacity) */}
-                <div 
-                  className="absolute -top-1 bg-white border border-brand-gray/40 rounded-sm shadow-md"
-                  style={{ 
-                    width: '14px', 
-                    height: '16px', 
-                    left: '-6.25px',
-                    clipPath: 'polygon(0% 0%, 100% 0%, 100% 60%, 50% 100%, 0% 60%)' 
-                  }}
-                />
-              </div>
-            </div>
-          )}
 
           {/* Renderização de Linhas (Tracks) */}
           <div className="flex flex-col">
@@ -519,7 +520,7 @@ export const DawView: React.FC = () => {
                       const percent = Math.max(0, Math.min(1.0, offsetX / rect.width));
                       seek(percent * duration);
                     }}
-                    className="flex-1 h-full relative cursor-pointer overflow-hidden bg-[#103d1e] select-none"
+                    className="flex-1 h-full relative cursor-pointer overflow-hidden bg-[#1db954] select-none"
                   >
                     {/* Linha Central sutil do track de fundo */}
                     <div className="absolute left-0 right-0 h-[1px] bg-brand-hover/10 top-1/2 z-10 pointer-events-none" />
