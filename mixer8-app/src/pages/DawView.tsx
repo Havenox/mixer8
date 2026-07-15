@@ -127,28 +127,45 @@ export const DawView: React.FC = () => {
           return;
         }
 
-        // Desenha a forma de onda (Barras pretas sólidas densas)
-        const barWidth = 1.5;
-        const barGap = 0.5;
-        const totalBarWidth = barWidth + barGap;
-        const maxBars = Math.floor(width / totalBarWidth);
-
-        // Desenha picos simétricos em preto
-        ctx.fillStyle = '#000000';
-        for (let i = 0; i < maxBars; i++) {
-          const pointIndex = Math.floor((i / maxBars) * points.length);
-          const rawVal = points[pointIndex] || 0;
-          // Normaliza valor de picos (esperado de 0 a 100)
+        // Desenha a forma de onda contínua sólida usando todos os pontos do banco
+        ctx.beginPath();
+        
+        // Caminho do envelope superior (da esquerda para a direita)
+        for (let i = 0; i < points.length; i++) {
+          const x = (i / (points.length - 1 || 1)) * width;
+          const rawVal = points[i] || 0;
           const absVal = Math.min(100, Math.abs(rawVal));
           const amplitude = (absVal / 100.0) * (height * 0.42); // Máximo de 84% da altura
+          const y = height / 2 - amplitude;
           
-          const x = i * totalBarWidth;
-          const topY = height / 2 - amplitude;
-          const bottomY = height / 2 + amplitude;
-
-          // Desenha barra
-          ctx.fillRect(x, topY, barWidth, bottomY - topY);
+          if (i === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
         }
+
+        // Caminho do envelope inferior (da direita para a esquerda)
+        for (let i = points.length - 1; i >= 0; i--) {
+          const x = (i / (points.length - 1 || 1)) * width;
+          const rawVal = points[i] || 0;
+          const absVal = Math.min(100, Math.abs(rawVal));
+          const amplitude = (absVal / 100.0) * (height * 0.42);
+          const y = height / 2 + amplitude;
+          ctx.lineTo(x, y);
+        }
+
+        ctx.closePath();
+        ctx.fillStyle = '#000000';
+        ctx.fill();
+
+        // Linha central preta fina cortando o meio da waveform
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, height / 2);
+        ctx.lineTo(width, height / 2);
+        ctx.stroke();
       });
     };
 
