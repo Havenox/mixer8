@@ -487,6 +487,7 @@ export const DawView: React.FC = () => {
                           value={volume}
                           onChange={(e) => setStemVolume(stemName, parseFloat(e.target.value))}
                           className="w-full fader-input appearance-none bg-transparent cursor-pointer"
+                          style={{ '--slider-progress': `${(volume / 1.5) * 100}%` } as React.CSSProperties}
                         />
                       </div>
                     </div>
@@ -566,13 +567,13 @@ export const DawView: React.FC = () => {
         /* Trilha */
         input[type="range"].fader-input::-webkit-slider-runnable-track {
           height: 3px;
-          background: #1e1e1e;
+          background: linear-gradient(to right, #1db954 0%, #1db954 var(--slider-progress, 0%), #1e1e1e var(--slider-progress, 0%), #1e1e1e 100%);
           border: 1px solid #282828;
           border-radius: 1px;
         }
         input[type="range"].fader-input::-moz-range-track {
           height: 3px;
-          background: #1e1e1e;
+          background: linear-gradient(to right, #1db954 0%, #1db954 var(--slider-progress, 0%), #1e1e1e var(--slider-progress, 0%), #1e1e1e 100%);
           border: 1px solid #282828;
           border-radius: 1px;
         }

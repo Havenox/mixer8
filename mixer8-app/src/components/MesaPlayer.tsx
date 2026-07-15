@@ -502,14 +502,15 @@ export const MesaPlayer: React.FC = () => {
                           <span className="text-brand-gray font-mono">{Math.round(volume * 100)}%</span>
                         </div>
                         <input 
-                          type="range" 
-                          min="0" 
-                          max="1.5" 
-                          step="0.05"
-                          value={volume}
-                          onChange={(e) => setStemVolume(stemName, parseFloat(e.target.value))}
-                          className="w-full accent-brand-green bg-brand-hover h-1 rounded-lg appearance-none cursor-pointer"
-                        />
+                           type="range" 
+                           min="0" 
+                           max="1.5" 
+                           step="0.05"
+                           value={volume}
+                           onChange={(e) => setStemVolume(stemName, parseFloat(e.target.value))}
+                           className="w-full accent-brand-green dynamic-progress h-1 rounded-lg appearance-none cursor-pointer"
+                           style={{ '--slider-progress': `${(volume / 1.5) * 100}%` } as React.CSSProperties}
+                         />
                       </div>
                     );
                   })}
@@ -946,7 +947,8 @@ export const MesaPlayer: React.FC = () => {
                           step="0.05"
                           value={volume}
                           onChange={(e) => setStemVolume(stemName, parseFloat(e.target.value))}
-                          className="w-full accent-brand-green bg-brand-hover h-1.5 rounded-lg appearance-none cursor-pointer"
+                          className="w-full accent-brand-green dynamic-progress h-1.5 rounded-lg appearance-none cursor-pointer"
+                          style={{ '--slider-progress': `${(volume / 1.5) * 100}%` } as React.CSSProperties}
                         />
                       </div>
                     );
