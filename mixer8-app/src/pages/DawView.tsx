@@ -529,15 +529,14 @@ export const DawView: React.FC = () => {
             >
               <ZoomIn className="w-4 h-4" />
             </button>
-            {zoomLevel > 1.0 && (
-              <button
-                onClick={handleZoomReset}
-                className="p-1.5 rounded text-brand-green hover:text-brand-green/80 transition-colors cursor-pointer text-[9px] font-black uppercase px-2"
-                title="Ajustar à Tela"
-              >
-                Ajustar
-              </button>
-            )}
+            <button
+              onClick={handleZoomReset}
+              disabled={zoomLevel === 1.0}
+              className="p-1.5 rounded text-brand-green hover:text-brand-green/80 disabled:text-brand-gray/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer text-[9px] font-black uppercase px-2 shrink-0"
+              title="Redefinir Zoom"
+            >
+              Redefinir
+            </button>
           </div>
 
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-black/20 border border-brand-hover rounded-md text-[10px] font-bold text-brand-green tracking-wide">
