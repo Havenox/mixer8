@@ -16,6 +16,7 @@ Configuramos a API ASP.NET Core para consumir e confiar nas informações de rot
 1. O Nginx já injetava de forma segura os cabeçalhos `X-Forwarded-For` (IP original do cliente) e `X-Forwarded-Proto` (protocolo da requisição original HTTP/HTTPS).
 2. Adicionamos o middleware **`UseForwardedHeaders`** no topo do pipeline HTTP do ASP.NET Core.
 3. Para contornar as restrições padrão do .NET que rejeitam encaminhamentos de proxies fora da rede loopback local (`127.0.0.1`), limpamos as coleções de proxies e redes conhecidas (`KnownProxies.Clear()` e `KnownIPNetworks.Clear()`), permitindo que a API processe os cabeçalhos transmitidos de qualquer IP do gateway Docker.
+4. **Suporte a Múltiplos Saltos (VPS / VPN)**: Como a infraestrutura roteia as conexões por uma VPS pública e uma VPN interna (onde o IP de origem chega na máquina local como o gateway `10.8.0.1`), o cabeçalho `X-Forwarded-For` contém múltiplos endereços (`IP_CLIENTE, 10.8.0.1`). Por padrão, o ASP.NET Core tem um limite de salto (`ForwardLimit`) igual a `1`, capturando apenas o último proxy (`10.8.0.1`). Definimos `ForwardLimit = null` para forçar o middleware a ler toda a cadeia de cabeçalhos da direita para a esquerda e obter o IP público real original do cliente.
 
 ## 🛠️ Implementação Técnica
 
@@ -23,6 +24,7 @@ Configuramos a API ASP.NET Core para consumir e confiar nas informações de rot
 * **[Program.cs](file:///g:/DEV/mixer8/mixer8-api/Program.cs)**:
   * Importado o namespace `Microsoft.AspNetCore.HttpOverrides`.
   * Registrado e ativado o middleware de cabeçalhos encaminhados (`UseForwardedHeaders`) no início do pipeline com suporte a `X-Forwarded-For` e `X-Forwarded-Proto`.
+  * Definido `ForwardLimit = null` para processar múltiplos hops de proxy reverso e VPN.
   * Limpas as restrições de redes e proxies locais com `KnownIPNetworks.Clear()` e `KnownProxies.Clear()`, adaptando a aplicação para o ecossistema Docker.
 
 ## 🎯 Impacto e Resultado
