@@ -358,7 +358,7 @@ export const DawView: React.FC = () => {
         {/* Agulha de Playhead Vertical (Linha contínua cruzando a DAW - Por cima da régua e faixas) */}
         {duration > 0 && !loading && (
           <div 
-            className="absolute left-[240px] right-0 top-0 bottom-0 pointer-events-none z-30"
+            className="absolute left-[264px] right-6 top-0 bottom-0 pointer-events-none z-30"
           >
             <div 
               className="absolute top-0 bottom-0 w-[1.5px] bg-white/45 pointer-events-none"
@@ -383,9 +383,9 @@ export const DawView: React.FC = () => {
         )}
 
         {/* Linha do Tempo (Ruler de Compasso superior) */}
-        <div className="h-9 border-b border-brand-hover flex relative select-none shrink-0" style={{ background: '#141414' }}>
+        <div className="h-9 border-b border-brand-hover flex relative select-none shrink-0 px-6" style={{ background: '#141414' }}>
           {/* Header de Canto (Alinhado com a largura do painel esquerdo) */}
-          <div className="w-[240px] border-r border-brand-hover shrink-0 flex items-center px-4 text-[9px] font-black text-brand-gray tracking-wider uppercase">
+          <div className="w-[240px] border-r border-brand-hover shrink-0 flex items-center pr-4 text-[9px] font-black text-brand-gray tracking-wider uppercase">
             Canais / Pistas
           </div>
           
@@ -421,10 +421,10 @@ export const DawView: React.FC = () => {
         </div>
 
         {/* Corpo Principal das Faixas (Scrollable) */}
-        <div className="flex-1 overflow-y-auto relative">
+        <div className="flex-1 overflow-y-auto relative px-6">
 
           {/* Renderização de Linhas (Tracks) */}
-          <div className="flex flex-col gap-2 py-3 pr-4">
+          <div className="flex flex-col gap-2 py-3">
             {sortedStems.map((stem) => {
               const stemName = stem.StemType;
               const volume = stemsVolume[stemName] ?? (stemName === 'Metrônomo' ? 0.0 : 1.0);
