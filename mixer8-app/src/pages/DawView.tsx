@@ -82,7 +82,7 @@ export const DawView: React.FC = () => {
     return type === 'voz' || type === 'vocal' || type === 'vocais' || type === 'baixo' || type === 'metrônomo';
   };
 
-  // Lógica de Renderização das Waveforms nos Canvas
+  // Lógica de Renderização das Waveforms nos Canvas (Estática)
   useEffect(() => {
     if (loading || Object.keys(waveforms).length === 0 || !currentTrack) return;
 
@@ -105,16 +105,8 @@ export const DawView: React.FC = () => {
         canvas.height = height * dpr;
         ctx.scale(dpr, dpr);
 
-        // Desenha fundo verde fosco (antes/depois do playhead)
-        const playheadX = duration > 0 ? (currentTime / duration) * width : 0;
-
-        // 1. Lado esquerdo (já reproduzido) - verde fosco mais aceso
-        ctx.fillStyle = '#155f2e';
-        ctx.fillRect(0, 0, playheadX, height);
-
-        // 2. Lado direito (não reproduzido) - verde fosco bem escuro/opaco
-        ctx.fillStyle = '#0d2716';
-        ctx.fillRect(playheadX, 0, width - playheadX, height);
+        // Fundo transparente
+        ctx.clearRect(0, 0, width, height);
 
         if (points.length === 0) {
           // Linha central preta se não houver dados
@@ -177,7 +169,7 @@ export const DawView: React.FC = () => {
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [waveforms, currentTime, duration, loading, currentTrack]);
+  }, [waveforms, loading, currentTrack]);
 
   // Lógica de Seek ao clicar/arrastar na timeline
   const handleTimelineInteraction = (clientX: number) => {
@@ -506,7 +498,7 @@ export const DawView: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* PISTA DIREITA: Canvas de Waveform */}
+                  {/* PISTA DIREITA: Canvas de Waveform com fundo progressivo via HTML/CSS */}
                   <div 
                     onClick={(e) => {
                       if (!tracksTimelineRef.current || !duration) return;
@@ -515,13 +507,24 @@ export const DawView: React.FC = () => {
                       const percent = Math.max(0, Math.min(1.0, offsetX / rect.width));
                       seek(percent * duration);
                     }}
-                    className="flex-1 h-full relative cursor-pointer bg-[#0f0f0f]/40 hover:bg-[#141414]/30 transition-all select-none"
+                    className="flex-1 h-full relative cursor-pointer overflow-hidden bg-[#0d2716] select-none"
                   >
+                    {/* Lado esquerdo (já reproduzido) - verde fosco mais aceso */}
+                    {duration > 0 && (
+                      <div 
+                        className="absolute left-0 top-0 bottom-0 bg-[#155f2e] pointer-events-none"
+                        style={{ 
+                          width: `${(currentTime / duration) * 100}%`,
+                          transition: isDraggingPlayhead.current ? 'none' : 'width 80ms linear'
+                        }}
+                      />
+                    )}
+
                     {/* Linha Central sutil do track de fundo */}
-                    <div className="absolute left-0 right-0 h-[1px] bg-brand-hover/10 top-1/2" />
+                    <div className="absolute left-0 right-0 h-[1px] bg-brand-hover/10 top-1/2 z-10 pointer-events-none" />
                     
                     {/* Linhas de Grade Surtidas de Fundo */}
-                    <div className="absolute inset-0 flex justify-between pointer-events-none opacity-[0.015]">
+                    <div className="absolute inset-0 flex justify-between pointer-events-none opacity-[0.015] z-10">
                       <div className="border-l border-white h-full" />
                       <div className="border-l border-white h-full" style={{ left: '25%' }} />
                       <div className="border-l border-white h-full" style={{ left: '50%' }} />
@@ -531,7 +534,7 @@ export const DawView: React.FC = () => {
 
                     <canvas 
                       id={`canvas-${stemName}`}
-                      className="w-full h-full block relative z-0"
+                      className="w-full h-full block relative z-20 bg-transparent"
                     />
                   </div>
 
