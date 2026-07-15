@@ -32,6 +32,7 @@ interface IPlayerContext {
   stemsVolume: Record<string, number>;
   stemsMute: Record<string, boolean>;
   stemsSolo: Record<string, boolean>;
+  stemsPan: Record<string, number>;
   masterVolume: number;
   currentQueue: ITrack[];
   loadTrack: (track: ITrack | null, playlistId?: string, albumId?: string, tracksQueue?: ITrack[]) => void;
@@ -40,6 +41,7 @@ interface IPlayerContext {
   setStemVolume: (type: string, volume: number) => void;
   toggleStemMute: (type: string) => void;
   toggleStemSolo: (type: string) => void;
+  setStemPan: (type: string, pan: number) => void;
   setMasterVolume: (volume: number) => void;
   downloadTrackForOffline: (track: ITrack) => Promise<void>;
   isTrackDownloaded: (track: ITrack) => Promise<boolean>;
@@ -270,6 +272,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const saved = localStorage.getItem('mixer8_stems_solo');
     return saved !== null ? JSON.parse(saved) : {};
   });
+  const [stemsPan, setStemsPan] = useState<Record<string, number>>(() => {
+    const saved = localStorage.getItem('mixer8_stems_pan');
+    return saved !== null ? JSON.parse(saved) : {};
+  });
   const [masterVolume, setMasterVolumeState] = useState(() => {
     const saved = localStorage.getItem('mixer8_master_volume');
     return saved !== null ? parseFloat(saved) : 1.0;
@@ -279,12 +285,14 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const stemsVolumeRef = useRef<Record<string, number>>(stemsVolume);
   const stemsMuteRef = useRef<Record<string, boolean>>(stemsMute);
   const stemsSoloRef = useRef<Record<string, boolean>>(stemsSolo);
+  const stemsPanRef = useRef<Record<string, number>>(stemsPan);
 
   // Sincroniza referências com os estados a cada ciclo de render
   useEffect(() => {
     stemsVolumeRef.current = stemsVolume;
     stemsMuteRef.current = stemsMute;
     stemsSoloRef.current = stemsSolo;
+    stemsPanRef.current = stemsPan;
   });
 
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -295,6 +303,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     audio: HTMLAudioElement;
     gainNode: GainNode;
     sourceNode: MediaElementAudioSourceNode;
+    pannerNode?: StereoPannerNode;
     type: string;
   }[]>([]);
 
@@ -436,6 +445,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         URL.revokeObjectURL(src);
       }
       item.gainNode.disconnect();
+      if (item.pannerNode) {
+        item.pannerNode.disconnect();
+      }
       item.sourceNode.disconnect();
     });
     activeStemsRef.current = [];
@@ -739,12 +751,30 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const sourceNode = ctx.createMediaElementSource(audio);
       const gainNode = ctx.createGain();
       
-      // Conecta o fluxo: Áudio -> Volume Canal -> Volume Master -> Saída física
+      let pannerNode: StereoPannerNode | undefined;
+      try {
+        pannerNode = ctx.createStereoPanner();
+        const panValue = stemsPanRef.current[stemType] ?? 0.0;
+        pannerNode.pan.value = panValue;
+      } catch (err) {
+        console.warn(`[PLAYER-AUDIO] StereoPanner não suportado para stem ${stemType}:`, err);
+      }
+      
+      // Conecta o fluxo: Áudio -> Volume Canal -> Stereo Panner (se houver) -> Volume Master -> Saída física
       sourceNode.connect(gainNode);
-      if (masterGainNodeRef.current) {
-        gainNode.connect(masterGainNodeRef.current);
+      if (pannerNode) {
+        gainNode.connect(pannerNode);
+        if (masterGainNodeRef.current) {
+          pannerNode.connect(masterGainNodeRef.current);
+        } else {
+          pannerNode.connect(ctx.destination);
+        }
       } else {
-        gainNode.connect(ctx.destination);
+        if (masterGainNodeRef.current) {
+          gainNode.connect(masterGainNodeRef.current);
+        } else {
+          gainNode.connect(ctx.destination);
+        }
       }
 
       // Inicialmente ganho = 0 por conta da fase de sincronização silenciosa
@@ -754,6 +784,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         audio,
         gainNode,
         sourceNode,
+        pannerNode,
         type: stemType
       });
 
@@ -1223,6 +1254,20 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [currentTime, duration]);
 
+  const setStemPan = (type: string, pan: number) => {
+    const clampedPan = Math.max(-1.0, Math.min(1.0, pan));
+    setStemsPan(prev => {
+      const next = { ...prev, [type]: clampedPan };
+      localStorage.setItem('mixer8_stems_pan', JSON.stringify(next));
+      return next;
+    });
+
+    const target = activeStemsRef.current.find(s => s.type === type);
+    if (target && target.pannerNode) {
+      target.pannerNode.pan.value = clampedPan;
+    }
+  };
+
   return (
     <PlayerContext.Provider
       value={{
@@ -1233,6 +1278,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         stemsVolume,
         stemsMute,
         stemsSolo,
+        stemsPan,
         masterVolume,
         loadTrack,
         togglePlay,
@@ -1240,6 +1286,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setStemVolume,
         toggleStemMute,
         toggleStemSolo,
+        setStemPan,
         setMasterVolume,
         downloadTrackForOffline,
         isTrackDownloaded,

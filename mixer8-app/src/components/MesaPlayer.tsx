@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
 import { 
   Play, Pause, SkipBack, SkipForward, Volume2, 
   Sliders, RefreshCw, Disc, Layers, Music, ChevronDown,
-  Shuffle, Repeat, Repeat1, Clock
+  Shuffle, Repeat, Repeat1, Clock, Activity
 } from 'lucide-react';
 
 import { SERVER_URL } from '../config';
@@ -35,6 +36,9 @@ export const MesaPlayer: React.FC = () => {
     toggleRepeatMode,
     transpose
   } = usePlayer();
+
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const [chords, setChords] = useState<IChordBeat[] | null>(null);
 
@@ -344,6 +348,25 @@ export const MesaPlayer: React.FC = () => {
             title="Letras e Cifras"
           >
             <Music className="w-4 h-4 shrink-0" />
+          </button>
+
+          {/* Botão de Estúdio DAW (PC/Tablet) */}
+          <button 
+            onClick={() => {
+              if (location.pathname === '/daw') {
+                navigate(-1);
+              } else {
+                navigate('/daw');
+              }
+            }}
+            className={`hidden md:flex items-center justify-center p-2 rounded-full border transition-all cursor-pointer shrink-0 ${
+              location.pathname === '/daw'
+                ? 'bg-brand-green/10 border-brand-green text-brand-green shadow-md font-bold'
+                : 'border-brand-hover text-brand-gray hover:text-white hover:border-white'
+            }`}
+            title="Estúdio DAW (PC/Tablet)"
+          >
+            <Activity className="w-4 h-4 shrink-0" />
           </button>
 
           {/* Barra de volume geral real com Bolinha Premium */}
