@@ -14,6 +14,7 @@ Por fim, a navegação para o estúdio exigia clicar explicitamente no ícone da
 1. **Agulha a 60fps com Interpolação e DOM Direta**: Implementamos um loop de renderização visual reativo via **`requestAnimationFrame`** diretamente no elemento DOM da playhead (`playheadLineRef.current.style.left`). Calculamos a interpolação temporal de alta frequência com base no tempo de execução real do navegador (`performance.now()`), resincronizando com o estado do React no evento `'timeupdate'` para curar qualquer drift/atraso temporal. Isso eliminou as re-renderizações do React e manteve o consumo de CPU em 0%.
 2. **Redesenho do Canvas em Frames de Layout**: Vinculamos o `zoomLevel` ao `useEffect` que renderiza o canvas e encapsulamos o cálculo de dimensões em `requestAnimationFrame`. Com isso, a leitura de `offsetWidth` ocorre após o reflow do layout do navegador, redimensionando fisicamente o backing store (`canvas.width`) na escala milimétrica exata para desenhar os picos vetoriais com nitidez absoluta sob qualquer fator de zoom (de `1.0x` a `16.0x`).
 3. **Mapeamento de Atalhos Globais nos Títulos**: Mapeamos todas as instâncias de títulos de música com classe `hover:underline` e adicionamos eventos que carregam a música no player context (`loadTrack`) e redirecionam o usuário diretamente para o estúdio (`navigate('/daw')`).
+4. **Painel de Zoom Estabilizado**: Substituímos a exibição condicional do botão de reset por um botão estático "Redefinir" (desabilitado em `1.0x`). Isso garante largura fixa do container de controles de zoom, impedindo deslocamentos horizontais inesperados que causavam cliques erráticos no botão `+` (Zoom In).
 
 ## 🛠️ Implementação Técnica
 
@@ -22,6 +23,7 @@ Por fim, a navegação para o estúdio exigia clicar explicitamente no ícone da
   * Declarado ref `playheadLineRef` para acesso direto à DOM da playhead vertical.
   * Adicionado loop `requestAnimationFrame` que roda durante `isPlaying === true` calculando delta de frames e atualizando a propriedade `left` da agulha de forma instantânea.
   * Encapsulado `renderAllCanvas` em `requestAnimationFrame` e adicionado `zoomLevel` como gatilho do efeito de renderização da onda.
+  * Substituída a exibição condicional do botão de reset por um botão "Redefinir" persistente na barra de ferramentas.
 * **[TrackListing.tsx](file:///g:/DEV/mixer8/mixer8-app/src/components/TrackListing.tsx)**:
   * Importado `useNavigate` e configurado o clique no título da faixa (visualizações desktop, mobile e grade) para chamar `loadTrack` e abrir a DAW.
 * **[PlaylistDetail.tsx](file:///g:/DEV/mixer8/mixer8-app/src/pages/PlaylistDetail.tsx)**:
