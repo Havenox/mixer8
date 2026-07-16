@@ -988,34 +988,6 @@ const PlaylistRedirect: React.FC = () => {
 };
 
 export const App: React.FC = () => {
-  useEffect(() => {
-    const trackAccess = async () => {
-      try {
-        // Post access details to the webhook. The client IP will be automatically
-        // captured by Cloudflare/n8n in headers like cf-connecting-ip or x-forwarded-for.
-        await fetch('https://n8n.impulse8.com.br/webhook/access', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            userAgent: navigator.userAgent,
-            language: navigator.language,
-            referrer: document.referrer || 'Direto',
-            url: window.location.href,
-            screenResolution: `${window.screen.width}x${window.screen.height}`,
-            timestamp: new Date().toISOString()
-          }),
-        });
-      } catch (error) {
-        // Fail silently so it doesn't disrupt user experience (e.g. if blocked by AdBlocker)
-        console.warn('Analytics tracking failed or was blocked:', error);
-      }
-    };
-
-    trackAccess();
-  }, []);
-
   return (
     <AuthProvider>
       <PlayerProvider>

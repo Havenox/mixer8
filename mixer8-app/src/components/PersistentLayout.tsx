@@ -10,13 +10,43 @@ import {
   ChevronLeft, ChevronRight
 } from 'lucide-react';
 
-import { SERVER_URL } from '../config';
+import { SERVER_URL, API_URL } from '../config';
 
 export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { IsAuthenticated, CurrentUser, Logout, openLoginModal } = useAuth();
+  const { IsAuthenticated, CurrentUser, Logout, openLoginModal, Token } = useAuth();
   const { currentTrack } = usePlayer();
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Envia as estatísticas de acesso de carregamento inicial para o backend
+  useEffect(() => {
+    const trackAccess = async () => {
+      try {
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        if (Token) {
+          headers['Authorization'] = `Bearer ${Token}`;
+        }
+
+        await fetch(`${API_URL}/System/Access`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            UserAgent: navigator.userAgent,
+            Language: navigator.language,
+            Referrer: document.referrer || 'Direto',
+            Url: window.location.href,
+            ScreenResolution: `${window.screen.width}x${window.screen.height}`
+          }),
+        });
+      } catch (error) {
+        console.warn('Analytics tracking failed:', error);
+      }
+    };
+
+    trackAccess();
+  }, []);
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
