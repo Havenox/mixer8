@@ -834,12 +834,34 @@ export const Admin: React.FC = () => {
                                   {user.Email.charAt(0).toUpperCase()}
                                 </div>
                               )}
-                              <div className="flex flex-col gap-1.5 min-w-0 text-xs">
+                              <div className="flex flex-col gap-1.5 min-w-0 text-xs flex-1">
                                 <span className="text-white text-sm font-black truncate">{user.FirstName || user.LastName ? `${user.FirstName || ''} ${user.LastName || ''}` : 'Sem Nome Preenchido'}</span>
                                 <span className="text-brand-gray truncate">E-mail: <strong className="text-white">{user.Email}</strong></span>
                                 <span className="text-brand-gray truncate">Nome de Usuário: <strong className="text-white">@{user.UserName || 'N/A'}</strong></span>
                                 {user.Phone && <span className="text-brand-gray">Telefone: <strong className="text-white">{user.Phone}</strong></span>}
                                 {user.Bio && <span className="text-brand-gray italic line-clamp-2">Bio: "{user.Bio}"</span>}
+
+                                {/* Informações de IP e Histórico */}
+                                <div className="mt-2 pt-2 border-t border-brand-hover/50 flex flex-col gap-1">
+                                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
+                                    <span className="text-brand-gray truncate">IP Cadastro: <strong className="text-brand-green font-mono">{user.RegistrationIp || 'Desconhecido'}</strong></span>
+                                    <span className="text-brand-gray truncate">Último Login: <strong className="text-brand-green font-mono">{user.LastLoginIp || 'N/A'}</strong> {user.LastLoginAt && <span className="text-[10px] text-brand-gray font-normal">({formatTimestamp(user.LastLoginAt)})</span>}</span>
+                                  </div>
+
+                                  {user.AccessedIps && user.AccessedIps.length > 0 && (
+                                    <div className="mt-1 flex flex-col gap-1">
+                                      <span className="text-[10px] font-bold text-brand-gray uppercase tracking-wider">Histórico de IPs ({user.AccessedIps.length}):</span>
+                                      <div className="flex flex-wrap gap-1.5 max-h-[90px] overflow-y-auto pr-1">
+                                        {user.AccessedIps.map((ipLog: any, idx: number) => (
+                                          <span key={idx} className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-black/60 border border-brand-hover rounded text-[10px] font-mono text-zinc-300" title={`Primeira visita: ${formatTimestamp(ipLog.FirstSeenAt)} | Última visita: ${formatTimestamp(ipLog.LastSeenAt)}`}>
+                                            <span className="text-brand-green font-bold">{ipLog.Ip}</span>
+                                            <span className="text-[9px] text-brand-gray bg-brand-hover px-1 rounded font-sans">{ipLog.AccessCount}x</span>
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
 
