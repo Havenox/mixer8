@@ -12,7 +12,7 @@ namespace Mixer8.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class SystemController(Mixer8DbContext dbContext) : ControllerBase
+public class SystemController(Mixer8DbContext dbContext, Microsoft.AspNetCore.Hosting.IWebHostEnvironment webHostEnvironment) : ControllerBase
 {
     private static readonly HttpClient HttpClientInstance = new();
 
@@ -158,6 +158,78 @@ public class SystemController(Mixer8DbContext dbContext) : ControllerBase
         {
             return StatusCode(500, new { ErrorMessage = $"Falha ao disparar requisição HTTP para o webhook: {ex.Message}" });
         }
+    }
+
+    [HttpPost("BackfillMusicMetadata")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> BackfillMusicMetadata()
+    {
+        var webRootPath = webHostEnvironment.WebRootPath ?? System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "wwwroot");
+        var stemsDir = System.IO.Path.Combine(webRootPath, "stems");
+
+        if (!System.IO.Directory.Exists(stemsDir))
+        {
+            return Ok(new { UpdatedCount = 0, Message = "Diretório de stems não localizado." });
+        }
+
+        var unanalyzedTracks = await dbContext.Tracks
+            .Where(t => t.ExtractionStatus == "Pronto" && (t.Bpm == null || t.Key == null))
+            .ToListAsync();
+
+        int updatedCount = 0;
+        var processedDetails = new System.Collections.Generic.List<object>();
+
+        foreach (var track in unanalyzedTracks)
+        {
+            var chordsFilePath = System.IO.Path.Combine(stemsDir, track.TrackId.ToString(), "chords.json");
+            if (!System.IO.File.Exists(chordsFilePath)) continue;
+
+            try
+            {
+                var chordsJson = await System.IO.File.ReadAllTextAsync(chordsFilePath);
+                var (bpm, key) = Mixer8.Api.Helpers.MusicAnalysisHelper.AnalyzeChordsJson(chordsJson);
+
+                if (bpm.HasValue || !string.IsNullOrEmpty(key))
+                {
+                    track.Bpm = bpm;
+                    track.Key = key;
+                    updatedCount++;
+
+                    processedDetails.Add(new
+                    {
+                        track.TrackId,
+                        track.TrackTitle,
+                        Bpm = bpm,
+                        Key = key
+                    });
+
+                    await dbContext.LogEventAsync(
+                        "System",
+                        "Info",
+                        $"Sincronização 1x: Música '{track.TrackTitle}' calculada com Tom {key ?? "N/A"} e {bpm?.ToString() ?? "N/A"} BPM.",
+                        $"TrackId: {track.TrackId} | Key: {key} | Bpm: {bpm}",
+                        track.TrackId,
+                        null
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Backfill] Erro ao processar chords.json para {track.TrackTitle}: {ex.Message}");
+            }
+        }
+
+        if (updatedCount > 0)
+        {
+            await dbContext.SaveChangesAsync();
+        }
+
+        return Ok(new
+        {
+            UpdatedCount = updatedCount,
+            TotalChecked = unanalyzedTracks.Count,
+            ProcessedTracks = processedDetails
+        });
     }
 }
 

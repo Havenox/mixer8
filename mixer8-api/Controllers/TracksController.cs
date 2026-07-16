@@ -1166,6 +1166,27 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             track.ExtractionStatus = "Pronto";
             track.Duration = maxDuration;
 
+            // Tenta analisar o chords.json se extraído para definir Tom (Key) e BPM
+            var chordsFilePath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "stems", track.TrackId.ToString(), "chords.json");
+            if (System.IO.File.Exists(chordsFilePath))
+            {
+                try
+                {
+                    var chordsJson = await System.IO.File.ReadAllTextAsync(chordsFilePath);
+                    var (bpm, key) = Mixer8.Api.Helpers.MusicAnalysisHelper.AnalyzeChordsJson(chordsJson);
+                    if (bpm.HasValue || !string.IsNullOrEmpty(key))
+                    {
+                        track.Bpm = bpm;
+                        track.Key = key;
+                        await dbContext.LogEventAsync("API", "Info", $"Metadados calculados para a música '{track.TrackTitle}': Tom {key ?? "N/A"}, {bpm?.ToString() ?? "N/A"} BPM.", $"TrackId: {track.TrackId} | Key: {key} | Bpm: {bpm}", track.TrackId, track.UploadedBy);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[API] Falha ao analisar chords.json para {track.TrackTitle}: {ex.Message}");
+                }
+            }
+
             await dbContext.SaveChangesAsync();
 
             var stemsSummary = string.Join(", ", stemsList.Select(s => s.StemType));
