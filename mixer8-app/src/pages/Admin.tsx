@@ -50,6 +50,12 @@ export const Admin: React.FC = () => {
   const [settingsSuccess, setSettingsSuccess] = useState(false);
   const [settingsError, setSettingsError] = useState('');
 
+  // Estados para webhook de monitoramento de acessos
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [isTestingWebhook, setIsTestingWebhook] = useState(false);
+  const [testSuccess, setTestSuccess] = useState(false);
+  const [testError, setTestError] = useState('');
+
   // Estados dos logs de sistema
   const [logs, setLogs] = useState<any[]>([]);
   const [totalLogs, setTotalLogs] = useState(0);
@@ -236,7 +242,11 @@ export const Admin: React.FC = () => {
   const fetchSystemSettings = async () => {
     if (!Token) return;
     try {
-      const res = await fetch(`${API_URL}/SystemSettings`);
+      const res = await fetch(`${API_URL}/SystemSettings/AdminSettings`, {
+        headers: {
+          'Authorization': `Bearer ${Token}`
+        }
+      });
       if (res.ok) {
         const data = await res.json();
         const allowedRolesStr = data.PremiumFeature_DownloadOffline || 'Admin,Moderator,PaidUser';
@@ -262,6 +272,7 @@ export const Admin: React.FC = () => {
         
         setOfflineRoles(standardMap);
         setCustomRolesText(custom.join(', '));
+        setWebhookUrl(data.AccessWebhookUrl || '');
       }
     } catch {
       // Ignora falha silenciosa
@@ -411,7 +422,10 @@ export const Admin: React.FC = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${Token}`
         },
-        body: JSON.stringify({ PremiumFeature_DownloadOffline: value })
+        body: JSON.stringify({ 
+          PremiumFeature_DownloadOffline: value,
+          AccessWebhookUrl: webhookUrl.trim()
+        })
       });
 
       if (res.ok) {
@@ -426,6 +440,36 @@ export const Admin: React.FC = () => {
       setSettingsError('Erro de conexão ao tentar salvar configurações do sistema.');
     } finally {
       setIsSavingSettings(false);
+    }
+  };
+
+  const handleTestWebhook = async () => {
+    if (!Token || !webhookUrl.trim()) return;
+    setIsTestingWebhook(true);
+    setTestError('');
+    setTestSuccess(false);
+
+    try {
+      const res = await fetch(`${API_URL}/System/TestWebhook`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${Token}`
+        },
+        body: JSON.stringify({ WebhookUrl: webhookUrl.trim() })
+      });
+
+      if (res.ok) {
+        setTestSuccess(true);
+        setTimeout(() => setTestSuccess(false), 3000);
+      } else {
+        const errorData = await res.json();
+        setTestError(errorData.ErrorMessage || 'Falha ao testar webhook.');
+      }
+    } catch {
+      setTestError('Erro de conexão ao testar webhook.');
+    } finally {
+      setIsTestingWebhook(false);
     }
   };
 
@@ -621,6 +665,44 @@ export const Admin: React.FC = () => {
                   disabled={isSavingSettings}
                   className="w-full bg-black border border-brand-hover rounded p-2.5 text-brand-green focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green"
                 />
+              </div>
+
+              {/* Webhook Configuration Section */}
+              <div className="flex flex-col gap-1.5 mt-4 border-t border-brand-hover pt-4">
+                <span className="text-xs font-bold text-white flex items-center gap-2">
+                  🔗 Webhook de Monitoramento de Acessos
+                </span>
+                <p className="text-[11px] text-brand-gray -mt-1 leading-normal">
+                  URL para onde a API enviará uma notificação em tempo real (POST JSON) a cada novo acesso à plataforma (ex: n8n, Zapier, Webhook).
+                </p>
+                <div className="flex gap-2 mt-1">
+                  <input 
+                    type="text"
+                    value={webhookUrl}
+                    onChange={(e) => setWebhookUrl(e.target.value)}
+                    placeholder="https://n8n.seuservidor.com/webhook/access"
+                    disabled={isSavingSettings || isTestingWebhook}
+                    className="flex-1 bg-black border border-brand-hover rounded p-2.5 text-brand-green focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleTestWebhook}
+                    disabled={isSavingSettings || isTestingWebhook || !webhookUrl.trim()}
+                    className="px-4 bg-brand-hover border border-brand-border text-white text-xs font-bold rounded hover:bg-brand-border active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    {isTestingWebhook ? 'Testando...' : 'Testar Webhook'}
+                  </button>
+                </div>
+                {testSuccess && (
+                  <span className="text-[11px] text-brand-green font-semibold mt-0.5">
+                    ✓ Webhook de teste disparado com sucesso! Verifique seu integrador.
+                  </span>
+                )}
+                {testError && (
+                  <span className="text-[11px] text-red-400 font-semibold mt-0.5">
+                    ⚠ {testError}
+                  </span>
+                )}
               </div>
             </div>
 
