@@ -206,11 +206,11 @@ export const MesaPlayer: React.FC = () => {
               {currentTrack.ArtistName}
             </span>
           </div>
-          <div className={`hidden sm:flex ${isPlaying && currentChord ? 'flex-col gap-1 items-start justify-center' : 'items-center justify-center'} shrink-0`}>
+          <div className={`hidden sm:flex ${currentChord ? 'flex-col gap-1 items-start justify-center' : 'items-center justify-center'} shrink-0`}>
             <div className="px-2 py-0.5 bg-brand-hover text-[9px] text-brand-green font-bold rounded uppercase tracking-wider border border-brand-green/20 select-none">
               {currentTrack.Stems?.length || 0} Stems
             </div>
-            {isPlaying && currentChord && (
+            {currentChord && (
               <div className="px-1.5 py-0.5 bg-brand-green/10 text-[9px] text-brand-green font-bold rounded tracking-wider border border-brand-green/30 select-none">
                 {currentChord}
               </div>
@@ -608,7 +608,7 @@ export const MesaPlayer: React.FC = () => {
               <span className="text-[10px] text-brand-gray/80 truncate">
                 {currentTrack.ArtistName}
               </span>
-              {isPlaying && currentChord && (
+              {currentChord && (
                 <span className="px-1.5 py-0.5 bg-brand-green/10 text-[8px] text-brand-green font-bold rounded tracking-wider border border-brand-green/30 select-none shrink-0 leading-none">
                   {currentChord}
                 </span>
@@ -690,7 +690,7 @@ export const MesaPlayer: React.FC = () => {
                 <p className="text-sm text-brand-gray hover:text-white cursor-pointer truncate select-text">
                   {currentTrack.ArtistName}
                 </p>
-                {isPlaying && currentChord && (
+                {currentChord && (
                   <span className="px-1.5 py-0.5 bg-brand-green/10 text-[9px] text-brand-green font-bold rounded tracking-wider border border-brand-green/30 select-none shrink-0 leading-none">
                     {currentChord}
                   </span>
