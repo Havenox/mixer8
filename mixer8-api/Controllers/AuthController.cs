@@ -67,6 +67,8 @@ public class AuthController(Mixer8DbContext dbContext, IConfiguration configurat
             UpdatedAt = DateTime.UtcNow
         };
 
+        var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown_ip";
+
         var userProfile = new UserProfile
         {
             UserProfileId = Guid.NewGuid(),
@@ -74,17 +76,21 @@ public class AuthController(Mixer8DbContext dbContext, IConfiguration configurat
             UserName = normalizedUserName,
             FirstName = null,
             LastName = null,
+            RegistrationIp = clientIp,
+            LastLoginIp = clientIp,
+            LastLoginAt = DateTime.UtcNow,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
             Preferences = new UserProfilePreferences()
         };
+        Mixer8DbContext.TrackUserIp(userProfile, clientIp);
 
         dbContext.Users.Add(user);
         dbContext.UserRoles.Add(userRole);
         dbContext.UserProfiles.Add(userProfile);
         await dbContext.SaveChangesAsync();
 
-        await dbContext.LogEventAsync("Auth", "Info", $"Novo usuário registrado: '{userProfile.UserName}' ({user.Email}).", null, null, user.UserId);
+        await dbContext.LogEventAsync("Auth", "Info", $"Novo usuário registrado: '{userProfile.UserName}' ({user.Email}).", $"IP: {clientIp}", null, user.UserId);
 
         var secret = configuration["JWT_SECRET"] ?? "sua_chave_secreta_jwt_aqui_minimo_32_caracteres";
         var expirationDays = Convert.ToInt32(configuration["JWT_EXPIRATION_DAYS"] ?? "7");
@@ -116,6 +122,15 @@ public class AuthController(Mixer8DbContext dbContext, IConfiguration configurat
         if (user == null || !user.IsActive || !SecurityHelper.VerifyPassword(request.Password, user.PasswordHash))
         {
             return Unauthorized(new { ErrorMessage = "INVALID_CREDENTIALS" });
+        }
+
+        var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown_ip";
+        if (user.UserProfile != null)
+        {
+            user.UserProfile.LastLoginIp = clientIp;
+            user.UserProfile.LastLoginAt = DateTime.UtcNow;
+            Mixer8DbContext.TrackUserIp(user.UserProfile, clientIp);
+            await dbContext.SaveChangesAsync();
         }
 
         var roleStr = user.UserRole.Role.ToString();

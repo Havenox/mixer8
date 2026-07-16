@@ -1852,16 +1852,32 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
     [HttpPost("{id}/RecordPlay")]
     public async Task<IActionResult> RecordPlay(Guid id, [FromBody] RecordPlayRequest request)
     {
-        // 1. Identificar o Usuário / IP
+        // 1. Identificar o Usuário e IP
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown_ip";
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        Guid? logUserId = null;
+        string userIdentifier = "Anônimo";
         string userKey;
+        bool userProfileUpdated = false;
+
         if (userIdClaim != null && Guid.TryParse(userIdClaim, out var userId))
         {
+            logUserId = userId;
             userKey = $"user_{userId}";
+            var userProfile = await dbContext.UserProfiles.FirstOrDefaultAsync(up => up.UserId == userId);
+            if (userProfile != null)
+            {
+                userIdentifier = userProfile.UserName;
+                Mixer8DbContext.TrackUserIp(userProfile, ip);
+                userProfileUpdated = true;
+            }
+            else
+            {
+                userIdentifier = "Usuário";
+            }
         }
         else
         {
-            var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown_ip";
             userKey = $"ip_{ip}";
         }
 
@@ -1888,8 +1904,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             dbContext.TrackPlays.Add(new TrackPlay { TrackId = track.TrackId, PlayedAt = DateTime.UtcNow });
             trackIncremented = true;
 
-            var logUserId = userIdClaim != null && Guid.TryParse(userIdClaim, out var parsedUid) ? parsedUid : (Guid?)null;
-            await dbContext.LogEventAsync("Play", "Info", $"Música '{track.TrackTitle}' reproduzida (Chave: {userKey})", null, track.TrackId, logUserId);
+            await dbContext.LogEventAsync("Play", "Info", $"Música '{track.TrackTitle}' reproduzida: {userIdentifier} (IP: {ip}).", null, track.TrackId, logUserId);
 
             var cacheOptions = new MemoryCacheEntryOptions
             {
@@ -1911,8 +1926,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                     playlist.PlayCount++;
                     playlistIncremented = true;
 
-                    var logUserId = userIdClaim != null && Guid.TryParse(userIdClaim, out var parsedUid) ? parsedUid : (Guid?)null;
-                    await dbContext.LogEventAsync("Play", "Info", $"Playlist '{playlist.Name}' reproduzida (Chave: {userKey})", null, null, logUserId);
+                    await dbContext.LogEventAsync("Play", "Info", $"Playlist '{playlist.Name}' reproduzida: {userIdentifier} (IP: {ip}).", null, null, logUserId);
 
                     var cacheOptions = new MemoryCacheEntryOptions
                     {
@@ -1936,8 +1950,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                     album.PlayCount++;
                     albumIncremented = true;
 
-                    var logUserId = userIdClaim != null && Guid.TryParse(userIdClaim, out var parsedUid) ? parsedUid : (Guid?)null;
-                    await dbContext.LogEventAsync("Play", "Info", $"Álbum '{album.Title}' reproduzido (Chave: {userKey})", null, null, logUserId);
+                    await dbContext.LogEventAsync("Play", "Info", $"Álbum '{album.Title}' reproduzido: {userIdentifier} (IP: {ip}).", null, null, logUserId);
 
                     var cacheOptions = new MemoryCacheEntryOptions
                     {
@@ -1948,8 +1961,8 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
             }
         }
 
-        // 6. Salvar as alterações se algum contador foi incrementado
-        if (trackIncremented || playlistIncremented || albumIncremented)
+        // 6. Salvar as alterações se algum contador ou perfil foi alterado
+        if (trackIncremented || playlistIncremented || albumIncremented || userProfileUpdated)
         {
             await dbContext.SaveChangesAsync();
         }

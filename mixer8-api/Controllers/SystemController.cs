@@ -29,9 +29,17 @@ public class SystemController(Mixer8DbContext dbContext) : ControllerBase
         {
             userId = parsedId;
             var userProfile = await dbContext.UserProfiles
-                .AsNoTracking()
                 .FirstOrDefaultAsync(up => up.UserId == userId);
-            userIdentifier = userProfile?.UserName ?? "Usuário";
+            if (userProfile != null)
+            {
+                userIdentifier = userProfile.UserName;
+                Mixer8DbContext.TrackUserIp(userProfile, ip);
+                await dbContext.SaveChangesAsync();
+            }
+            else
+            {
+                userIdentifier = "Usuário";
+            }
         }
 
         // Extrai a origem da requisição de entrada

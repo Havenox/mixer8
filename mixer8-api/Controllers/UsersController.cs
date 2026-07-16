@@ -80,7 +80,11 @@ public class UsersController(Mixer8DbContext dbContext) : ControllerBase
                 LastName = u.UserProfile != null ? u.UserProfile.LastName : null,
                 Phone = u.UserProfile != null ? u.UserProfile.Phone : null,
                 Bio = u.UserProfile != null ? u.UserProfile.Bio : null,
-                AvatarUrl = u.UserProfile != null ? u.UserProfile.AvatarUrl : null
+                AvatarUrl = u.UserProfile != null ? u.UserProfile.AvatarUrl : null,
+                RegistrationIp = u.UserProfile != null ? u.UserProfile.RegistrationIp : null,
+                LastLoginIp = u.UserProfile != null ? u.UserProfile.LastLoginIp : null,
+                LastLoginAt = u.UserProfile != null ? u.UserProfile.LastLoginAt : null,
+                AccessedIps = u.UserProfile != null ? u.UserProfile.AccessedIps : new List<UserIpLog>()
             })
             .ToListAsync();
 
