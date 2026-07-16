@@ -86,12 +86,18 @@ public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbCont
             .HasForeignKey(sp => sp.PlaylistId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // Mapear preferências do perfil de usuário em formato JSON
+        // Mapear preferências e histórico de IPs do perfil de usuário em formato JSON
         modelBuilder.Entity<UserProfile>()
             .OwnsOne(up => up.Preferences, builder =>
             {
                 builder.ToJson();
                 builder.OwnsOne(p => p.Notifications);
+            });
+
+        modelBuilder.Entity<UserProfile>()
+            .OwnsMany(up => up.AccessedIps, builder =>
+            {
+                builder.ToJson();
             });
 
         // Configura relacionamentos das faixas e stems
@@ -205,5 +211,32 @@ public class Mixer8DbContext(DbContextOptions<Mixer8DbContext> options) : DbCont
         };
         SystemEvents.Add(evt);
         await SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Registra ou atualiza a contagem e os horários de acesso de um IP no histórico do usuário.
+    /// </summary>
+    public static void TrackUserIp(UserProfile? profile, string? ip)
+    {
+        if (profile == null || string.IsNullOrWhiteSpace(ip) || ip == "unknown_ip") return;
+
+        profile.AccessedIps ??= new List<UserIpLog>();
+        var existing = profile.AccessedIps.FirstOrDefault(x => x.Ip == ip);
+        if (existing != null)
+        {
+            existing.LastSeenAt = DateTime.UtcNow;
+            existing.AccessCount++;
+        }
+        else
+        {
+            profile.AccessedIps.Add(new UserIpLog
+            {
+                Ip = ip,
+                FirstSeenAt = DateTime.UtcNow,
+                LastSeenAt = DateTime.UtcNow,
+                AccessCount = 1
+            });
+        }
+        profile.UpdatedAt = DateTime.UtcNow;
     }
 }

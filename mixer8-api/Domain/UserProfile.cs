@@ -17,8 +17,23 @@ public class UserProfile
     public string? Bio { get; set; }
     public UserProfilePreferences Preferences { get; set; } = new();
     public string? AvatarUrl { get; set; }
+    public string? RegistrationIp { get; set; }
+    public string? LastLoginIp { get; set; }
+    public DateTime? LastLoginAt { get; set; }
+    public List<UserIpLog> AccessedIps { get; set; } = new();
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>
+/// Estrutura de registro histórico de IPs acessados por um usuário.
+/// </summary>
+public class UserIpLog
+{
+    public string Ip { get; set; } = string.Empty;
+    public DateTime FirstSeenAt { get; set; } = DateTime.UtcNow;
+    public DateTime LastSeenAt { get; set; } = DateTime.UtcNow;
+    public int AccessCount { get; set; } = 1;
 }
 
 /// <summary>
