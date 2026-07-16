@@ -45,6 +45,24 @@ public class SystemSettingsController(Mixer8DbContext dbContext) : ControllerBas
     }
 
     /// <summary>
+    /// Retorna todas as configurações do sistema para administradores.
+    /// </summary>
+    [Authorize(Roles = "Admin")]
+    [HttpGet("AdminSettings")]
+    public async Task<IActionResult> GetAdminSettings()
+    {
+        var settings = await dbContext.SystemSettings.ToDictionaryAsync(s => s.Key, s => s.Value);
+        
+        // Se a chave não existir no banco, garante valor inicial/vazio para o front-end
+        if (!settings.ContainsKey("AccessWebhookUrl"))
+        {
+            settings["AccessWebhookUrl"] = "";
+        }
+        
+        return Ok(settings);
+    }
+
+    /// <summary>
     /// Salva ou atualiza parametrizações de recursos premium. Acesso restrito a administradores.
     /// </summary>
     [Authorize(Roles = "Admin")]
