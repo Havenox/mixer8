@@ -34,6 +34,13 @@ public class SystemController(Mixer8DbContext dbContext) : ControllerBase
             userIdentifier = userProfile?.UserName ?? "Usuário";
         }
 
+        // Extrai a origem da requisição de entrada
+        string origin = HttpContext.Request.Headers["Origin"].ToString();
+        if (string.IsNullOrWhiteSpace(origin) && Uri.TryCreate(request.Url, UriKind.Absolute, out var pageUri))
+        {
+            origin = $"{pageUri.Scheme}://{pageUri.Authority}";
+        }
+
         // 1. Registrar no Log do PostgreSQL local
         await dbContext.LogEventAsync(
             "Access",
@@ -73,6 +80,11 @@ public class SystemController(Mixer8DbContext dbContext) : ControllerBase
                         requestMessage.Headers.TryAddWithoutValidation("X-Real-IP", ip);
                         requestMessage.Headers.TryAddWithoutValidation("User-Agent", request.UserAgent);
 
+                        if (!string.IsNullOrEmpty(origin))
+                        {
+                            requestMessage.Headers.TryAddWithoutValidation("Origin", origin);
+                        }
+
                         await HttpClientInstance.SendAsync(requestMessage);
                     }
                     catch (Exception ex)
@@ -95,6 +107,12 @@ public class SystemController(Mixer8DbContext dbContext) : ControllerBase
             return BadRequest(new { ErrorMessage = "URL de webhook inválida." });
         }
 
+        string origin = HttpContext.Request.Headers["Origin"].ToString();
+        if (string.IsNullOrWhiteSpace(origin))
+        {
+            origin = $"{Request.Scheme}://{Request.Host}";
+        }
+
         try
         {
             using var requestMessage = new HttpRequestMessage(HttpMethod.Post, uri);
@@ -112,6 +130,11 @@ public class SystemController(Mixer8DbContext dbContext) : ControllerBase
             requestMessage.Headers.TryAddWithoutValidation("X-Forwarded-For", "127.0.0.1");
             requestMessage.Headers.TryAddWithoutValidation("X-Real-IP", "127.0.0.1");
             requestMessage.Headers.TryAddWithoutValidation("User-Agent", "Mixer8 Test Agent");
+
+            if (!string.IsNullOrEmpty(origin))
+            {
+                requestMessage.Headers.TryAddWithoutValidation("Origin", origin);
+            }
 
             var response = await HttpClientInstance.SendAsync(requestMessage);
             if (response.IsSuccessStatusCode)
