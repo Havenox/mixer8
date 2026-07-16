@@ -56,6 +56,37 @@ export const Admin: React.FC = () => {
   const [testSuccess, setTestSuccess] = useState(false);
   const [testError, setTestError] = useState('');
 
+  // Estados para sincronização de metadados de áudio (Tom & BPM)
+  const [isBackfilling, setIsBackfilling] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<string | null>(null);
+  const [backfillError, setBackfillError] = useState<string | null>(null);
+
+  const handleBackfillMetadata = async () => {
+    setIsBackfilling(true);
+    setBackfillResult(null);
+    setBackfillError(null);
+    try {
+      const token = localStorage.getItem('mixer8_token');
+      const res = await fetch(`${API_URL}/System/BackfillMusicMetadata`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBackfillResult(`✓ Varredura concluída! ${data.UpdatedCount} música(s) atualizada(s) com Tom e BPM de um total de ${data.TotalChecked} verificadas.`);
+      } else {
+        const err = await res.json();
+        setBackfillError(err.ErrorMessage || 'Falha ao executar varredura de metadados.');
+      }
+    } catch (e: any) {
+      setBackfillError(e.message || 'Erro de conexão ao varrer metadados.');
+    } finally {
+      setIsBackfilling(false);
+    }
+  };
+
   // Estados dos logs de sistema
   const [logs, setLogs] = useState<any[]>([]);
   const [totalLogs, setTotalLogs] = useState(0);
@@ -701,6 +732,36 @@ export const Admin: React.FC = () => {
                 {testError && (
                   <span className="text-[11px] text-red-400 font-semibold mt-0.5">
                     ⚠ {testError}
+                  </span>
+                )}
+              </div>
+
+              {/* Audio Metadata Sync Section (Tom & BPM Backfill) */}
+              <div className="flex flex-col gap-1.5 mt-4 border-t border-brand-hover pt-4">
+                <span className="text-xs font-bold text-white flex items-center gap-2">
+                  🎵 Sincronização de Metadados de Áudio (Tom & BPM)
+                </span>
+                <p className="text-[11px] text-brand-gray -mt-1 leading-normal">
+                  Executa a leitura dos arquivos de cifras (chords.json) de todas as músicas extraídas existentes para calcular e registrar a Tonalidade Base (Key) e o BPM no banco de dados.
+                </p>
+                <div className="flex gap-2 mt-1">
+                  <button
+                    type="button"
+                    onClick={handleBackfillMetadata}
+                    disabled={isBackfilling}
+                    className="px-4 py-2 bg-brand-green/10 border border-brand-green/30 text-brand-green text-xs font-bold rounded hover:bg-brand-green/20 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 flex items-center gap-2 cursor-pointer"
+                  >
+                    {isBackfilling ? 'Analisando e calculando Tom/BPM no servidor...' : 'Sincronizar Tons e BPMs das Músicas Existentes'}
+                  </button>
+                </div>
+                {backfillResult && (
+                  <span className="text-[11px] text-brand-green font-semibold mt-1">
+                    {backfillResult}
+                  </span>
+                )}
+                {backfillError && (
+                  <span className="text-[11px] text-red-400 font-semibold mt-1">
+                    ⚠ {backfillError}
                   </span>
                 )}
               </div>
