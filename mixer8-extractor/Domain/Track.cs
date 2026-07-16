@@ -13,6 +13,8 @@ public class Track
     public DateTime CreatedAt { get; set; }
     public string? CoverUrl { get; set; }
     public string? DownloadUrl { get; set; }
+    public int? Bpm { get; set; }
+    public string? Key { get; set; }
 
     public ICollection<Stem> Stems { get; set; } = new List<Stem>();
 }

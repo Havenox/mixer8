@@ -27,6 +27,8 @@ public class Track
     public string? UploadedByUserName { get; set; }
 
     public int Duration { get; set; } // Duração em segundos
+    public int? Bpm { get; set; } // BPM base calculado da música
+    public string? Key { get; set; } // Tonalidade base calculada da música (ex: "F#", "Am", "C")
     public long PlayCount { get; set; } = 0; // Contador de reproduções
     public long WeekPlayCount { get; set; } = 0; // Contagem de plays dos últimos 7 dias
 
