@@ -5,7 +5,8 @@ import { RotaryKnob } from '../components/RotaryKnob';
 import { 
   ChevronLeft, Loader2, 
   ShieldAlert, Volume2, 
-  Disc, PanelLeftClose, PanelLeftOpen
+  Disc, PanelLeftClose, PanelLeftOpen,
+  Activity, X
 } from 'lucide-react';
 import { API_URL } from '../config';
 
@@ -477,6 +478,21 @@ export const DawView: React.FC = () => {
   return (
     <div className="flex flex-col h-full bg-[#0d0d0d] text-white select-none animate-in fade-in duration-300" ref={containerRef}>
       
+      {/* Sub-Barra Ultra-Fina da DAW */}
+      <div className="h-8 border-b border-brand-hover/80 bg-[#141414] px-3.5 flex items-center justify-between shrink-0 select-none">
+        <div className="flex items-center gap-2">
+          <Activity className="w-3.5 h-3.5 text-brand-green" />
+          <span className="text-[11px] font-black uppercase tracking-wider text-white">Estúdio DAW</span>
+        </div>
+        <button
+          onClick={() => setActiveOverlay('none')}
+          className="p-1 rounded text-brand-gray hover:text-white hover:bg-brand-hover/50 transition-colors cursor-pointer"
+          title="Fechar DAW"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
       {/* AREA CENTRAL: DAW Workstation */}
       <div className="flex-1 flex flex-col min-h-0 bg-[#0d0d0d] relative overflow-hidden">
         

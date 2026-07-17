@@ -52,29 +52,19 @@ export const MobileMixerOverlay: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full bg-[#0d0d0d] text-white select-none animate-in fade-in duration-200">
-      {/* Cabeçalho do Mixer Overlay */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-brand-hover bg-[#141414] shrink-0">
+      {/* Sub-Barra Ultra-Fina do Mixer Overlay */}
+      <div className="h-8 border-b border-brand-hover/80 bg-[#141414] px-3.5 flex items-center justify-between shrink-0 select-none">
         <div className="flex items-center gap-2">
-          <Sliders className="w-5 h-5 text-brand-green" />
-          <div className="flex flex-col">
-            <span className="text-xs font-black uppercase tracking-wider text-white">Mixer de Som</span>
-            <span className="text-[10px] text-brand-gray font-medium truncate max-w-[200px]">
-              {currentTrack.TrackTitle} - {currentTrack.ArtistName}
-            </span>
-          </div>
+          <Sliders className="w-3.5 h-3.5 text-brand-green" />
+          <span className="text-[11px] font-black uppercase tracking-wider text-white">Mixer de Som</span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] bg-brand-hover text-brand-green font-black px-2 py-0.5 rounded uppercase">
-            {isProcessingOrSingleStem ? 'PRÉVIA' : `${currentTrack.Stems?.length || 0} STEMS`}
-          </span>
-          <button
-            onClick={() => setActiveOverlay('none')}
-            className="p-1 rounded-full text-brand-gray hover:text-white hover:bg-brand-hover transition-colors cursor-pointer"
-            title="Fechar Mixer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+        <button
+          onClick={() => setActiveOverlay('none')}
+          className="p-1 rounded text-brand-gray hover:text-white hover:bg-brand-hover/50 transition-colors cursor-pointer"
+          title="Fechar Mixer"
+        >
+          <X className="w-4 h-4" />
+        </button>
       </div>
 
       {/* Conteúdo do Mixer */}

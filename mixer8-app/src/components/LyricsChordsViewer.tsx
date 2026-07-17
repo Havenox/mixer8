@@ -4,6 +4,7 @@ import { useLyricsChords } from '../hooks/useLyricsChords';
 import type { ILyricsLine, IChordBeat } from '../hooks/useLyricsChords';
 import { SERVER_URL } from '../config';
 import { usePlayer } from '../context/PlayerContext';
+import { Music, X } from 'lucide-react';
 
 interface ILyricsChordsViewerProps {
   TrackId: string;
@@ -56,7 +57,7 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
   TrackId,
   CurrentTime
 }) => {
-  const { seek, isPlaying, togglePlay, transpose, showChords } = usePlayer();
+  const { seek, isPlaying, togglePlay, transpose, showChords, setActiveOverlay } = usePlayer();
   const [lyrics, setLyrics] = useState<ILyricsLine[] | null>(null);
   const [chords, setChords] = useState<IChordBeat[] | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -151,6 +152,21 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
   return (
     <div className="w-full h-full flex flex-col font-sans select-none bg-brand-dark overflow-hidden relative animate-in fade-in duration-200">
       
+      {/* Sub-Barra Ultra-Fina de Letras */}
+      <div className="h-8 border-b border-brand-hover/80 bg-[#141414] px-3.5 flex items-center justify-between shrink-0 select-none">
+        <div className="flex items-center gap-2">
+          <Music className="w-3.5 h-3.5 text-brand-green" />
+          <span className="text-[11px] font-black uppercase tracking-wider text-white">Letras & Cifras</span>
+        </div>
+        <button
+          onClick={() => setActiveOverlay('none')}
+          className="p-1 rounded text-brand-gray hover:text-white hover:bg-brand-hover/50 transition-colors cursor-pointer"
+          title="Fechar Letras"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
       {/* Área Central: Exibição */}
       <div 
         ref={containerRef}
