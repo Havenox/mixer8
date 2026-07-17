@@ -810,29 +810,46 @@ export const MesaPlayer: React.FC = () => {
               </button>
             </div>
 
-            {/* Linha 2: Utilidades (Mixer e Letras) */}
-            <div className="flex items-center justify-center gap-4 w-full px-6">
+            {/* Linha 2: Utilidades (Mixer, DAW e Letras) */}
+            <div className="flex items-center justify-center gap-2 w-full px-2">
+              <button 
+                onClick={() => { 
+                  setActiveOverlay('daw'); 
+                  setIsExpandedMobile(false); 
+                }}
+                className={`flex items-center gap-1.5 py-2 px-3 rounded-full border transition-all cursor-pointer ${
+                  activeOverlay === 'daw' ? 'bg-brand-green/10 border-brand-green text-brand-green shadow-md font-bold' : 'border-brand-hover text-brand-gray hover:text-white'
+                }`}
+                title="Estúdio DAW"
+              >
+                <Activity className="w-4 h-4 text-brand-green" />
+                <span className="text-xs font-semibold">Estúdio DAW</span>
+              </button>
+
               {(hasMultipleStems || isProcessingOrSingleStem) && (
                 <button 
                   onClick={() => setShowMobileMixer(!showMobileMixer)}
-                  className={`flex items-center gap-2 py-2 px-4 rounded-full border transition-all cursor-pointer ${
+                  className={`flex items-center gap-1.5 py-2 px-3 rounded-full border transition-all cursor-pointer ${
                     showMobileMixer ? 'bg-brand-green/10 border-brand-green text-brand-green shadow-md font-bold' : 'border-brand-hover text-brand-gray hover:text-white'
                   }`}
                   title="Mixer de Som"
                 >
-                  <Sliders className="w-5 h-5" />
+                  <Sliders className="w-4 h-4" />
                   <span className="text-xs font-semibold">Mixer Stems</span>
                 </button>
               )}
+
               <button 
                 onClick={() => { 
                   setActiveOverlay('lyrics'); 
                   setIsExpandedMobile(false); 
                 }}
-                className="flex items-center gap-2 py-2 px-4 rounded-full border border-brand-hover text-brand-gray hover:text-white transition-all cursor-pointer"
+                className={`flex items-center gap-1.5 py-2 px-3 rounded-full border transition-all cursor-pointer ${
+                  activeOverlay === 'lyrics' ? 'bg-brand-green/10 border-brand-green text-brand-green shadow-md font-bold' : 'border-brand-hover text-brand-gray hover:text-white'
+                }`}
                 title="Letras e Cifras"
               >
-                <Music className="w-5 h-5" />
+                <Music className="w-4 h-4" />
                 <span className="text-xs font-semibold">Letras & Cifras</span>
               </button>
             </div>

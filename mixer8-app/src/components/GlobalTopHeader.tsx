@@ -306,13 +306,13 @@ export const GlobalTopHeader: React.FC = () => {
 
         {/* Botão de Fechar X */}
         {activeOverlay !== 'none' && (
-          <div className="h-[36px] md:h-[46px] flex items-center justify-center shrink-0 w-8 md:w-10">
+          <div className="h-[36px] md:h-[46px] flex items-center justify-center shrink-0 w-7 md:w-10">
             <button
               onClick={() => setActiveOverlay('none')}
-              className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#181818] border border-white/10 text-brand-gray hover:text-white hover:border-brand-green/30 hover:bg-[#282828] transition-all flex items-center justify-center shadow-md cursor-pointer hover:scale-105 active:scale-95 animate-in fade-in duration-200"
+              className="w-7 h-7 md:w-10 md:h-10 rounded-lg md:rounded-full bg-[#181818] border border-white/10 text-brand-gray hover:text-white hover:border-brand-green/30 hover:bg-[#282828] transition-all flex items-center justify-center shadow-md cursor-pointer hover:scale-105 active:scale-95 animate-in fade-in duration-200"
               title="Fechar Painel"
             >
-              <X className="w-4 h-4 md:w-5 md:h-5" />
+              <X className="w-3.5 h-3.5 md:w-5 md:h-5" />
             </button>
           </div>
         )}
