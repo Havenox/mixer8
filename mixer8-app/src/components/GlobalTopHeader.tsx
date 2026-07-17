@@ -3,7 +3,7 @@ import { usePlayer } from '../context/PlayerContext';
 import { transposeChord } from '../hooks/useLyricsChords';
 import type { IChordBeat } from '../hooks/useLyricsChords';
 import { SERVER_URL } from '../config';
-import { ZoomIn, ZoomOut, Music4, RotateCcw, Plus, Minus, X } from 'lucide-react';
+import { ZoomIn, ZoomOut, Music4, RotateCcw, Plus, Minus } from 'lucide-react';
 
 export const GlobalTopHeader: React.FC = () => {
   const {
@@ -14,7 +14,6 @@ export const GlobalTopHeader: React.FC = () => {
     bpmDelta,
     setBpmDelta,
     activeOverlay,
-    setActiveOverlay,
     showChords,
     setShowChords
   } = usePlayer();
@@ -330,18 +329,7 @@ export const GlobalTopHeader: React.FC = () => {
           </button>
         </div>
 
-        {/* Botão de Fechar X (Apenas visível em telas Desktop/Tablet) */}
-        {activeOverlay !== 'none' && (
-          <div className="hidden md:flex h-[46px] items-center justify-center shrink-0 w-10">
-            <button
-              onClick={() => setActiveOverlay('none')}
-              className="w-10 h-10 rounded-full bg-[#181818] border border-white/10 text-brand-gray hover:text-white hover:border-brand-green/30 hover:bg-[#282828] transition-all flex items-center justify-center shadow-md cursor-pointer hover:scale-105 active:scale-95 animate-in fade-in duration-200"
-              title="Fechar Painel"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        )}
+
 
       </div>
 
