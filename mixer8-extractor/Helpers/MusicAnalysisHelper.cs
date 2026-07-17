@@ -13,6 +13,9 @@ public class ChordBeatItem
 
     [JsonPropertyName("chord_simple_pop")]
     public string? ChordSimplePop { get; set; }
+
+    [JsonPropertyName("prev_chord")]
+    public string? PrevChord { get; set; }
 }
 
 public static class MusicAnalysisHelper
@@ -32,7 +35,7 @@ public static class MusicAnalysisHelper
             // 1. Calcular BPM Base
             int? bpm = CalculateBpm(beats);
 
-            // 2. Calcular Tonalidade Base (Key)
+            // 2. Calcular Tonalidade Base (Key) com Análise de Cadências V -> I e Frequência Harmônica
             string? key = DetectKey(beats);
 
             return (bpm, key);
@@ -66,40 +69,49 @@ public static class MusicAnalysisHelper
 
     private static string? DetectKey(List<ChordBeatItem> beats)
     {
-        var rawChords = beats
-            .Select(b => b.ChordSimplePop)
-            .Where(c => !string.IsNullOrWhiteSpace(c) && c != "N")
-            .Distinct()
-            .Take(12)
-            .ToList();
-
-        if (rawChords.Count == 0) return null;
-
-        var parsedChords = new List<(int RootIndex, bool IsMinor)>();
-        foreach (var raw in rawChords)
+        var parsedBeats = new List<(int RootIndex, bool IsMinor, string Raw)>();
+        foreach (var b in beats)
         {
-            var parsed = ParseChord(raw!);
+            var rawName = !string.IsNullOrWhiteSpace(b.ChordSimplePop) && b.ChordSimplePop != "N"
+                ? b.ChordSimplePop
+                : b.PrevChord;
+
+            if (string.IsNullOrWhiteSpace(rawName) || rawName == "N") continue;
+
+            var parsed = ParseChord(rawName);
             if (parsed.HasValue)
             {
-                parsedChords.Add(parsed.Value);
+                parsedBeats.Add((parsed.Value.RootIndex, parsed.Value.IsMinor, rawName));
             }
         }
 
-        if (parsedChords.Count == 0) return rawChords.First();
+        if (parsedBeats.Count == 0) return null;
 
-        string bestKey = rawChords.First()!;
-        int maxScore = -1;
+        var chordTransitions = new List<((int RootIndex, bool IsMinor) From, (int RootIndex, bool IsMinor) To)>();
+        for (int i = 0; i < parsedBeats.Count - 1; i++)
+        {
+            var current = (parsedBeats[i].RootIndex, parsedBeats[i].IsMinor);
+            var next = (parsedBeats[i + 1].RootIndex, parsedBeats[i + 1].IsMinor);
+            if (current.RootIndex != next.RootIndex || current.IsMinor != next.IsMinor)
+            {
+                chordTransitions.Add((current, next));
+            }
+        }
+
+        double totalBeats = parsedBeats.Count;
+        string bestKey = "C";
+        double maxScore = -9999;
 
         for (int rootIdx = 0; rootIdx < 12; rootIdx++)
         {
-            int majorScore = ScoreKey(rootIdx, isMinor: false, parsedChords);
+            double majorScore = EvaluateKeyCandidate(rootIdx, isMinorKey: false, parsedBeats, chordTransitions, totalBeats);
             if (majorScore > maxScore)
             {
                 maxScore = majorScore;
                 bestKey = RootNames[rootIdx];
             }
 
-            int minorScore = ScoreKey(rootIdx, isMinor: true, parsedChords);
+            double minorScore = EvaluateKeyCandidate(rootIdx, isMinorKey: true, parsedBeats, chordTransitions, totalBeats);
             if (minorScore > maxScore)
             {
                 maxScore = minorScore;
@@ -110,14 +122,120 @@ public static class MusicAnalysisHelper
         return bestKey;
     }
 
+    private static double EvaluateKeyCandidate(
+        int keyRoot,
+        bool isMinorKey,
+        List<(int RootIndex, bool IsMinor, string Raw)> parsedBeats,
+        List<((int RootIndex, bool IsMinor) From, (int RootIndex, bool IsMinor) To)> chordTransitions,
+        double totalBeats)
+    {
+        var field = new HashSet<(int RootIndex, bool IsMinor)>();
+        (int RootIndex, bool IsMinor) tonic = (keyRoot, isMinorKey);
+        (int RootIndex, bool IsMinor) dominantMaj = ((keyRoot + 7) % 12, false);
+        (int RootIndex, bool IsMinor) subdominant = isMinorKey ? ((keyRoot + 5) % 12, true) : ((keyRoot + 5) % 12, false);
+
+        if (!isMinorKey)
+        {
+            field.Add((keyRoot, false));
+            field.Add(((keyRoot + 2) % 12, true));
+            field.Add(((keyRoot + 4) % 12, true));
+            field.Add(((keyRoot + 5) % 12, false));
+            field.Add(((keyRoot + 7) % 12, false));
+            field.Add(((keyRoot + 7) % 12, true));
+            field.Add(((keyRoot + 9) % 12, true));
+            field.Add(((keyRoot + 11) % 12, true));
+        }
+        else
+        {
+            field.Add((keyRoot, true));
+            field.Add(((keyRoot + 2) % 12, true));
+            field.Add(((keyRoot + 3) % 12, false));
+            field.Add(((keyRoot + 5) % 12, true));
+            field.Add(((keyRoot + 7) % 12, true));
+            field.Add(((keyRoot + 7) % 12, false));
+            field.Add(((keyRoot + 8) % 12, false));
+            field.Add(((keyRoot + 10) % 12, false));
+        }
+
+        double score = 0;
+        int beatsOnTonic = 0;
+
+        foreach (var b in parsedBeats)
+        {
+            var chord = (b.RootIndex, b.IsMinor);
+            if (chord.RootIndex == tonic.RootIndex && chord.IsMinor == tonic.IsMinor)
+            {
+                score += 3.0;
+                beatsOnTonic++;
+            }
+            else if (field.Contains(chord))
+            {
+                score += 1.5;
+            }
+            else if (field.Any(f => f.RootIndex == chord.RootIndex))
+            {
+                score += 0.5;
+            }
+            else
+            {
+                score -= 2.0;
+            }
+        }
+
+        if (beatsOnTonic == 0)
+        {
+            score -= 50.0;
+        }
+        else
+        {
+            score += (beatsOnTonic / totalBeats) * 20.0;
+        }
+
+        foreach (var tr in chordTransitions)
+        {
+            bool isFromDominant = tr.From.RootIndex == dominantMaj.RootIndex;
+            bool isToTonic = tr.To.RootIndex == tonic.RootIndex && tr.To.IsMinor == tonic.IsMinor;
+
+            if (isFromDominant && isToTonic)
+            {
+                score += 25.0;
+            }
+
+            bool isFromSubdominant = tr.From.RootIndex == subdominant.RootIndex;
+            if (isFromSubdominant && isToTonic)
+            {
+                score += 10.0;
+            }
+        }
+
+        var firstBeat = parsedBeats.First();
+        if (firstBeat.RootIndex == tonic.RootIndex && firstBeat.IsMinor == tonic.IsMinor)
+        {
+            score += 8.0;
+        }
+        else if (firstBeat.RootIndex == tonic.RootIndex)
+        {
+            score += 4.0;
+        }
+
+        return score;
+    }
+
     private static (int RootIndex, bool IsMinor)? ParseChord(string chord)
     {
         if (string.IsNullOrWhiteSpace(chord) || chord == "N") return null;
 
         string clean = chord.Trim();
-        bool isMinor = clean.Contains('m') && !clean.Contains("maj");
+        bool isMinor = clean.Contains(":min", StringComparison.OrdinalIgnoreCase) ||
+                       (clean.Contains('m') && !clean.Contains("maj", StringComparison.OrdinalIgnoreCase));
 
         string root = clean;
+        int colonIdx = root.IndexOf(':');
+        if (colonIdx > 0)
+        {
+            root = root[..colonIdx];
+        }
+
         if (root.Length > 1 && (root[1] == '#' || root[1] == 'b'))
         {
             root = root[..2];
@@ -151,52 +269,5 @@ public static class MusicAnalysisHelper
             "B" => 11,
             _ => -1
         };
-    }
-
-    private static int ScoreKey(int rootIdx, bool isMinor, List<(int RootIndex, bool IsMinor)> chords)
-    {
-        HashSet<(int RootIndex, bool IsMinor)> field = new();
-
-        if (!isMinor)
-        {
-            field.Add((rootIdx, false));
-            field.Add(((rootIdx + 2) % 12, true));
-            field.Add(((rootIdx + 4) % 12, true));
-            field.Add(((rootIdx + 5) % 12, false));
-            field.Add(((rootIdx + 7) % 12, false));
-            field.Add(((rootIdx + 9) % 12, true));
-            field.Add(((rootIdx + 11) % 12, true));
-        }
-        else
-        {
-            field.Add((rootIdx, true));
-            field.Add(((rootIdx + 2) % 12, true));
-            field.Add(((rootIdx + 3) % 12, false));
-            field.Add(((rootIdx + 5) % 12, true));
-            field.Add(((rootIdx + 7) % 12, true));
-            field.Add(((rootIdx + 7) % 12, false));
-            field.Add(((rootIdx + 8) % 12, false));
-            field.Add(((rootIdx + 10) % 12, false));
-        }
-
-        int score = 0;
-        foreach (var c in chords)
-        {
-            if (field.Contains(c))
-            {
-                score += 2;
-            }
-            else if (field.Any(f => f.RootIndex == c.RootIndex))
-            {
-                score += 1;
-            }
-        }
-
-        if (chords.Count > 0 && chords[0].RootIndex == rootIdx)
-        {
-            score += 1;
-        }
-
-        return score;
     }
 }
