@@ -25,11 +25,20 @@ export interface ILyricsLine {
   words: ILyricsWord[];
 }
 
-export interface IProcessedWord extends ILyricsWord {
+export interface IProcessedWord {
+  word: string;
+  start: number;
+  end: number;
+  score?: number;
   Chord: string | null;
+  type: 'word' | 'chord_only';
 }
 
-export interface IProcessedLine extends Omit<ILyricsLine, 'words'> {
+export interface IProcessedLine {
+  text: string;
+  language: string;
+  start: number;
+  end: number;
   Words: IProcessedWord[];
 }
 
@@ -112,34 +121,124 @@ export function useLyricsChords(
 
     let lastChord: string | null = null;
 
-    return lyrics.map((line) => {
-      const processedWords = line.words.map((word) => {
-        // Localiza a batida de acorde ativa no início da palavra
-        let activeBeat = chords[0];
-        for (let i = 0; i < chords.length; i++) {
-          if (chords[i].curr_beat_time <= word.start) {
-            activeBeat = chords[i];
-          } else {
-            break;
+    return lyrics.map((line, lIdx) => {
+      // Janela temporal desta linha:
+      // Inicia no start da linha (ou 0 para a primeira)
+      const rangeStart = lIdx === 0 ? 0 : line.start;
+      // Termina no start da próxima linha (ou Infinity para a última)
+      const rangeEnd = lIdx < lyrics.length - 1 ? lyrics[lIdx + 1].start : Infinity;
+
+      // Filtra acordes que pertencem a esta janela da linha
+      const lineChords = chords.filter(
+        c => c.curr_beat_time >= rangeStart && c.curr_beat_time < rangeEnd
+      );
+
+      const processedUnits: IProcessedWord[] = [];
+      let lastWordEnd = rangeStart;
+      const wordsList = line.words || [];
+
+      wordsList.forEach((word) => {
+        // 1. Processa acordes no gap/silêncio ANTES desta palavra
+        const gapChords = lineChords.filter(
+          c => c.curr_beat_time >= lastWordEnd && c.curr_beat_time < word.start
+        );
+
+        gapChords.forEach((c, gIdx) => {
+          const rawChord = c.chord_simple_pop !== 'N' ? c.chord_simple_pop : '';
+          const transposed = transposeChord(rawChord, transposeSemitones);
+          const shouldShow = transposed && transposed !== lastChord;
+          if (transposed) {
+            lastChord = transposed;
+          }
+          if (shouldShow) {
+            const nextStart = gIdx < gapChords.length - 1 
+              ? gapChords[gIdx + 1].curr_beat_time 
+              : word.start;
+            processedUnits.push({
+              type: 'chord_only',
+              word: '',
+              start: c.curr_beat_time,
+              end: nextStart,
+              Chord: transposed
+            });
+          }
+        });
+
+        // 2. Processa acordes que coincidem com a palavra
+        const wordChords = lineChords.filter(
+          c => c.curr_beat_time >= word.start && c.curr_beat_time <= word.end
+        );
+
+        let wordChord: string | null = null;
+        if (wordChords.length > 0) {
+          const c = wordChords[0];
+          const rawChord = c.chord_simple_pop !== 'N' ? c.chord_simple_pop : '';
+          const transposed = transposeChord(rawChord, transposeSemitones);
+          const shouldShow = transposed && transposed !== lastChord;
+          if (transposed) {
+            lastChord = transposed;
+          }
+          wordChord = shouldShow ? transposed : null;
+        } else {
+          // Se não há novo acorde começando dentro da palavra, mas esta é a primeira unidade
+          // ou não geramos nenhuma cifra ainda nesta linha, localizamos qual acorde está atualmente ativo
+          if (processedUnits.length === 0) {
+            let activeBeat = chords[0];
+            for (let i = 0; i < chords.length; i++) {
+              if (chords[i].curr_beat_time <= word.start) {
+                activeBeat = chords[i];
+              } else {
+                break;
+              }
+            }
+            if (activeBeat) {
+              const rawChord = activeBeat.chord_simple_pop !== 'N' ? activeBeat.chord_simple_pop : '';
+              const transposed = transposeChord(rawChord, transposeSemitones);
+              const shouldShow = transposed && transposed !== lastChord;
+              if (transposed) {
+                lastChord = transposed;
+              }
+              wordChord = shouldShow ? transposed : null;
+            }
           }
         }
 
-        const rawChord = activeBeat && activeBeat.chord_simple_pop !== 'N' 
-          ? activeBeat.chord_simple_pop 
-          : '';
-          
-        const transposed = transposeChord(rawChord, transposeSemitones);
+        processedUnits.push({
+          type: 'word',
+          word: word.word,
+          start: word.start,
+          end: word.end,
+          score: word.score,
+          Chord: wordChord
+        });
 
-        // A cifra só é mostrada se for diferente da cifra ativa anterior para evitar repetição exaustiva
+        lastWordEnd = word.end;
+      });
+
+      // 3. Processa acordes no gap/silêncio APÓS a última palavra da linha
+      const postChords = lineChords.filter(
+        c => c.curr_beat_time >= lastWordEnd && c.curr_beat_time < rangeEnd
+      );
+
+      postChords.forEach((c, pIdx) => {
+        const rawChord = c.chord_simple_pop !== 'N' ? c.chord_simple_pop : '';
+        const transposed = transposeChord(rawChord, transposeSemitones);
         const shouldShow = transposed && transposed !== lastChord;
         if (transposed) {
           lastChord = transposed;
         }
-
-        return {
-          ...word,
-          Chord: shouldShow ? transposed : null
-        };
+        if (shouldShow) {
+          const nextStart = pIdx < postChords.length - 1 
+            ? postChords[pIdx + 1].curr_beat_time 
+            : rangeEnd;
+          processedUnits.push({
+            type: 'chord_only',
+            word: '',
+            start: c.curr_beat_time,
+            end: nextStart,
+            Chord: transposed
+          });
+        }
       });
 
       return {
@@ -147,7 +246,7 @@ export function useLyricsChords(
         language: line.language,
         start: line.start,
         end: line.end,
-        Words: processedWords
+        Words: processedUnits
       };
     });
   }, [lyrics, chords, transposeSemitones]);

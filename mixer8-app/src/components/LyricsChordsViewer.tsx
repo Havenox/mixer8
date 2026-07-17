@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ChevronLeft } from 'lucide-react';
+
 import { useLyricsChords } from '../hooks/useLyricsChords';
 import type { ILyricsLine, IChordBeat } from '../hooks/useLyricsChords';
 import { SERVER_URL } from '../config';
@@ -54,8 +54,7 @@ function parseLegacyLyrics(legacyData: any[]): ILyricsLine[] {
 
 export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
   TrackId,
-  CurrentTime,
-  OnClose
+  CurrentTime
 }) => {
   const { seek, isPlaying, togglePlay, transpose, showChords } = usePlayer();
   const [lyrics, setLyrics] = useState<ILyricsLine[] | null>(null);
@@ -125,6 +124,8 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
       line => CurrentTime >= line.start && CurrentTime <= line.end
     );
   }, [processedLines, CurrentTime]);
+ 
+
 
   // 4. Auto-Scroll suave localizado para manter a linha ativa centralizada na tela
   useEffect(() => {
@@ -148,21 +149,10 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
   return (
     <div className="w-full h-full flex flex-col font-sans select-none bg-brand-dark overflow-hidden relative animate-in fade-in duration-200">
       
-      {/* Barra superior dedicada para o botão de voltar, eliminando sobreposições com a letra */}
-      <div className="h-14 flex items-center px-6 md:px-12 shrink-0 border-b border-brand-hover/20">
-        <button 
-          onClick={OnClose}
-          className="w-10 h-10 rounded-full bg-[#181818] border border-white/10 text-white hover:text-brand-green hover:border-brand-green/30 transition-all flex items-center justify-center shadow-lg cursor-pointer hover:scale-105 active:scale-95"
-          title="Voltar"
-        >
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-      </div>
-
       {/* Área Central: Exibição */}
       <div 
         ref={containerRef}
-        className="relative flex-1 overflow-y-auto px-6 md:px-12 pt-6 pb-24 flex flex-col gap-8 scroll-smooth"
+        className="relative flex-1 overflow-y-auto px-6 md:px-12 pt-10 pb-24 flex flex-col gap-8 scroll-smooth"
       >
         {loading ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 text-brand-gray">
@@ -182,18 +172,29 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
         ) : (
           processedLines.map((line, lIdx) => {
             const isActive = lIdx === activeLineIndex;
+            const nextLineStart = lIdx < processedLines.length - 1 ? processedLines[lIdx + 1].start : Infinity;
 
             return (
               <div 
                 key={lIdx}
                 ref={el => { lineRefs.current[lIdx] = el; }}
                 className={`transition-all duration-300 transform origin-left ${
-                  isActive ? 'opacity-100 scale-[1.02]' : 'opacity-25 hover:opacity-40'
+                  isActive ? 'opacity-100 scale-[1.02]' : 'opacity-65 hover:opacity-80'
                 }`}
               >
                 <div className="flex flex-wrap gap-x-2 gap-y-3 items-end">
                   {line.Words.map((word, wIdx) => {
                     const isWordActive = CurrentTime >= word.start && CurrentTime <= word.end;
+
+                    // Encontra o início da próxima nota nesta linha para limitar o destaque desta nota
+                    let nextChordStart = nextLineStart;
+                    for (let i = wIdx + 1; i < line.Words.length; i++) {
+                      if (line.Words[i].Chord) {
+                        nextChordStart = line.Words[i].start;
+                        break;
+                      }
+                    }
+                    const isChordActive = word.Chord && CurrentTime >= word.start && CurrentTime < nextChordStart && isActive;
 
                     if (showChords) {
                       return (
@@ -205,19 +206,33 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
                           }}
                           className="inline-flex flex-col items-start cursor-pointer group"
                         >
-                          {/* Cifra flutuando sobre a palavra (sempre ocupa espaço para manter baseline paralelo) */}
-                          <span className="text-[11px] md:text-sm font-black text-brand-green font-mono select-none h-5 leading-none transition-colors duration-150 group-hover:text-white">
+                          {/* Cifra flutuando (acende em verde brilhante se for a nota atual da batida na linha ativa) */}
+                          <span className={`text-[11px] md:text-sm font-mono select-none h-5 leading-none transition-all duration-150 ${
+                            isChordActive 
+                              ? 'text-brand-green font-black drop-shadow-[0_0_6px_rgba(34,197,94,0.35)] scale-[1.03]' 
+                              : 'text-white/70 font-semibold group-hover:text-white'
+                          }`}>
                             {word.Chord || '\u00A0'}
                           </span>
-                          {/* Palavra cantada */}
-                          <span className={`text-lg md:text-2xl font-semibold transition-all hover:text-brand-green active:scale-95 duration-150 select-none ${
-                            isWordActive ? 'text-brand-green' : 'text-neutral-100'
-                          }`}>
-                            {word.word}
-                          </span>
+                          
+                          {/* Palavra cantada (ou spacer invisível se for apenas acorde intermediário) */}
+                          {word.type === 'chord_only' ? (
+                            <span className="text-lg md:text-2xl font-semibold opacity-0 select-none">
+                              {'\u00A0'}
+                            </span>
+                          ) : (
+                            <span className={`text-lg md:text-2xl font-semibold transition-all hover:text-brand-green active:scale-95 duration-150 select-none ${
+                              isWordActive ? 'text-brand-green font-bold' : 'text-white'
+                            }`}>
+                              {word.word}
+                            </span>
+                          )}
                         </div>
                       );
                     }
+
+                    // Se não exibe cifras, ignora os blocos chord_only para manter a letra limpa!
+                    if (word.type === 'chord_only') return null;
 
                     return (
                       <span 
@@ -227,7 +242,7 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
                           if (!isPlaying) togglePlay();
                         }}
                         className={`text-lg md:text-2xl font-semibold cursor-pointer transition-all hover:text-brand-green active:scale-95 duration-150 select-none ${
-                          isWordActive ? 'text-brand-green' : 'text-neutral-100'
+                          isWordActive ? 'text-brand-green' : 'text-white'
                         }`}
                       >
                         {word.word}
