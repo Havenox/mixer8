@@ -131,43 +131,47 @@ export const GlobalTopHeader: React.FC = () => {
         </div>
       </div>
 
-      {/* Grupo da Direita: Controles (em mobile alinhados à direita e aproximados de forma compacta) */}
-      <div className="flex items-center justify-end md:justify-end gap-1 md:gap-3 w-full md:w-auto py-0.5">
+      {/* Grupo da Direita: Controles (no mobile alinhados à direita com excelente legibilidade) */}
+      <div className="flex items-center justify-end md:justify-end gap-1.5 md:gap-3 w-full md:w-auto py-0.5">
         
         {/* Controles de Zoom (Apenas se a DAW estiver aberta) */}
         {activeOverlay === 'daw' && (
-          <div className="h-[36px] md:h-[46px] w-[90px] md:w-[150px] bg-[#181818] border border-white/5 rounded-md flex items-center overflow-hidden shrink-0 select-none shadow-lg transition-all duration-200 hover:bg-[#222222] animate-in fade-in duration-200">
+          <div className="h-[36px] md:h-[46px] w-[105px] sm:w-[130px] md:w-[150px] bg-[#181818] border border-white/10 rounded-lg flex items-center overflow-hidden shrink-0 select-none shadow-md transition-all duration-200 hover:bg-[#222222] animate-in fade-in duration-200">
             <button
               onClick={triggerZoomOut}
               disabled={activeZoom === 1.0}
-              className="h-full w-[22px] md:w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-r border-white/5 transition-colors cursor-pointer disabled:text-white/10 disabled:pointer-events-none"
+              className="h-full w-7 md:w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-r border-white/10 transition-colors cursor-pointer disabled:text-white/10 disabled:pointer-events-none active:scale-95 shrink-0"
               title="Afastar Zoom (Zoom Out)"
             >
-              <ZoomOut className="w-2.5 md:w-3.5 h-2.5 md:h-3.5" />
+              <ZoomOut className="w-3 md:w-3.5 h-3 md:h-3.5" />
             </button>
-            <div className="flex flex-col items-center justify-center leading-none flex-1 min-w-0">
-              <span className="text-[6.5px] md:text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-0.5 md:mb-1 truncate w-full text-center">Zoom</span>
-              <span className="text-[9px] md:text-xs font-black text-white font-mono leading-none">{activeZoom.toFixed(1)}x</span>
+            <div 
+              onClick={triggerZoomReset}
+              className="flex flex-col items-center justify-center leading-none flex-1 min-w-0 px-1 cursor-pointer select-none active:opacity-70 transition-opacity"
+              title="Redefinir Zoom"
+            >
+              <span className="text-[7.5px] md:text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-0.5 md:mb-1 truncate w-full text-center">Zoom</span>
+              <span className="text-[10px] md:text-xs font-black text-white font-mono leading-none">{activeZoom.toFixed(1)}x</span>
             </div>
             <button
               onClick={triggerZoomIn}
               disabled={activeZoom === 16.0}
-              className="h-full w-[22px] md:w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-l border-r border-white/5 transition-colors cursor-pointer disabled:text-white/10 disabled:pointer-events-none"
+              className="h-full w-7 md:w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-l border-white/10 transition-colors cursor-pointer disabled:text-white/10 disabled:pointer-events-none active:scale-95 shrink-0"
               title="Aproximar Zoom (Zoom In)"
             >
-              <ZoomIn className="w-2.5 md:w-3.5 h-2.5 md:h-3.5" />
+              <ZoomIn className="w-3 md:w-3.5 h-3 md:h-3.5" />
             </button>
             <button
               onClick={triggerZoomReset}
               disabled={activeZoom === 1.0}
-              className={`h-full w-[22px] md:w-9 flex items-center justify-center transition-colors ${
+              className={`hidden md:flex h-full w-9 items-center justify-center border-l border-white/10 transition-colors shrink-0 ${
                 activeZoom === 1.0
                   ? 'text-white/20 cursor-not-allowed pointer-events-none'
                   : 'text-brand-green hover:text-brand-green/85 hover:bg-brand-green/5 cursor-pointer active:scale-95'
               }`}
               title="Redefinir Zoom"
             >
-              <RotateCcw className="w-2.5 md:w-3.5 h-2.5 md:h-3.5" />
+              <RotateCcw className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
@@ -176,18 +180,18 @@ export const GlobalTopHeader: React.FC = () => {
         {activeOverlay === 'lyrics' && (
           <button
             onClick={() => setShowChords(prev => !prev)}
-            className="h-[36px] md:h-[46px] w-[50px] md:w-[90px] bg-[#181818] border border-white/5 rounded-md flex flex-col items-center justify-center shrink-0 shadow-lg cursor-pointer select-none transition-all duration-200 hover:bg-[#222222] active:scale-95 animate-in fade-in duration-200"
+            className="h-[36px] md:h-[46px] w-[54px] sm:w-[70px] md:w-[90px] bg-[#181818] border border-white/10 rounded-lg flex flex-col items-center justify-center shrink-0 shadow-md cursor-pointer select-none transition-all duration-200 hover:bg-[#222222] active:scale-95 animate-in fade-in duration-200"
             title="Alternar Exibição de Cifras"
           >
-            <span className="text-[6.5px] md:text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-0.5 md:mb-1">
+            <span className="text-[7.5px] md:text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-0.5 md:mb-1">
               Cifra
             </span>
             {showChords ? (
-              <span className="text-[9px] md:text-xs font-black text-brand-green uppercase tracking-widest leading-none drop-shadow-[0_0_6px_rgba(34,197,94,0.35)]">
+              <span className="text-[10px] md:text-xs font-black text-brand-green uppercase tracking-widest leading-none drop-shadow-[0_0_6px_rgba(34,197,94,0.35)]">
                 ON
               </span>
             ) : (
-              <span className="text-[9px] md:text-xs font-black text-brand-gray/40 uppercase tracking-widest leading-none">
+              <span className="text-[10px] md:text-xs font-black text-brand-gray/40 uppercase tracking-widest leading-none">
                 OFF
               </span>
             )}
@@ -195,32 +199,36 @@ export const GlobalTopHeader: React.FC = () => {
         )}
 
         {/* Acorde Atual (Spotify style) */}
-        <div className="h-[36px] md:h-[46px] w-[56px] md:w-24 bg-[#181818] border border-white/5 rounded-md flex flex-col items-center justify-center shrink-0 shadow-lg transition-all duration-200 hover:bg-[#222222]">
-          <span className="text-[6.5px] md:text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-0.5 md:mb-1">
+        <div className="h-[36px] md:h-[46px] w-[58px] sm:w-[76px] md:w-24 bg-[#181818] border border-white/10 rounded-lg flex flex-col items-center justify-center shrink-0 shadow-md transition-all duration-200 hover:bg-[#222222]">
+          <span className="text-[7.5px] md:text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-0.5 md:mb-1">
             Acorde
           </span>
-          <span className="text-[9px] md:text-xs lg:text-sm font-black text-brand-green tracking-wider font-mono leading-none min-w-[24px] md:min-w-[28px] text-center drop-shadow-[0_0_6px_rgba(34,197,94,0.35)]">
+          <span className="text-[10px] md:text-xs lg:text-sm font-black text-brand-green tracking-wider font-mono leading-none text-center drop-shadow-[0_0_6px_rgba(34,197,94,0.35)]">
             {currentChord || '--'}
           </span>
         </div>
 
         {/* Controle de Tom (Transpose) */}
-        <div className="h-[36px] md:h-[46px] w-[88px] md:w-[160px] bg-[#181818] border border-white/5 rounded-md flex items-center overflow-hidden shrink-0 shadow-lg transition-all duration-200 hover:bg-[#222222]">
+        <div className="h-[36px] md:h-[46px] w-[108px] sm:w-[135px] md:w-[160px] bg-[#181818] border border-white/10 rounded-lg flex items-center overflow-hidden shrink-0 shadow-md transition-all duration-200 hover:bg-[#222222]">
           <button
             onClick={() => setTranspose(t => Math.max(-6, t - 1))}
-            className="h-full w-[22px] md:w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-r border-white/5 transition-colors cursor-pointer active:scale-95"
+            className="h-full w-7 md:w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-r border-white/10 transition-colors cursor-pointer active:scale-95 shrink-0"
             title="Diminuir Meio Tom"
           >
-            <Minus className="w-2.5 md:w-3.5 h-2.5 md:h-3.5" />
+            <Minus className="w-3 md:w-3.5 h-3 md:h-3.5" />
           </button>
           
-          <div className="flex flex-col items-center justify-center leading-none flex-1 min-w-0">
-            <span className="text-[6.5px] md:text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-0.5 md:mb-1 truncate w-full text-center">
+          <div 
+            onClick={() => setTranspose(0)}
+            className="flex flex-col items-center justify-center leading-none flex-1 min-w-0 px-1 cursor-pointer select-none active:opacity-70 transition-opacity"
+            title="Redefinir Tom Original (Toque para zerar)"
+          >
+            <span className="text-[7.5px] md:text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-0.5 md:mb-1 truncate w-full text-center">
               Tom
             </span>
-            <span className="text-[9px] md:text-xs font-black text-white whitespace-nowrap leading-none flex items-center justify-center gap-0.5">
+            <span className="text-[10px] md:text-xs font-black text-white whitespace-nowrap leading-none flex items-center justify-center gap-0.5">
               <span>{displayKey || '--'}</span>
-              <span className="text-brand-gray/40 font-semibold text-[7px] md:text-[10px]">
+              <span className="text-brand-gray/40 font-semibold text-[8px] md:text-[10px]">
                 ({transpose >= 0 ? `+${transpose}` : transpose})
               </span>
             </span>
@@ -228,43 +236,47 @@ export const GlobalTopHeader: React.FC = () => {
 
           <button
             onClick={() => setTranspose(t => Math.min(6, t + 1))}
-            className="h-full w-[22px] md:w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-l border-r border-white/5 transition-colors cursor-pointer active:scale-95"
+            className="h-full w-7 md:w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-l border-white/10 transition-colors cursor-pointer active:scale-95 shrink-0"
             title="Aumentar Meio Tom"
           >
-            <Plus className="w-2.5 md:w-3.5 h-2.5 md:h-3.5" />
+            <Plus className="w-3 md:w-3.5 h-3 md:h-3.5" />
           </button>
 
           <button
             onClick={() => setTranspose(0)}
             disabled={transpose === 0}
-            className={`h-full w-[22px] md:w-9 flex items-center justify-center transition-colors active:scale-95 ${
+            className={`hidden md:flex h-full w-9 items-center justify-center border-l border-white/10 transition-colors shrink-0 ${
               transpose === 0
                 ? 'text-white/20 cursor-not-allowed pointer-events-none'
-                : 'text-brand-green hover:text-brand-green/85 hover:bg-brand-green/5 cursor-pointer'
+                : 'text-brand-green hover:text-brand-green/85 hover:bg-brand-green/5 cursor-pointer active:scale-95'
             }`}
             title="Redefinir Tom Original"
           >
-            <RotateCcw className="w-2.5 md:w-3.5 h-2.5 md:h-3.5" />
+            <RotateCcw className="w-3.5 h-3.5" />
           </button>
         </div>
 
         {/* Controle de BPM */}
-        <div className="h-[36px] md:h-[46px] w-[92px] md:w-[170px] bg-[#181818] border border-white/5 rounded-md flex items-center overflow-hidden shrink-0 shadow-lg transition-all duration-200 hover:bg-[#222222]">
+        <div className="h-[36px] md:h-[46px] w-[114px] sm:w-[140px] md:w-[170px] bg-[#181818] border border-white/10 rounded-lg flex items-center overflow-hidden shrink-0 shadow-md transition-all duration-200 hover:bg-[#222222]">
           <button
             onClick={() => setBpmDelta(b => b - 1)}
-            className="h-full w-[22px] md:w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-r border-white/5 transition-colors cursor-pointer active:scale-95"
+            className="h-full w-7 md:w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-r border-white/10 transition-colors cursor-pointer active:scale-95 shrink-0"
             title="Diminuir 1 BPM"
           >
-            <Minus className="w-2.5 md:w-3.5 h-2.5 md:h-3.5" />
+            <Minus className="w-3 md:w-3.5 h-3 md:h-3.5" />
           </button>
           
-          <div className="flex flex-col items-center justify-center leading-none flex-1 min-w-0">
-            <span className="text-[6.5px] md:text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-0.5 md:mb-1 truncate w-full text-center">
+          <div 
+            onClick={() => setBpmDelta(0)}
+            className="flex flex-col items-center justify-center leading-none flex-1 min-w-0 px-1 cursor-pointer select-none active:opacity-70 transition-opacity"
+            title="Redefinir BPM Original (Toque para zerar)"
+          >
+            <span className="text-[7.5px] md:text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-0.5 md:mb-1 truncate w-full text-center">
               BPM
             </span>
-            <span className="text-[9px] md:text-xs font-black text-white whitespace-nowrap leading-none flex items-center justify-center gap-0.5">
+            <span className="text-[10px] md:text-xs font-black text-white whitespace-nowrap leading-none flex items-center justify-center gap-0.5">
               <span>{calculatedBpm}</span>
-              <span className="text-brand-gray/40 font-semibold text-[7px] md:text-[10px]">
+              <span className="text-brand-gray/40 font-semibold text-[8px] md:text-[10px]">
                 ({bpmDelta >= 0 ? `+${bpmDelta}` : bpmDelta})
               </span>
             </span>
@@ -272,38 +284,36 @@ export const GlobalTopHeader: React.FC = () => {
 
           <button
             onClick={() => setBpmDelta(b => b + 1)}
-            className="h-full w-[22px] md:w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-l border-r border-white/5 transition-colors cursor-pointer active:scale-95"
+            className="h-full w-7 md:w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-l border-white/10 transition-colors cursor-pointer active:scale-95 shrink-0"
             title="Aumentar 1 BPM"
           >
-            <Plus className="w-2.5 md:w-3.5 h-2.5 md:h-3.5" />
+            <Plus className="w-3 md:w-3.5 h-3 md:h-3.5" />
           </button>
 
           <button
             onClick={() => setBpmDelta(0)}
             disabled={bpmDelta === 0}
-            className={`h-full w-[22px] md:w-9 flex items-center justify-center transition-colors active:scale-95 ${
+            className={`hidden md:flex h-full w-9 items-center justify-center border-l border-white/10 transition-colors shrink-0 ${
               bpmDelta === 0
                 ? 'text-white/20 cursor-not-allowed pointer-events-none'
-                : 'text-brand-green hover:text-brand-green/85 hover:bg-brand-green/5 cursor-pointer'
+                : 'text-brand-green hover:text-brand-green/85 hover:bg-brand-green/5 cursor-pointer active:scale-95'
             }`}
             title="Redefinir BPM Original"
           >
-            <RotateCcw className="w-2.5 md:w-3.5 h-2.5 md:h-3.5" />
+            <RotateCcw className="w-3.5 h-3.5" />
           </button>
         </div>
 
         {/* Botão de Fechar X */}
-        {(activeOverlay !== 'none' || window.innerWidth >= 768) && (
-          <div className={`h-[36px] md:h-[46px] flex items-center justify-center shrink-0 ${activeOverlay === 'none' ? 'w-0 md:w-10 opacity-0 pointer-events-none' : 'w-8 md:w-10'}`}>
-            {activeOverlay !== 'none' && (
-              <button
-                onClick={() => setActiveOverlay('none')}
-                className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#181818] border border-white/10 text-brand-gray hover:text-white hover:border-brand-green/30 hover:bg-[#282828] transition-all flex items-center justify-center shadow-lg cursor-pointer hover:scale-105 active:scale-95 animate-in fade-in duration-200"
-                title="Fechar Painel"
-              >
-                <X className="w-4 h-4 md:w-5 md:h-5" />
-              </button>
-            )}
+        {activeOverlay !== 'none' && (
+          <div className="h-[36px] md:h-[46px] flex items-center justify-center shrink-0 w-8 md:w-10">
+            <button
+              onClick={() => setActiveOverlay('none')}
+              className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#181818] border border-white/10 text-brand-gray hover:text-white hover:border-brand-green/30 hover:bg-[#282828] transition-all flex items-center justify-center shadow-md cursor-pointer hover:scale-105 active:scale-95 animate-in fade-in duration-200"
+              title="Fechar Painel"
+            >
+              <X className="w-4 h-4 md:w-5 md:h-5" />
+            </button>
           </div>
         )}
 
