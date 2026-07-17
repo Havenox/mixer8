@@ -1,6 +1,6 @@
 import lameCode from 'lamejs/lame.all.js?raw';
 import { transposeChord } from '../hooks/useLyricsChords';
-import type { ITrack } from '../context/PlayerContext';
+import { type ITrack, isMetronomeStem } from '../context/PlayerContext';
 import { SERVER_URL } from '../config';
 import { addID3v2Tags } from './id3Writer';
 
@@ -142,10 +142,14 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
   }
 
   // 3. Calcula a duração máxima em segundos considerando a taxa de velocidade (BPM/Transpose)
-  const speedRatio = (calculatedBpm / baseBpm) * Math.pow(2, transpose / 12);
+  const tempoRatio = calculatedBpm / baseBpm;
+  const musicalSpeedRatio = tempoRatio * Math.pow(2, transpose / 12);
+
   let maxDuration = 0;
-  for (const { buffer } of stemBuffers) {
-    const adjustedDuration = buffer.duration / speedRatio;
+  for (const { stemType, buffer } of stemBuffers) {
+    const isMetronome = isMetronomeStem(stemType);
+    const effectiveSpeedRatio = isMetronome ? tempoRatio : musicalSpeedRatio;
+    const adjustedDuration = buffer.duration / effectiveSpeedRatio;
     if (adjustedDuration > maxDuration) {
       maxDuration = adjustedDuration;
     }
@@ -175,9 +179,12 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
     const effectiveGain = (muted || (hasAnySolo && !solo)) ? 0.0 : vol;
     if (effectiveGain <= 0) continue; // Pista silenciada
 
+    const isMetronome = isMetronomeStem(stemType);
+    const effectiveSpeedRatio = isMetronome ? tempoRatio : musicalSpeedRatio;
+
     const source = offlineCtx.createBufferSource();
     source.buffer = buffer;
-    source.playbackRate.value = speedRatio;
+    source.playbackRate.value = effectiveSpeedRatio;
 
     const gainNode = offlineCtx.createGain();
     gainNode.gain.value = effectiveGain;

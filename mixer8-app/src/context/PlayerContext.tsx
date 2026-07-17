@@ -27,6 +27,12 @@ export interface ITrack {
   Key?: string | null;
 }
 
+export const isMetronomeStem = (type?: string): boolean => {
+  if (!type) return false;
+  const lower = type.toLowerCase();
+  return lower.includes('metronomo') || lower.includes('metrônomo') || lower.includes('metronome') || lower.includes('click');
+};
+
 interface IPlayerContext {
   currentTrack: ITrack | null;
   currentPlaylistId: string | null;
@@ -443,10 +449,19 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       activeStemsRef.current.forEach(item => {
         if (item.audio) {
-          (item.audio as any).preservesPitch = shouldPreservePitch;
-          (item.audio as any).webkitPreservesPitch = shouldPreservePitch;
-          (item.audio as any).mozPreservesPitch = shouldPreservePitch;
-          item.audio.playbackRate = combinedRate;
+          const isMetronome = isMetronomeStem(item.type);
+          if (isMetronome) {
+            // O Metrônomo NUNCA altera o tom (sempre preserva o tom original e usa apenas a taxa de velocidade do BPM)
+            (item.audio as any).preservesPitch = true;
+            (item.audio as any).webkitPreservesPitch = true;
+            (item.audio as any).mozPreservesPitch = true;
+            item.audio.playbackRate = speedRatio;
+          } else {
+            (item.audio as any).preservesPitch = shouldPreservePitch;
+            (item.audio as any).webkitPreservesPitch = shouldPreservePitch;
+            (item.audio as any).mozPreservesPitch = shouldPreservePitch;
+            item.audio.playbackRate = combinedRate;
+          }
         }
       });
     }
@@ -937,7 +952,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       
       // Conecta o fluxo: Áudio -> Volume Canal -> Stereo Panner (se houver) -> PitchWorklet/Master -> Saída física
       sourceNode.connect(gainNode);
-      const targetDest: AudioNode = (stemType !== 'Metrônomo' && audioEngineMode === 'Power' && pitchWorkletNodeRef.current)
+      const isMetronome = isMetronomeStem(stemType);
+      const targetDest: AudioNode = (!isMetronome && audioEngineMode === 'Power' && pitchWorkletNodeRef.current)
         ? pitchWorkletNodeRef.current
         : (masterGainNodeRef.current || ctx.destination);
 
