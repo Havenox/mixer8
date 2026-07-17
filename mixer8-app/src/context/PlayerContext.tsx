@@ -219,32 +219,27 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [currentTrack]);
 
-  // Carrega configurações de transposição e BPM específicas de cada música do localStorage
-  useEffect(() => {
-    if (currentTrack?.TrackId) {
-      const cachedTranspose = localStorage.getItem(`mixer8:track:${currentTrack.TrackId}:transpose`);
-      const cachedBpmDelta = localStorage.getItem(`mixer8:track:${currentTrack.TrackId}:bpm-delta`);
-      setTranspose(cachedTranspose ? parseInt(cachedTranspose) : 0);
-      setBpmDelta(cachedBpmDelta ? parseInt(cachedBpmDelta) : 0);
-    } else {
-      setTranspose(0);
-      setBpmDelta(0);
-    }
-  }, [currentTrack?.TrackId]);
+  // Setter sincronizado de transposição do tom da música atual por TrackId no localStorage
+  const setTransposeSynced = useCallback((val: number | ((prev: number) => number)) => {
+    setTranspose(prev => {
+      const nextVal = typeof val === 'function' ? val(prev) : val;
+      if (currentTrackRef.current?.TrackId) {
+        localStorage.setItem(`mixer8:track:${currentTrackRef.current.TrackId}:transpose`, String(nextVal));
+      }
+      return nextVal;
+    });
+  }, []);
 
-  // Salva transposição do tom da música atual no localStorage
-  useEffect(() => {
-    if (currentTrack?.TrackId) {
-      localStorage.setItem(`mixer8:track:${currentTrack.TrackId}:transpose`, String(transpose));
-    }
-  }, [transpose, currentTrack?.TrackId]);
-
-  // Salva variação de BPM da música atual no localStorage
-  useEffect(() => {
-    if (currentTrack?.TrackId) {
-      localStorage.setItem(`mixer8:track:${currentTrack.TrackId}:bpm-delta`, String(bpmDelta));
-    }
-  }, [bpmDelta, currentTrack?.TrackId]);
+  // Setter sincronizado de variação de BPM da música atual por TrackId no localStorage
+  const setBpmDeltaSynced = useCallback((val: number | ((prev: number) => number)) => {
+    setBpmDelta(prev => {
+      const nextVal = typeof val === 'function' ? val(prev) : val;
+      if (currentTrackRef.current?.TrackId) {
+        localStorage.setItem(`mixer8:track:${currentTrackRef.current.TrackId}:bpm-delta`, String(nextVal));
+      }
+      return nextVal;
+    });
+  }, []);
 
   // Salva estado global de exibição de cifras no localStorage
   useEffect(() => {
@@ -783,8 +778,16 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     cleanupActiveStems();
     setCurrentTime(0);
     setDuration(0);
-    setTranspose(0);
-    setBpmDelta(0);
+    // Carrega configurações salvas de Tom (transpose) e Tempo (bpmDelta) estritamente específicas da faixa atual
+    if (track?.TrackId) {
+      const cachedTranspose = localStorage.getItem(`mixer8:track:${track.TrackId}:transpose`);
+      const cachedBpmDelta = localStorage.getItem(`mixer8:track:${track.TrackId}:bpm-delta`);
+      setTranspose(cachedTranspose !== null ? parseInt(cachedTranspose, 10) : 0);
+      setBpmDelta(cachedBpmDelta !== null ? parseInt(cachedBpmDelta, 10) : 0);
+    } else {
+      setTranspose(0);
+      setBpmDelta(0);
+    }
     
     // Atualiza estados para renderização reativa
     setCurrentTrack(track);
@@ -1613,9 +1616,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         toggleRepeatMode,
         isPremium,
         transpose,
-        setTranspose,
+        setTranspose: setTransposeSynced,
         bpmDelta,
-        setBpmDelta,
+        setBpmDelta: setBpmDeltaSynced,
         activeOverlay,
         setActiveOverlay,
         showChords,

@@ -440,6 +440,11 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
       * Ao clicar em **'Sim, cancelar'**, a exportação é interrompida via `AbortController` (`abortExport()`), limpando o estado de exportação sem gerar download.
       * Ao clicar em **'Não, continuar'**, o modal fecha e o processo de exportação é **despausado/retomado** via `resumeExport()`, continuando o download exatamente do ponto onde parou.
 
+39. **Isolamento Estrito e Persistência Individual de Tom e Tempo por Faixa**:
+    * **Eliminação de Vazamentos de Estado:** Removidos efeitos colaterais (`useEffects`) que reescreviam a transposição de tom (`transpose`) e delta de BPM (`bpmDelta`) no `localStorage` ao alternar entre faixas.
+    * **Carregamento Sincronizado por Música (`loadTrack`):** Ao carregar uma música (manual ou automaticamente via fila/autoplay), o `PlayerContext` lê diretamente as chaves `mixer8:track:<TrackId>:transpose` e `mixer8:track:<TrackId>:bpm-delta` no `localStorage`. Se não houver configuração salva para a faixa atual, reseta os valores estritamente para `0`.
+    * **Setters Dedicados por Faixa (`setTransposeSynced` / `setBpmDeltaSynced`):** A alteração de Tom ou BPM via interface do usuário salva a nova configuração exclusivamente sob a chave `TrackId` ativa no `localStorage`. Mudar de música não afeta nem sobrescreve os valores das faixas subsequentes.
+
 ---
 
 ## 🎯 Próximo Milestone: Ajustes de Fluxo e Segurança de Rede
