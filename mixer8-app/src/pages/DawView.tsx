@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
 import { RotaryKnob } from '../components/RotaryKnob';
 import { 
-  ChevronLeft, Play, Pause, Loader2, 
-  ShieldAlert, Sliders, Volume2, 
-  Disc, Music4, ZoomIn, ZoomOut
+  ChevronLeft, Loader2, 
+  ShieldAlert, Volume2, 
+  Disc
 } from 'lucide-react';
-import { API_URL, SERVER_URL } from '../config';
+import { API_URL } from '../config';
 
 const ZOOM_STEPS = [1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0, 16.0];
 
@@ -22,7 +22,6 @@ export const DawView: React.FC = () => {
     stemsMute,
     stemsSolo,
     stemsPan,
-    togglePlay,
     seek,
     setStemVolume,
     toggleStemMute,
@@ -75,6 +74,28 @@ export const DawView: React.FC = () => {
   const handleZoomReset = () => {
     setZoomLevel(1.0);
   };
+
+  // Emite o nível de zoom para o GlobalTopHeader
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('mixer8:zoom-change', { detail: { zoomLevel } }));
+  }, [zoomLevel]);
+
+  // Escuta os comandos de zoom disparados pelo GlobalTopHeader
+  useEffect(() => {
+    const handleZoomInEvent = () => handleZoomIn();
+    const handleZoomOutEvent = () => handleZoomOut();
+    const handleZoomResetEvent = () => handleZoomReset();
+
+    window.addEventListener('mixer8:zoom-in', handleZoomInEvent);
+    window.addEventListener('mixer8:zoom-out', handleZoomOutEvent);
+    window.addEventListener('mixer8:zoom-reset', handleZoomResetEvent);
+
+    return () => {
+      window.removeEventListener('mixer8:zoom-in', handleZoomInEvent);
+      window.removeEventListener('mixer8:zoom-out', handleZoomOutEvent);
+      window.removeEventListener('mixer8:zoom-reset', handleZoomResetEvent);
+    };
+  }, []);
 
   // Gera os marcadores de segundos com base no nível de zoom
   const getTicks = () => {
@@ -475,85 +496,7 @@ export const DawView: React.FC = () => {
   return (
     <div className="flex flex-col h-full bg-[#0d0d0d] text-white select-none animate-in fade-in duration-300" ref={containerRef}>
       
-      {/* 1. TOPO: Identificação e Ações da Faixa */}
-      <div className="flex items-center justify-between px-6 py-4 bg-black/40 border-b border-brand-hover shrink-0">
-        <div className="flex items-center gap-4">
-          <button 
-            onClick={() => navigate(-1)}
-            className="p-2 rounded-full border border-brand-hover text-brand-gray hover:text-white hover:border-white transition-all cursor-pointer"
-            title="Voltar"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          
-          {/* Cover e Título */}
-          <div className="flex items-center gap-3">
-            {currentTrack.CoverUrl ? (
-              <img 
-                src={currentTrack.CoverUrl.startsWith('http') ? currentTrack.CoverUrl : `${SERVER_URL}${currentTrack.CoverUrl}`}
-                className="w-10 h-10 rounded object-cover border border-brand-hover shadow-md"
-                alt="Capa"
-              />
-            ) : (
-              <div className="w-10 h-10 rounded bg-brand-hover border border-brand-hover flex items-center justify-center text-brand-green">
-                <Music4 className="w-5 h-5" />
-              </div>
-            )}
-            <div className="flex flex-col">
-              <span className="text-sm font-black text-white tracking-wider max-w-[320px] truncate">{currentTrack.TrackTitle}</span>
-              <span className="text-xs text-brand-gray font-semibold truncate max-w-[320px]">{currentTrack.ArtistName}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Informações Auxiliares (Design de DAW) */}
-        <div className="flex items-center gap-5">
-          {/* Controles de Zoom (Estilo DAW Profissional) */}
-          <div className="flex items-center gap-1 bg-black/30 border border-brand-hover rounded-md p-1 select-none">
-            <button
-              onClick={handleZoomOut}
-              disabled={zoomLevel === 1.0}
-              className="p-1.5 rounded text-brand-gray hover:text-white transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Afastar Zoom (Zoom Out)"
-            >
-              <ZoomOut className="w-4 h-4" />
-            </button>
-            <span className="text-[10px] font-bold font-mono text-brand-gray/80 px-1 min-w-[32px] text-center">
-              {zoomLevel.toFixed(1)}x
-            </span>
-            <button
-              onClick={handleZoomIn}
-              disabled={zoomLevel === 16.0}
-              className="p-1.5 rounded text-brand-gray hover:text-white transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Aproximar Zoom (Zoom In)"
-            >
-              <ZoomIn className="w-4 h-4" />
-            </button>
-            <button
-              onClick={handleZoomReset}
-              disabled={zoomLevel === 1.0}
-              className="p-1.5 rounded text-brand-green hover:text-brand-green/80 disabled:text-brand-gray/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer text-[9px] font-black uppercase px-2 shrink-0"
-              title="Redefinir Zoom"
-            >
-              Redefinir
-            </button>
-          </div>
-
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-black/20 border border-brand-hover rounded-md text-[10px] font-bold text-brand-green tracking-wide">
-            <Sliders className="w-3.5 h-3.5" />
-            <span>SESSÃO MULTIFAIXAS ({sortedStems.length} STEMS)</span>
-          </div>
-          
-          <button 
-            onClick={togglePlay}
-            className="flex items-center justify-center p-2.5 bg-brand-green text-black hover:scale-105 active:scale-95 transition-all rounded-full cursor-pointer shadow-lg"
-          >
-            {isPlaying ? <Pause className="w-4.5 h-4.5" fill="black" /> : <Play className="w-4.5 h-4.5" fill="black" />}
-          </button>
-        </div>
-      </div>
-
-      {/* 2. AREA CENTRAL: DAW Workstation */}
+      {/* AREA CENTRAL: DAW Workstation */}
       <div className="flex-1 flex flex-col min-h-0 bg-[#0d0d0d] relative overflow-hidden">
         
         {loading ? (
@@ -605,8 +548,15 @@ export const DawView: React.FC = () => {
         {/* Linha do Tempo (Ruler de Compasso superior) */}
         <div className="h-9 border-b border-brand-hover flex relative select-none shrink-0 px-6" style={{ background: '#141414' }}>
           {/* Header de Canto (Alinhado com a largura do painel esquerdo) */}
-          <div className="w-[240px] border-r border-brand-hover shrink-0 flex items-center pr-4 text-[9px] font-black text-brand-gray tracking-wider uppercase">
-            Canais / Pistas
+          <div className="w-[240px] border-r border-brand-hover shrink-0 flex items-center gap-2 pr-4 text-[9px] font-black text-brand-gray tracking-wider uppercase">
+            <button 
+              onClick={() => navigate(-1)}
+              className="p-1 rounded-full border border-brand-hover text-brand-gray hover:text-white hover:border-white transition-all cursor-pointer shrink-0"
+              title="Voltar"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            <span>Canais / Pistas</span>
           </div>
           
           {/* Régua de Tempo (Scrollable Wrapper) */}

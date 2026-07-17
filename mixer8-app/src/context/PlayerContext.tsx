@@ -22,6 +22,8 @@ export interface ITrack {
   UploadedByUserName?: string;
   DeletionPending?: boolean;
   DeletionReason?: string;
+  Bpm?: number | null;
+  Key?: string | null;
 }
 
 interface IPlayerContext {
@@ -55,6 +57,10 @@ interface IPlayerContext {
   isPremium: boolean;
   transpose: number;
   setTranspose: React.Dispatch<React.SetStateAction<number>>;
+  bpmDelta: number;
+  setBpmDelta: React.Dispatch<React.SetStateAction<number>>;
+  isLyricsOpen: boolean;
+  setIsLyricsOpen: React.Dispatch<React.SetStateAction<boolean>>;
   audioEngineMode: 'Power' | 'Lite';
   setAudioEngineMode: (mode: 'Power' | 'Lite') => void;
 }
@@ -174,6 +180,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [currentTrack, setCurrentTrack] = useState<ITrack | null>(null);
   const [currentPlaylistId, setCurrentPlaylistId] = useState<string | null>(null);
   const [transpose, setTranspose] = useState<number>(0);
+  const [bpmDelta, setBpmDelta] = useState<number>(0);
+  const [isLyricsOpen, setIsLyricsOpen] = useState<boolean>(false);
   const [currentAlbumId, setCurrentAlbumId] = useState<string | null>(null);
   const [currentQueue, setCurrentQueue] = useState<ITrack[]>([]);
   const currentQueueRef = useRef<ITrack[]>([]);
@@ -656,6 +664,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setCurrentTime(0);
     setDuration(0);
     setTranspose(0);
+    setBpmDelta(0);
     
     // Atualiza estados para renderização reativa
     setCurrentTrack(track);
@@ -1342,6 +1351,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         isPremium,
         transpose,
         setTranspose,
+        bpmDelta,
+        setBpmDelta,
+        isLyricsOpen,
+        setIsLyricsOpen,
         audioEngineMode,
         setAudioEngineMode
       }}

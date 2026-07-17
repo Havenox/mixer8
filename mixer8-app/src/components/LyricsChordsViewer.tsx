@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Music, X } from 'lucide-react';
-import { useLyricsChords, transposeChord } from '../hooks/useLyricsChords';
+import { ChevronLeft } from 'lucide-react';
+import { useLyricsChords } from '../hooks/useLyricsChords';
 import type { ILyricsLine, IChordBeat } from '../hooks/useLyricsChords';
 import { SERVER_URL } from '../config';
 import { usePlayer } from '../context/PlayerContext';
@@ -57,7 +57,7 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
   CurrentTime,
   OnClose
 }) => {
-  const { seek, isPlaying, togglePlay, transpose, setTranspose } = usePlayer();
+  const { seek, isPlaying, togglePlay, transpose } = usePlayer();
   const [lyrics, setLyrics] = useState<ILyricsLine[] | null>(null);
   const [chords, setChords] = useState<IChordBeat[] | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -125,23 +125,6 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
     );
   }, [processedLines, CurrentTime]);
 
-  // 4. Calcula o acorde ativo com base estrita no tempo (independente da letra)
-  const currentChordName = useMemo(() => {
-    if (!chords || chords.length === 0) return '';
-    let activeBeat = chords[0];
-    for (let i = 0; i < chords.length; i++) {
-      if (chords[i].curr_beat_time <= CurrentTime) {
-        activeBeat = chords[i];
-      } else {
-        break;
-      }
-    }
-    const rawChord = activeBeat && activeBeat.chord_simple_pop !== 'N' 
-      ? activeBeat.chord_simple_pop 
-      : '';
-    return rawChord ? transposeChord(rawChord, transpose) : '';
-  }, [chords, CurrentTime, transpose]);
-
   // 4. Auto-Scroll suave para manter a linha ativa centralizada na tela
   useEffect(() => {
     if (activeLineIndex !== -1) {
@@ -153,67 +136,21 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
   }, [activeLineIndex]);
 
   return (
-    <div className="fixed inset-x-0 top-0 bottom-16 md:bottom-24 z-40 bg-brand-black/95 backdrop-blur-2xl flex flex-col font-sans select-none animate-in fade-in zoom-in-95 duration-200">
+    <div className="w-full h-full flex flex-col font-sans select-none bg-brand-dark overflow-hidden relative animate-in fade-in duration-200">
       
-      {/* Cabeçalho do Modal */}
-      <header className="h-16 px-6 border-b border-brand-hover flex items-center justify-between shrink-0 bg-brand-black/50">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-brand-green/10 flex items-center justify-center border border-brand-green/20">
-            <Music className="w-4 h-4 text-brand-green" />
-          </div>
-          <div>
-            <h2 className="text-white font-semibold text-sm md:text-base leading-tight">Estúdio de Letras & Cifras</h2>
-            <p className="text-brand-gray text-[10px] uppercase tracking-wider font-bold">Modo de Ensaios</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 md:gap-4">
-          {/* Seletor de Transposição (Tom) */}
-          {chords && chords.length > 0 && (
-            <div className="flex items-center bg-brand-hover rounded-full p-1 border border-brand-hover">
-              <button 
-                onClick={() => setTranspose(t => Math.max(-6, t - 1))}
-                className="w-7 h-7 rounded-full text-xs text-brand-gray hover:text-white hover:bg-white/5 active:scale-95 transition-all flex items-center justify-center font-bold"
-                title="Diminuir Meio Tom"
-              >
-                -
-              </button>
-              <span className="px-3 text-[11px] font-bold text-brand-green min-w-[70px] text-center select-none uppercase">
-                TOM: {transpose >= 0 ? `+${transpose}` : transpose}
-              </span>
-              <button 
-                onClick={() => setTranspose(t => Math.min(6, t + 1))}
-                className="w-7 h-7 rounded-full text-xs text-brand-gray hover:text-white hover:bg-white/5 active:scale-95 transition-all flex items-center justify-center font-bold"
-                title="Aumentar Meio Tom"
-              >
-                +
-              </button>
-            </div>
-          )}
-
-          {/* Botão de Fechar */}
-          <button 
-            onClick={OnClose}
-            className="w-8 h-8 rounded-full bg-brand-hover hover:bg-brand-hover/80 text-brand-gray hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-            title="Fechar Visualizador"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      </header>
-
-      {/* Caixa Fixa do Acorde Atual */}
-      {currentChordName && (
-        <div className="bg-brand-hover/30 border-b border-brand-hover py-3 px-6 flex flex-col items-center justify-center shrink-0">
-          <span className="text-[10px] text-brand-gray uppercase tracking-wider font-bold mb-0.5">Acorde Atual</span>
-          <span className="text-3xl md:text-4xl font-black text-brand-green tracking-wider animate-pulse-slow">
-            {currentChordName}
-          </span>
-        </div>
-      )}
+      {/* Barra superior dedicada para o botão de voltar, eliminando sobreposições com a letra */}
+      <div className="h-14 flex items-center px-6 md:px-12 shrink-0 border-b border-brand-hover/20">
+        <button 
+          onClick={OnClose}
+          className="w-10 h-10 rounded-full bg-[#181818] border border-white/10 text-white hover:text-brand-green hover:border-brand-green/30 transition-all flex items-center justify-center shadow-lg cursor-pointer hover:scale-105 active:scale-95"
+          title="Voltar"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+      </div>
 
       {/* Área Central: Exibição */}
-      <div className="flex-1 overflow-y-auto px-6 md:px-12 py-24 flex flex-col gap-8 scroll-smooth">
+      <div className="flex-1 overflow-y-auto px-6 md:px-12 pt-6 pb-24 flex flex-col gap-8 scroll-smooth">
         {loading ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 text-brand-gray">
             <div className="w-6 h-6 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />

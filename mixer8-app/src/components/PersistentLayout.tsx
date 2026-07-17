@@ -3,6 +3,8 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { usePlayer } from '../context/PlayerContext';
 import { MesaPlayer } from './MesaPlayer';
+import { GlobalTopHeader } from './GlobalTopHeader';
+import { LyricsChordsViewer } from './LyricsChordsViewer';
 import { 
   Home, Library, PlusCircle, Shield, 
   LogOut, User, Layers, ListMusic,
@@ -14,7 +16,7 @@ import { SERVER_URL, API_URL } from '../config';
 
 export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { IsAuthenticated, CurrentUser, Logout, openLoginModal, Token } = useAuth();
-  const { currentTrack } = usePlayer();
+  const { currentTrack, currentTime, isLyricsOpen, setIsLyricsOpen } = usePlayer();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -502,13 +504,24 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
 
       {/* 2. CONTEÚDO PRINCIPAL (Mesa de Som com rolagem) */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden bg-brand-dark">
-        {/* Scroll Container para as Páginas (Condicionado para DAW em tela cheia) */}
+        {/* Cabeçalho Fixo Global (Aparece em todas as páginas se houver música na agulha) */}
+        {currentTrack && <GlobalTopHeader />}
+
+        {/* Scroll Container para as Páginas (Condicionado para DAW ou Visão de Letras) */}
         {location.pathname === '/daw' ? (
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             {children}
           </div>
+        ) : isLyricsOpen && currentTrack ? (
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <LyricsChordsViewer 
+              TrackId={currentTrack.TrackId} 
+              CurrentTime={currentTime} 
+              OnClose={() => setIsLyricsOpen(false)} 
+            />
+          </div>
         ) : (
-          <div className="flex-1 overflow-y-auto px-4 md:px-8 pt-22 md:pt-6 pb-24 md:pb-28">
+          <div className="flex-1 overflow-y-auto px-4 md:px-8 pt-4 pb-24 md:pb-28">
             {children}
           </div>
         )}

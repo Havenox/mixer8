@@ -1,0 +1,268 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
+import { usePlayer } from '../context/PlayerContext';
+import { transposeChord } from '../hooks/useLyricsChords';
+import type { IChordBeat } from '../hooks/useLyricsChords';
+import { SERVER_URL } from '../config';
+import { ZoomIn, ZoomOut, Music4, RotateCcw, Plus, Minus } from 'lucide-react';
+
+export const GlobalTopHeader: React.FC = () => {
+  const {
+    currentTrack,
+    currentTime,
+    transpose,
+    setTranspose,
+    bpmDelta,
+    setBpmDelta
+  } = usePlayer();
+
+  const location = useLocation();
+  const isDawRoute = location.pathname === '/daw';
+
+  const [chords, setChords] = useState<IChordBeat[] | null>(null);
+  const [activeZoom, setActiveZoom] = useState(1.0);
+
+  // Escuta atualizações do nível de Zoom enviadas pela DAW
+  useEffect(() => {
+    const handleZoomChange = (e: Event) => {
+      const customEvt = e as CustomEvent;
+      if (customEvt.detail?.zoomLevel) {
+        setActiveZoom(customEvt.detail.zoomLevel);
+      }
+    };
+    window.addEventListener('mixer8:zoom-change', handleZoomChange);
+    return () => window.removeEventListener('mixer8:zoom-change', handleZoomChange);
+  }, []);
+
+  const triggerZoomIn = () => window.dispatchEvent(new CustomEvent('mixer8:zoom-in'));
+  const triggerZoomOut = () => window.dispatchEvent(new CustomEvent('mixer8:zoom-out'));
+  const triggerZoomReset = () => window.dispatchEvent(new CustomEvent('mixer8:zoom-reset'));
+
+  // Carrega as cifras (chords.json) quando a faixa atual muda
+  useEffect(() => {
+    setChords(null);
+    if (!currentTrack?.TrackId) return;
+
+    let isMounted = true;
+    const fetchChords = async () => {
+      try {
+        const response = await fetch(`${SERVER_URL}/stems/${currentTrack.TrackId}/chords.json`);
+        if (response.ok) {
+          const data = await response.json();
+          if (isMounted) setChords(data);
+        }
+      } catch (e) {
+        console.warn('Erro ao carregar chords.json:', e);
+      }
+    };
+
+    fetchChords();
+    return () => {
+      isMounted = false;
+    };
+  }, [currentTrack?.TrackId]);
+
+  // Calcula o acorde atual baseado no currentTime e na transposição
+  const currentChord = useMemo(() => {
+    if (!chords || chords.length === 0) return '';
+
+    // Encontra o batimento ativo correspondente ao tempo atual
+    let activeBeat: IChordBeat | null = null;
+    for (let i = 0; i < chords.length; i++) {
+      if (currentTime >= chords[i].curr_beat_time) {
+        activeBeat = chords[i];
+      } else {
+        break;
+      }
+    }
+
+    if (!activeBeat) return '';
+
+    const rawChord = activeBeat.chord_simple_pop && activeBeat.chord_simple_pop !== 'N'
+      ? activeBeat.chord_simple_pop
+      : activeBeat.prev_chord;
+
+    return rawChord ? transposeChord(rawChord, transpose) : '';
+  }, [chords, currentTime, transpose]);
+
+  // Calcula o Tom Base transposto para exibição
+  const displayKey = useMemo(() => {
+    if (!currentTrack?.Key) return null;
+    return transposeChord(currentTrack.Key, transpose);
+  }, [currentTrack?.Key, transpose]);
+
+  // Calcula o BPM atual ajustado com a variação (delta)
+  const calculatedBpm = useMemo(() => {
+    const base = currentTrack?.Bpm || 120;
+    return Math.max(30, Math.min(300, base + bpmDelta));
+  }, [currentTrack?.Bpm, bpmDelta]);
+
+  if (!currentTrack) return null;
+
+  return (
+    <header className="w-full bg-[#0d0d0d]/95 backdrop-blur-md border-b border-brand-hover/80 px-4 md:px-6 h-[72px] flex items-center justify-between gap-4 shrink-0 select-none z-30 transition-all">
+      
+      {/* Grupo da Esquerda: Info da Faixa + Zoom (se na rota DAW) */}
+      <div className="flex items-center gap-6 min-w-0 shrink-0">
+        {/* Capa, Título e Artista */}
+        <div className="flex items-center gap-3 min-w-0 shrink-0">
+          {currentTrack.CoverUrl ? (
+            <img
+              src={currentTrack.CoverUrl.startsWith('http') ? currentTrack.CoverUrl : `${SERVER_URL}${currentTrack.CoverUrl}`}
+              className="w-10 h-10 rounded object-cover border border-brand-hover shadow-md shrink-0"
+              alt="Capa da música"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded bg-brand-hover border border-brand-hover flex items-center justify-center text-brand-green shrink-0">
+              <Music4 className="w-5 h-5" />
+            </div>
+          )}
+          <div className="flex flex-col truncate max-w-[160px] sm:max-w-[220px] lg:max-w-[300px]">
+            <span className="text-xs md:text-sm font-black text-white tracking-wider truncate">
+              {currentTrack.TrackTitle}
+            </span>
+            <span className="text-[11px] text-brand-gray font-medium truncate">
+              {currentTrack.ArtistName}
+            </span>
+          </div>
+        </div>
+
+        {/* Controles de Zoom (Apenas na rota DAW, ao lado das infos da música) */}
+        {isDawRoute && (
+          <div className="h-[46px] w-[170px] bg-[#181818] border border-white/5 rounded-md flex items-center overflow-hidden shrink-0 select-none shadow-lg transition-all duration-200 hover:bg-[#222222]">
+            <button
+              onClick={triggerZoomOut}
+              disabled={activeZoom === 1.0}
+              className="h-full w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-r border-white/5 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Afastar Zoom (Zoom Out)"
+            >
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
+            <div className="flex flex-col items-center justify-center leading-none flex-1">
+              <span className="text-[9px] font-bold text-brand-gray/60 uppercase tracking-wider mb-0.5">Zoom</span>
+              <span className="text-xs font-black text-white font-mono">{activeZoom.toFixed(1)}x</span>
+            </div>
+            <button
+              onClick={triggerZoomIn}
+              disabled={activeZoom === 16.0}
+              className="h-full w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-l border-r border-white/5 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Aproximar Zoom (Zoom In)"
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={triggerZoomReset}
+              disabled={activeZoom === 1.0}
+              className={`h-full w-12 flex items-center justify-center text-[9px] font-black uppercase tracking-wider transition-colors ${
+                activeZoom === 1.0
+                  ? 'opacity-10 cursor-not-allowed pointer-events-none text-brand-gray/20'
+                  : 'text-brand-green hover:text-brand-green/85 hover:bg-brand-green/5 cursor-pointer'
+              }`}
+              title="Redefinir Zoom"
+            >
+              Reset
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Grupo da Direita (Alinhado no canto direito): Acorde, Tom, BPM */}
+      <div className="flex items-center gap-3 shrink-0 ml-auto py-0.5">
+        
+        {/* Acorde Atual (Spotify style) */}
+        <div className="h-[46px] w-24 bg-[#181818] border border-white/5 rounded-md flex flex-col items-center justify-center shrink-0 shadow-lg transition-all duration-200 hover:bg-[#222222]">
+          <span className="text-[9px] font-bold text-brand-gray/60 uppercase tracking-widest leading-none mb-0.5">
+            Acorde
+          </span>
+          <span className="text-sm md:text-base font-black text-brand-green tracking-wider font-mono uppercase leading-none min-w-[28px] text-center drop-shadow-[0_0_6px_rgba(34,197,94,0.35)]">
+            {currentChord || '--'}
+          </span>
+        </div>
+
+        {/* Controle de Tom (Transpose) */}
+        <div className="h-[46px] w-[180px] bg-[#181818] border border-white/5 rounded-md flex items-center overflow-hidden shrink-0 shadow-lg transition-all duration-200 hover:bg-[#222222]">
+          <button
+            onClick={() => setTranspose(t => Math.max(-6, t - 1))}
+            className="h-full w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-r border-white/5 transition-colors cursor-pointer active:scale-95"
+            title="Diminuir Meio Tom"
+          >
+            <Minus className="w-3.5 h-3.5" />
+          </button>
+          
+          <div className="flex flex-col items-center justify-center leading-none flex-1">
+            <span className="text-[9px] font-bold text-brand-gray/60 uppercase tracking-wider mb-0.5">
+              Tom
+            </span>
+            <span className="text-xs font-black text-white">
+              {displayKey || '--'} <span className="text-brand-gray/40 font-semibold">({transpose >= 0 ? `+${transpose}` : transpose})</span>
+            </span>
+          </div>
+
+          <button
+            onClick={() => setTranspose(t => Math.min(6, t + 1))}
+            className="h-full w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-l border-r border-white/5 transition-colors cursor-pointer active:scale-95"
+            title="Aumentar Meio Tom"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            onClick={() => setTranspose(0)}
+            disabled={transpose === 0}
+            className={`h-full w-9 flex items-center justify-center transition-colors active:scale-95 ${
+              transpose === 0
+                ? 'opacity-10 cursor-not-allowed pointer-events-none text-brand-gray/20'
+                : 'text-brand-green hover:text-brand-green/85 hover:bg-brand-green/5 cursor-pointer'
+            }`}
+            title="Redefinir Tom Original"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Controle de BPM */}
+        <div className="h-[46px] w-[190px] bg-[#181818] border border-white/5 rounded-md flex items-center overflow-hidden shrink-0 shadow-lg transition-all duration-200 hover:bg-[#222222]">
+          <button
+            onClick={() => setBpmDelta(b => b - 1)}
+            className="h-full w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-r border-white/5 transition-colors cursor-pointer active:scale-95"
+            title="Diminuir 1 BPM"
+          >
+            <Minus className="w-3.5 h-3.5" />
+          </button>
+          
+          <div className="flex flex-col items-center justify-center leading-none flex-1">
+            <span className="text-[9px] font-bold text-brand-gray/60 uppercase tracking-wider mb-0.5">
+              BPM
+            </span>
+            <span className="text-xs font-black text-white">
+              {calculatedBpm} <span className="text-brand-gray/40 font-semibold">({bpmDelta >= 0 ? `+${bpmDelta}` : bpmDelta})</span>
+            </span>
+          </div>
+
+          <button
+            onClick={() => setBpmDelta(b => b + 1)}
+            className="h-full w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-l border-r border-white/5 transition-colors cursor-pointer active:scale-95"
+            title="Aumentar 1 BPM"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            onClick={() => setBpmDelta(0)}
+            disabled={bpmDelta === 0}
+            className={`h-full w-9 flex items-center justify-center transition-colors active:scale-95 ${
+              bpmDelta === 0
+                ? 'opacity-10 cursor-not-allowed pointer-events-none text-brand-gray/20'
+                : 'text-brand-green hover:text-brand-green/85 hover:bg-brand-green/5 cursor-pointer'
+            }`}
+            title="Redefinir BPM Original"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+      </div>
+
+    </header>
+  );
+};

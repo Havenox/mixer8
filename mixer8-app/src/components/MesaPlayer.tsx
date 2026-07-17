@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 
 import { SERVER_URL } from '../config';
-import { LyricsChordsViewer } from './LyricsChordsViewer';
 import { transposeChord } from '../hooks/useLyricsChords';
 import type { IChordBeat } from '../hooks/useLyricsChords';
 
@@ -34,7 +33,9 @@ export const MesaPlayer: React.FC = () => {
     repeatMode,
     toggleShuffle,
     toggleRepeatMode,
-    transpose
+    transpose,
+    isLyricsOpen,
+    setIsLyricsOpen
   } = usePlayer();
 
   const navigate = useNavigate();
@@ -85,7 +86,6 @@ export const MesaPlayer: React.FC = () => {
   }, [chords, currentTime, transpose]);
 
   const [showMixer, setShowMixer] = useState(false);
-  const [showLyricsModal, setShowLyricsModal] = useState(false);
   const [sliderValue, setSliderValue] = useState<number | null>(null);
   
   const [isExpandedMobile, setIsExpandedMobile] = useState(false);
@@ -178,7 +178,7 @@ export const MesaPlayer: React.FC = () => {
         {/* Esquerda: Info da Música Real */}
         <div className="flex items-center gap-2.5 md:gap-4 flex-1 md:flex-none min-w-0 md:w-1/4 md:min-w-[200px]">
           <div 
-            onClick={() => setShowLyricsModal(true)}
+            onClick={() => setIsLyricsOpen(!isLyricsOpen)}
             className="w-10 h-10 md:w-14 md:h-14 bg-brand-card border border-brand-hover rounded flex items-center justify-center relative overflow-hidden group shadow-lg shrink-0 cursor-pointer"
             title="Abrir Letras & Cifras"
           >
@@ -346,8 +346,12 @@ export const MesaPlayer: React.FC = () => {
 
           {/* Botão de Letras / Cifras */}
           <button 
-            onClick={() => setShowLyricsModal(true)}
-            className="flex items-center justify-center p-2 rounded-full border border-brand-hover text-brand-gray hover:text-white hover:border-white transition-all cursor-pointer shrink-0"
+            onClick={() => setIsLyricsOpen(!isLyricsOpen)}
+            className={`flex items-center justify-center p-2 rounded-full border transition-all cursor-pointer shrink-0 ${
+              isLyricsOpen
+                ? 'bg-brand-green/10 border-brand-green text-brand-green shadow-md font-bold'
+                : 'border-brand-hover text-brand-gray hover:text-white hover:border-white'
+            }`}
             title="Letras e Cifras"
           >
             <Music className="w-4 h-4 shrink-0" />
@@ -664,7 +668,7 @@ export const MesaPlayer: React.FC = () => {
           {/* Capa Gigante */}
           <div className="flex-1 flex items-center justify-center my-4 max-h-[340px] shrink-0">
             <div 
-              onClick={() => { setShowLyricsModal(true); setIsExpandedMobile(false); }}
+              onClick={() => { setIsLyricsOpen(true); setIsExpandedMobile(false); }}
               className="w-full aspect-square max-w-[260px] xs:max-w-[300px] rounded-lg overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.8)] border border-white/5 bg-brand-card flex items-center justify-center cursor-pointer"
               title="Abrir Letras & Cifras"
             >
@@ -819,7 +823,7 @@ export const MesaPlayer: React.FC = () => {
                 </button>
               )}
               <button 
-                onClick={() => { setShowLyricsModal(true); setIsExpandedMobile(false); }}
+                onClick={() => { setIsLyricsOpen(true); setIsExpandedMobile(false); }}
                 className="flex items-center gap-2 py-2 px-4 rounded-full border border-brand-hover text-brand-gray hover:text-white transition-all cursor-pointer"
                 title="Letras e Cifras"
               >
@@ -962,13 +966,6 @@ export const MesaPlayer: React.FC = () => {
             </div>
           )}
         </div>
-      )}
-      {showLyricsModal && (
-        <LyricsChordsViewer 
-          TrackId={currentTrack.TrackId}
-          CurrentTime={currentTime}
-          OnClose={() => setShowLyricsModal(false)}
-        />
       )}
     </>
   );
