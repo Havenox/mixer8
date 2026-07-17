@@ -15,7 +15,7 @@ import { PublicProfile } from './pages/PublicProfile';
 import { WeeklyTrends } from './pages/WeeklyTrends';
 import { PopularPlaylists } from './pages/PopularPlaylists';
 import { ExploreShelf } from './components/ExploreShelf';
-import { Sparkles, Flame, Music, Loader2, Plus, Trash2, AlertTriangle, X, Settings, RefreshCw, ListMusic, Image, ShieldAlert, LayoutGrid, List } from 'lucide-react';
+import { Flame, Music, Loader2, Plus, Trash2, AlertTriangle, X, Settings, RefreshCw, ListMusic, Image, ShieldAlert, LayoutGrid, List } from 'lucide-react';
 
 import { API_URL, SERVER_URL } from './config';
 
@@ -289,22 +289,25 @@ const Explore: React.FC = () => {
     <div className="flex flex-col gap-8 animate-in fade-in duration-300">
       
       {/* Banner de Boas-vindas Premium */}
-      <div className="bg-gradient-to-r from-brand-hover to-black border border-brand-hover p-8 rounded-lg shadow-xl relative overflow-hidden flex flex-col gap-3">
-        <div className="flex items-center gap-2 text-brand-green text-xs font-bold uppercase tracking-wider">
-          <Sparkles className="w-4 h-4" /> Bem-vindo ao Mixer8
-        </div>
-        <h1 className="text-3xl md:text-4xl font-black tracking-tight m-0 text-white leading-none">
-          Música não é estática.{' '}
-          <span className="text-brand-green">Sinta cada Stem.</span>
+      <div className="bg-gradient-to-r from-brand-hover to-black border border-brand-hover px-6 py-5 rounded-lg shadow-xl relative overflow-hidden flex items-center gap-3 flex-wrap">
+        <h1 className="text-xl md:text-2xl font-black tracking-tight text-white leading-none m-0 flex items-center gap-3 flex-wrap">
+          <span>
+            {IsAuthenticated && CurrentUser ? (
+              CurrentUser.FirstName?.trim() ? (
+                `Olá ${CurrentUser.FirstName.trim()}! Seja bem Vindo ao`
+              ) : (
+                `Olá ${CurrentUser.UserName}! Seja bem Vindo ao`
+              )
+            ) : (
+              "Olá! Seja bem Vindo ao"
+            )}
+          </span>
+          <img 
+            src="/mixer8-logo.webp" 
+            alt="Mixer8 Logo" 
+            className="h-6 md:h-7.5 w-auto object-contain select-none" 
+          />
         </h1>
-        <p className="text-sm text-brand-gray max-w-[600px] leading-relaxed">
-          Isola a voz, remova a bateria, aumente o sintetizador e crie mixagens únicas. Cada música na biblioteca é uma fusão em tempo real de stems separadas por inteligência artificial.
-        </p>
-        
-        {/* Nível do Usuário */}
-        <div className="mt-2 self-start px-3 py-1 bg-brand-green/10 border border-brand-green/30 text-brand-green rounded text-xs font-semibold uppercase tracking-wider">
-          Nível de Acesso: {CurrentUser?.UserRole}
-        </div>
       </div>
 
       {/* Seletor de layout global para as estantes do Explorar */}
