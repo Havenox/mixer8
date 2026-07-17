@@ -35,7 +35,7 @@ export const PublicProfile: React.FC = () => {
   const { username } = useParams<{ username: string }>();
   const navigate = useNavigate();
   const { Token } = useAuth();
-  const { currentPlaylistId, isPlaying, togglePlay, loadTrack } = usePlayer();
+  const { currentPlaylistId, isPlaying, togglePlay, loadTrack, isShuffle } = usePlayer();
 
   const handlePlayPlaylistClick = async (e: React.MouseEvent, playlist: any) => {
     e.stopPropagation();
@@ -54,8 +54,24 @@ export const PublicProfile: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         if (data.Tracks && data.Tracks.length > 0) {
-          const tracksQueue = data.Tracks.map((pt: any) => pt.Track);
-          const firstTrack = tracksQueue[0];
+          const tracksQueue = data.Tracks.map((x: any) => ({
+            TrackId: x.TrackId,
+            TrackTitle: x.TrackTitle,
+            ArtistName: x.ArtistName,
+            CoverUrl: x.CoverUrl,
+            ExtractionStatus: 'Pronto',
+            CreatedAt: x.AddedAt,
+            Bpm: x.Bpm,
+            Key: x.Key,
+            Stems: x.Stems ? x.Stems.map((s: any) => ({
+              StemId: s.StemId,
+              TrackId: s.TrackId,
+              StemType: s.StemType,
+              AudioUrl: s.AudioUrl
+            })) : []
+          }));
+          const startIndex = isShuffle ? Math.floor(Math.random() * tracksQueue.length) : 0;
+          const firstTrack = tracksQueue[startIndex];
           loadTrack(firstTrack, playlist.PlaylistId, undefined, tracksQueue, playlist.Name);
         }
       }

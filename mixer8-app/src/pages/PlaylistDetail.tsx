@@ -71,7 +71,7 @@ interface IPlaylistDetail {
 export const PlaylistDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { Token, CurrentUser, IsAuthenticated, openLoginModal } = useAuth();
-  const { loadTrack, currentTrack, isPlaying, togglePlay, downloadTrackForOffline, isTrackDownloaded, removeTrackOffline, isPremium } = usePlayer();
+  const { loadTrack, currentTrack, isPlaying, togglePlay, downloadTrackForOffline, isTrackDownloaded, removeTrackOffline, isPremium, currentPlaylistId, isShuffle } = usePlayer();
   const { fetchPlaylists, openEditPlaylist, openAddToPlaylist } = usePlaylists();
   const navigate = useNavigate();
 
@@ -640,7 +640,31 @@ export const PlaylistDetail: React.FC = () => {
 
   const handlePlayPlaylist = () => {
     if (playlist && playlist.Tracks.length > 0) {
-      handlePlayTrack(playlist.Tracks[0]);
+      const isActivePlaylist = currentPlaylistId === playlist.PlaylistId;
+      if (isActivePlaylist) {
+        togglePlay();
+      } else {
+        const tracksQueue = playlist.Tracks.map(x => ({
+          TrackId: x.TrackId,
+          TrackTitle: x.TrackTitle,
+          ArtistName: x.ArtistName,
+          CoverUrl: x.CoverUrl,
+          ExtractionStatus: 'Pronto',
+          CreatedAt: x.AddedAt,
+          Bpm: x.Bpm,
+          Key: x.Key,
+          Stems: x.Stems.map(s => ({
+            StemId: s.StemId,
+            TrackId: s.TrackId,
+            StemType: s.StemType,
+            AudioUrl: s.AudioUrl
+          }))
+        }));
+        
+        const startIndex = isShuffle ? Math.floor(Math.random() * tracksQueue.length) : 0;
+        const firstTrack = tracksQueue[startIndex];
+        loadTrack(firstTrack, playlist.PlaylistId, undefined, tracksQueue, playlist.Name);
+      }
     }
   };
 
@@ -848,6 +872,20 @@ export const PlaylistDetail: React.FC = () => {
 
         {/* Ações Desktop (Configurações, Download, Curtir, Compartilhar) - Oculto no Mobile */}
         <div className="hidden md:flex gap-3 self-end justify-end mt-0 shrink-0 items-center w-auto">
+          {playlist.Tracks.length > 0 && (
+            <button
+              onClick={handlePlayPlaylist}
+              className="w-10 h-10 rounded-full bg-brand-green text-black flex items-center justify-center shadow hover:scale-105 active:scale-95 transition-all cursor-pointer mr-1"
+              title={currentPlaylistId === playlist.PlaylistId && isPlaying ? "Pausar Playlist" : "Tocar Playlist"}
+            >
+              {currentPlaylistId === playlist.PlaylistId && isPlaying ? (
+                <Pause className="w-5 h-5 fill-current" />
+              ) : (
+                <Play className="w-5 h-5 fill-current translate-x-[1px]" />
+              )}
+            </button>
+          )}
+
           <button
             onClick={handleToggleSavePlaylist}
             className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shadow hover:scale-105 active:scale-95 ${
@@ -945,9 +983,13 @@ export const PlaylistDetail: React.FC = () => {
           <button
             onClick={handlePlayPlaylist}
             className="w-12 h-12 rounded-full bg-brand-green text-black flex items-center justify-center shadow-lg active:scale-95 hover:scale-105 transition-all cursor-pointer"
-            title="Tocar Playlist"
+            title={currentPlaylistId === playlist.PlaylistId && isPlaying ? "Pausar Playlist" : "Tocar Playlist"}
           >
-            <Play className="w-6 h-6 fill-current translate-x-[1px]" />
+            {currentPlaylistId === playlist.PlaylistId && isPlaying ? (
+              <Pause className="w-6 h-6 fill-current" />
+            ) : (
+              <Play className="w-6 h-6 fill-current translate-x-[1px]" />
+            )}
           </button>
         )}
       </div>

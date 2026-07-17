@@ -57,7 +57,7 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
   onToggleSavePlaylist
 }) => {
   const { CurrentUser, IsAuthenticated, openLoginModal, Token } = useAuth();
-  const { loadTrack, currentTrack, isPlaying, togglePlay, currentPlaylistId } = usePlayer();
+  const { loadTrack, currentTrack, isPlaying, togglePlay, currentPlaylistId, isShuffle } = usePlayer();
   const { openAddToPlaylist } = usePlaylists();
   const navigate = useNavigate();
 
@@ -101,8 +101,24 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
       if (res.ok) {
         const data = await res.json();
         if (data.Tracks && data.Tracks.length > 0) {
-          const tracksQueue = data.Tracks.map((pt: any) => pt.Track);
-          const firstTrack = tracksQueue[0];
+          const tracksQueue = data.Tracks.map((x: any) => ({
+            TrackId: x.TrackId,
+            TrackTitle: x.TrackTitle,
+            ArtistName: x.ArtistName,
+            CoverUrl: x.CoverUrl,
+            ExtractionStatus: 'Pronto',
+            CreatedAt: x.AddedAt,
+            Bpm: x.Bpm,
+            Key: x.Key,
+            Stems: x.Stems ? x.Stems.map((s: any) => ({
+              StemId: s.StemId,
+              TrackId: s.TrackId,
+              StemType: s.StemType,
+              AudioUrl: s.AudioUrl
+            })) : []
+          }));
+          const startIndex = isShuffle ? Math.floor(Math.random() * tracksQueue.length) : 0;
+          const firstTrack = tracksQueue[startIndex];
           loadTrack(firstTrack, playlist.PlaylistId, undefined, tracksQueue, playlist.Name);
         }
       }
