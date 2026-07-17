@@ -20,10 +20,25 @@ export const GlobalTopHeader: React.FC = () => {
   } = usePlayer();
 
   const [chords, setChords] = useState<IChordBeat[] | null>(null);
+
+  const getZoomCacheKey = () => window.innerWidth < 768 ? 'mixer8:daw-zoom-level:mobile' : 'mixer8:daw-zoom-level:desktop';
+
   const [activeZoom, setActiveZoom] = useState(() => {
-    const cached = localStorage.getItem('mixer8:daw-zoom-level');
+    const key = getZoomCacheKey();
+    const cached = localStorage.getItem(key);
     return cached ? parseFloat(cached) : 1.0;
   });
+
+  // Re-avalia o Zoom exibido ao alterar o tamanho da janela
+  useEffect(() => {
+    const handleResize = () => {
+      const key = getZoomCacheKey();
+      const cached = localStorage.getItem(key);
+      setActiveZoom(cached ? parseFloat(cached) : 1.0);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Escuta atualizações do nível de Zoom enviadas pela DAW
   useEffect(() => {

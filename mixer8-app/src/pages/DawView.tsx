@@ -3,14 +3,22 @@ import React, { useState, useEffect, useRef } from 'react';
 import { usePlayer } from '../context/PlayerContext';
 import { RotaryKnob } from '../components/RotaryKnob';
 import { 
-  ChevronLeft, Loader2, 
+  Loader2, 
   ShieldAlert, Volume2, 
   Disc, PanelLeftClose, PanelLeftOpen,
   Activity, X
 } from 'lucide-react';
 import { API_URL } from '../config';
 
-const ZOOM_STEPS = [1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0, 16.0];
+const ZOOM_STEPS = [1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0, 16.0, 20.0, 30.0, 40.0, 50.0];
+
+const getZoomCacheKey = () => window.innerWidth < 768 ? 'mixer8:daw-zoom-level:mobile' : 'mixer8:daw-zoom-level:desktop';
+
+const getInitialZoom = () => {
+  const key = getZoomCacheKey();
+  const cached = localStorage.getItem(key);
+  return cached ? parseFloat(cached) : 1.0;
+};
 
 export const DawView: React.FC = () => {
 
@@ -44,10 +52,22 @@ export const DawView: React.FC = () => {
   const trackScrollRefs = useRef<(HTMLDivElement | null)[]>([]);
   const playheadScrollRef = useRef<HTMLDivElement>(null);
   const playheadLineRef = useRef<HTMLDivElement>(null);
-  const [zoomLevel, setZoomLevel] = useState(() => {
-    const cached = localStorage.getItem('mixer8:daw-zoom-level');
-    return cached ? parseFloat(cached) : 1.0;
-  });
+  const [zoomLevel, setZoomLevel] = useState(getInitialZoom);
+
+  // Re-avalia o Zoom e estado da sidebar ao alterar o tamanho da janela (ex: alternar modo mobile/desktop)
+  useEffect(() => {
+    const handleResize = () => {
+      const isMobile = window.innerWidth < 768;
+      setIsSidebarCollapsed(isMobile);
+
+      const key = isMobile ? 'mixer8:daw-zoom-level:mobile' : 'mixer8:daw-zoom-level:desktop';
+      const cached = localStorage.getItem(key);
+      setZoomLevel(cached ? parseFloat(cached) : 1.0);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Limpa refs quando mudar track ou stems
   useEffect(() => {
@@ -78,10 +98,11 @@ export const DawView: React.FC = () => {
     setZoomLevel(1.0);
   };
 
-  // Emite o nível de zoom para o GlobalTopHeader e salva no localStorage
+  // Emite o nível de zoom para o GlobalTopHeader e salva no localStorage do dispositivo atual (mobile ou desktop)
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('mixer8:zoom-change', { detail: { zoomLevel } }));
-    localStorage.setItem('mixer8:daw-zoom-level', String(zoomLevel));
+    const key = getZoomCacheKey();
+    localStorage.setItem(key, String(zoomLevel));
   }, [zoomLevel]);
 
   // Escuta os comandos de zoom disparados pelo GlobalTopHeader
@@ -566,19 +587,10 @@ export const DawView: React.FC = () => {
         {/* Linha do Tempo (Ruler de Compasso superior) */}
         <div className="h-9 border-b border-brand-hover flex relative select-none shrink-0 px-4 md:px-6" style={{ background: '#141414' }}>
           {/* Header de Canto (Alinhado com a largura do painel esquerdo) */}
-          <div className={`${isSidebarCollapsed ? 'w-12 pr-1' : 'w-[240px] pr-4'} border-r border-brand-hover shrink-0 flex items-center justify-between transition-all duration-200 gap-1 text-[9px] font-black text-brand-gray tracking-wider uppercase`}>
-            <div className="flex items-center gap-1 min-w-0">
-              <button 
-                onClick={() => setActiveOverlay('none')}
-                className="p-1 rounded-full border border-brand-hover text-brand-gray hover:text-white hover:border-white transition-all cursor-pointer shrink-0"
-                title="Voltar"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-              </button>
-              {!isSidebarCollapsed && (
-                <span className="truncate">Canais / Pistas</span>
-              )}
-            </div>
+          <div className={`${isSidebarCollapsed ? 'w-12 justify-center' : 'w-[240px] px-3 justify-between'} border-r border-brand-hover shrink-0 flex items-center transition-all duration-200 gap-1 text-[9px] font-black text-brand-gray tracking-wider uppercase`}>
+            {!isSidebarCollapsed && (
+              <span className="truncate">Canais / Pistas</span>
+            )}
 
             <button
               onClick={() => setIsSidebarCollapsed(prev => !prev)}
