@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { exportMixToMp3 } from '../utils/mixExporter';
 
 export interface IStem {
   StemId: string;
@@ -68,6 +69,14 @@ interface IPlayerContext {
   setActiveOverlay: React.Dispatch<React.SetStateAction<ActiveOverlayType>>;
   showChords: boolean;
   setShowChords: React.Dispatch<React.SetStateAction<boolean>>;
+  isExporting: boolean;
+  exportProgress: number;
+  exportStatusMessage: string;
+  exportFileName: string;
+  exportError: string | null;
+  exportSuccess: boolean;
+  exportMix: () => Promise<void>;
+  closeExportToast: () => void;
 }
 
 export type ActiveOverlayType = 'none' | 'daw' | 'lyrics' | 'mixer' | 'player';
@@ -1429,6 +1438,75 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  // Estados para exportação de mixagem em MP3 192kbps 48kHz
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
+  const [exportStatusMessage, setExportStatusMessage] = useState('');
+  const [exportFileName, setExportFileName] = useState('');
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exportSuccess, setExportSuccess] = useState(false);
+
+  const closeExportToast = () => {
+    if (isExporting) return;
+    setExportSuccess(false);
+    setExportError(null);
+    setExportProgress(0);
+    setExportStatusMessage('');
+    setExportFileName('');
+  };
+
+  const exportMix = async () => {
+    if (isExporting) return;
+    if (!currentTrackRef.current) {
+      setExportError('Nenhuma música ativa para exportar.');
+      return;
+    }
+
+    setIsExporting(true);
+    setExportSuccess(false);
+    setExportError(null);
+    setExportProgress(0);
+    setExportStatusMessage('Iniciando exportação assíncrona...');
+
+    try {
+      const result = await exportMixToMp3({
+        currentTrack: currentTrackRef.current,
+        stemsVolume,
+        stemsMute,
+        stemsSolo,
+        stemsPan,
+        masterVolume,
+        transpose,
+        bpmDelta,
+        isPremium,
+        getCachedOrFetchAudioUrl,
+        onProgress: (progress, status) => {
+          setExportProgress(progress);
+          setExportStatusMessage(status);
+        }
+      });
+
+      setExportFileName(result.fileName);
+
+      // Dispara o download automático do Blob gerado
+      const blobUrl = URL.createObjectURL(result.blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = result.fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setExportSuccess(true);
+      console.log('[EXPORT] Mixagem exportada com sucesso:', result.fileName);
+    } catch (err: any) {
+      console.error('[EXPORT] Erro ao exportar mixagem:', err);
+      setExportError(err?.message || 'Ocorreu um erro inesperado ao exportar a mixagem.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <PlayerContext.Provider
       value={{
@@ -1472,7 +1550,15 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         activeOverlay,
         setActiveOverlay,
         showChords,
-        setShowChords
+        setShowChords,
+        isExporting,
+        exportProgress,
+        exportStatusMessage,
+        exportFileName,
+        exportError,
+        exportSuccess,
+        exportMix,
+        closeExportToast
       }}
     >
       {children}

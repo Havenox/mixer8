@@ -3,7 +3,7 @@ import { usePlayer } from '../context/PlayerContext';
 import { transposeChord } from '../hooks/useLyricsChords';
 import type { IChordBeat } from '../hooks/useLyricsChords';
 import { SERVER_URL } from '../config';
-import { ZoomIn, ZoomOut, Music4, RotateCcw, Plus, Minus } from 'lucide-react';
+import { ZoomIn, ZoomOut, Music4, RotateCcw, Plus, Minus, Download, Loader2 } from 'lucide-react';
 
 export const GlobalTopHeader: React.FC = () => {
   const {
@@ -15,7 +15,9 @@ export const GlobalTopHeader: React.FC = () => {
     setBpmDelta,
     activeOverlay,
     showChords,
-    setShowChords
+    setShowChords,
+    exportMix,
+    isExporting
   } = usePlayer();
 
   const [chords, setChords] = useState<IChordBeat[] | null>(null);
@@ -156,9 +158,28 @@ export const GlobalTopHeader: React.FC = () => {
         </div>
       </div>
 
-      {/* Grupo da Direita: Controles (no mobile alinhados à direita com excelente legibilidade e sem X) */}
+      {/* Grupo da Direita: Controles (no mobile alinhados à direita com excelente legibilidade) */}
       <div className="flex items-center justify-end md:justify-end gap-1 md:gap-3 w-full md:w-auto py-0.5">
         
+        {/* Botão de Exportar Mix (Apenas se a DAW estiver aberta) */}
+        {activeOverlay === 'daw' && (
+          <button
+            onClick={exportMix}
+            disabled={isExporting}
+            className="h-[32px] md:h-[46px] px-2.5 sm:px-3.5 md:px-4 bg-[#181818] border border-white/10 rounded-md md:rounded-lg flex items-center justify-center gap-1.5 md:gap-2 shrink-0 shadow-md transition-all duration-200 hover:bg-[#222222] hover:border-brand-green/30 active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed animate-in fade-in duration-200"
+            title="Exportar mixagem atual em MP3 192kbps 48kHz"
+          >
+            {isExporting ? (
+              <Loader2 className="w-3 md:w-4 h-3 md:h-4 text-brand-green animate-spin" />
+            ) : (
+              <Download className="w-3 md:w-4 h-3 md:h-4 text-brand-green" />
+            )}
+            <span className="text-[9px] sm:text-xs md:text-sm font-bold text-white whitespace-nowrap">
+              Exportar mix
+            </span>
+          </button>
+        )}
+
         {/* Controles de Zoom (Apenas se a DAW estiver aberta) */}
         {activeOverlay === 'daw' && (
           <div className="h-[32px] md:h-[46px] w-[80px] sm:w-[110px] md:w-[150px] bg-[#181818] border border-white/10 rounded-md md:rounded-lg flex items-center overflow-hidden shrink-0 select-none shadow-md transition-all duration-200 hover:bg-[#222222] animate-in fade-in duration-200">

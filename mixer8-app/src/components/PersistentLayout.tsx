@@ -7,6 +7,7 @@ import { GlobalTopHeader } from './GlobalTopHeader';
 import { LyricsChordsViewer } from './LyricsChordsViewer';
 import { DawView } from '../pages/DawView';
 import { MobileMixerOverlay } from './MobileMixerOverlay';
+import { ExportToast } from './ExportToast';
 import { 
   Home, Library, Shield, 
   LogOut, User, ListMusic,
@@ -559,7 +560,10 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
         </div>
       </div>
 
-      {/* 3. PERSISTENT AUDIO PLAYER */}
+      {/* 3. NOTIFICAÇÃO TOAST FLUTUANTE DE EXPORTAÇÃO */}
+      <ExportToast />
+
+      {/* 4. PERSISTENT AUDIO PLAYER */}
       <MesaPlayer />
 
     </div>
