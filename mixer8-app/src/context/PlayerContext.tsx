@@ -67,7 +67,7 @@ interface IPlayerContext {
   setShowChords: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-export type ActiveOverlayType = 'none' | 'daw' | 'lyrics';
+export type ActiveOverlayType = 'none' | 'daw' | 'lyrics' | 'mixer' | 'player';
 
 const PlayerContext = createContext<IPlayerContext | undefined>(undefined);
 

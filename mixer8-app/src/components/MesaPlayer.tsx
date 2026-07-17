@@ -86,9 +86,6 @@ export const MesaPlayer: React.FC = () => {
 
   const [showMixer, setShowMixer] = useState(false);
   const [sliderValue, setSliderValue] = useState<number | null>(null);
-  
-  const [isExpandedMobile, setIsExpandedMobile] = useState(false);
-  const [showMobileMixer, setShowMobileMixer] = useState(false);
 
   const displayTime = sliderValue ?? currentTime;
   const progressPercent = (displayTime / (duration || 1)) * 100;
@@ -539,7 +536,7 @@ export const MesaPlayer: React.FC = () => {
 
       {/* 2. COMPACT MOBILE AUDIO PLAYER */}
       <div 
-        onClick={() => setIsExpandedMobile(true)}
+        onClick={() => setActiveOverlay('player')}
         className="fixed bottom-0 left-0 right-0 h-16 bg-brand-black/95 backdrop-blur border-t border-brand-hover px-4 flex md:hidden items-center justify-between z-50 shadow-xl select-none cursor-pointer"
       >
         {/* Barra de progresso interativa no topo absoluto do mini player com seek de precisão */}
@@ -624,7 +621,7 @@ export const MesaPlayer: React.FC = () => {
         <div className="flex items-center gap-3 shrink-0">
           {(hasMultipleStems || isProcessingOrSingleStem) && (
             <button 
-              onClick={(e) => { e.stopPropagation(); setIsExpandedMobile(true); setShowMobileMixer(true); }}
+              onClick={(e) => { e.stopPropagation(); setActiveOverlay('mixer'); }}
               className="text-brand-gray hover:text-white p-2 cursor-pointer transition-colors"
               title="Mixer de Som"
             >
@@ -646,12 +643,12 @@ export const MesaPlayer: React.FC = () => {
       </div>
 
       {/* 3. FULL SCREEN MOBILE AUDIO PLAYER */}
-      {isExpandedMobile && (
+      {activeOverlay === 'player' && (
         <div className="fixed inset-0 bg-gradient-to-b from-brand-hover via-brand-black to-brand-black z-50 flex flex-col p-6 overflow-y-auto select-none md:hidden animate-in slide-in-from-bottom duration-300">
           {/* Header */}
           <div className="flex items-center justify-between w-full shrink-0 mb-4">
             <button 
-              onClick={() => setIsExpandedMobile(false)} 
+              onClick={() => setActiveOverlay('none')} 
               className="p-2 text-brand-gray hover:text-white transition-colors cursor-pointer"
             >
               <ChevronDown className="w-6 h-6" />
@@ -667,10 +664,7 @@ export const MesaPlayer: React.FC = () => {
           {/* Capa Gigante */}
           <div className="flex-1 flex items-center justify-center my-4 max-h-[340px] shrink-0">
             <div 
-              onClick={() => { 
-                setActiveOverlay('lyrics'); 
-                setIsExpandedMobile(false); 
-              }}
+              onClick={() => setActiveOverlay('lyrics')}
               className="w-full aspect-square max-w-[260px] xs:max-w-[300px] rounded-lg overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.8)] border border-white/5 bg-brand-card flex items-center justify-center cursor-pointer"
               title="Abrir Letras & Cifras"
             >
@@ -810,183 +804,39 @@ export const MesaPlayer: React.FC = () => {
               </button>
             </div>
 
-            {/* Linha 2: Utilidades (Mixer, DAW e Letras) */}
-            <div className="flex items-center justify-center gap-2 w-full px-2">
+            {/* Linha 2: Utilidades (DAW, Mixer e Letras) */}
+            <div className="flex items-center justify-center gap-3 w-full px-2">
               <button 
-                onClick={() => { 
-                  setActiveOverlay('daw'); 
-                  setIsExpandedMobile(false); 
-                }}
-                className={`flex items-center gap-1.5 py-2 px-3 rounded-full border transition-all cursor-pointer ${
-                  activeOverlay === 'daw' ? 'bg-brand-green/10 border-brand-green text-brand-green shadow-md font-bold' : 'border-brand-hover text-brand-gray hover:text-white'
-                }`}
+                onClick={() => setActiveOverlay('daw')}
+                className="flex items-center gap-1.5 py-2 px-4 rounded-full border border-brand-hover text-brand-gray hover:text-white hover:border-brand-green/30 transition-all cursor-pointer"
                 title="Estúdio DAW"
               >
                 <Activity className="w-4 h-4 text-brand-green" />
-                <span className="text-xs font-semibold">Estúdio DAW</span>
+                <span className="text-xs font-bold">DAW</span>
               </button>
 
               {(hasMultipleStems || isProcessingOrSingleStem) && (
                 <button 
-                  onClick={() => setShowMobileMixer(!showMobileMixer)}
-                  className={`flex items-center gap-1.5 py-2 px-3 rounded-full border transition-all cursor-pointer ${
-                    showMobileMixer ? 'bg-brand-green/10 border-brand-green text-brand-green shadow-md font-bold' : 'border-brand-hover text-brand-gray hover:text-white'
-                  }`}
+                  onClick={() => setActiveOverlay('mixer')}
+                  className="flex items-center gap-1.5 py-2 px-4 rounded-full border border-brand-hover text-brand-gray hover:text-white hover:border-brand-green/30 transition-all cursor-pointer"
                   title="Mixer de Som"
                 >
-                  <Sliders className="w-4 h-4" />
-                  <span className="text-xs font-semibold">Mixer Stems</span>
+                  <Sliders className="w-4 h-4 text-brand-green" />
+                  <span className="text-xs font-bold">Mixer</span>
                 </button>
               )}
 
               <button 
-                onClick={() => { 
-                  setActiveOverlay('lyrics'); 
-                  setIsExpandedMobile(false); 
-                }}
-                className={`flex items-center gap-1.5 py-2 px-3 rounded-full border transition-all cursor-pointer ${
-                  activeOverlay === 'lyrics' ? 'bg-brand-green/10 border-brand-green text-brand-green shadow-md font-bold' : 'border-brand-hover text-brand-gray hover:text-white'
-                }`}
+                onClick={() => setActiveOverlay('lyrics')}
+                className="flex items-center gap-1.5 py-2 px-4 rounded-full border border-brand-hover text-brand-gray hover:text-white hover:border-brand-green/30 transition-all cursor-pointer"
                 title="Letras e Cifras"
               >
-                <Music className="w-4 h-4" />
-                <span className="text-xs font-semibold">Letras & Cifras</span>
+                <Music className="w-4 h-4 text-brand-green" />
+                <span className="text-xs font-bold">Letras</span>
               </button>
             </div>
 
           </div>
-
-          {/* Mixer Stems Mobile (Directly below playback controls) */}
-          {showMobileMixer && (hasMultipleStems || isProcessingOrSingleStem) && (
-            <div className="w-full mt-6 border-t border-brand-hover pt-6 flex flex-col gap-4 animate-in slide-in-from-bottom duration-250 select-none pb-12">
-              <div className="flex items-center justify-between border-b border-brand-hover pb-2">
-                <span className="font-bold text-sm text-brand-green uppercase tracking-wider flex items-center gap-1.5">
-                  <Layers className="w-4 h-4" /> Mixer de Som (Realtime)
-                </span>
-                <span className="text-xs bg-brand-hover text-brand-green font-black px-2 py-0.5 rounded">
-                  {isProcessingOrSingleStem ? 'PREVIA' : `${currentTrack.Stems?.length} STEMS`}
-                </span>
-              </div>
-
-              {isProcessingOrSingleStem ? (
-                <div className="flex flex-col items-center justify-center text-center p-4 gap-3 bg-black/20 border border-brand-hover rounded-lg">
-                  <Clock className="w-8 h-8 text-yellow-500 animate-pulse" />
-                  <p className="text-xs text-brand-gray leading-relaxed m-0 font-medium text-white">
-                    Mixagem em processamento. Ouça a prévia completa enquanto separamos os canais.
-                  </p>
-                </div>
-              ) : (
-                <>
-
-              {/* Presets Rápidos */}
-              <div className="grid grid-cols-4 gap-2 text-xs font-bold uppercase select-none shrink-0">
-                <button 
-                  onClick={() => applyPreset('acapella')} 
-                  className="py-2 bg-brand-hover rounded text-brand-gray hover:text-brand-green text-center cursor-pointer border border-transparent active:border-brand-green/20 transition-all"
-                >
-                  Voz
-                </button>
-                <button 
-                  onClick={() => applyPreset('karaoke')} 
-                  className="py-2 bg-brand-hover rounded text-brand-gray hover:text-brand-green text-center cursor-pointer border border-transparent active:border-brand-green/20 transition-all"
-                >
-                  Sem Voz
-                </button>
-                <button 
-                  onClick={() => applyPreset('instrumental')} 
-                  className="py-2 bg-brand-hover rounded text-brand-gray hover:text-brand-green text-center cursor-pointer border border-transparent active:border-brand-green/20 transition-all"
-                >
-                  Instru.
-                </button>
-                <button 
-                  onClick={() => applyPreset('reset')} 
-                  className="py-2 bg-brand-hover rounded text-brand-gray hover:text-brand-green text-center cursor-pointer border border-transparent active:border-brand-green/20 transition-all"
-                >
-                  Reset
-                </button>
-              </div>
-
-              {/* Sliders de Stems */}
-              <div className="flex flex-col gap-4">
-                {[...currentTrack.Stems]
-                  .sort((a, b) => {
-                    const order = [
-                      'Voz',
-                      'Vocal',
-                      'Bateria',
-                      'Baixo',
-                      'Guitarra',
-                      'Guitarra Solo',
-                      'Guitarra Base',
-                      'Sopro',
-                      'Teclado',
-                      'Piano',
-                      'Cordas',
-                      'Outros',
-                      'Metrônomo'
-                    ];
-                    const indexA = order.indexOf(a.StemType);
-                    const indexB = order.indexOf(b.StemType);
-                    const valA = a.StemType === 'Vocais' ? 0 : (indexA === -1 ? 999 : indexA);
-                    const valB = b.StemType === 'Vocais' ? 0 : (indexB === -1 ? 999 : indexB);
-                    return valA - valB;
-                  })
-                  .map((stem) => {
-                    const stemName = stem.StemType;
-                    const volume = stemsVolume[stemName] ?? (stemName === 'Metrônomo' ? 0.0 : 1.0);
-                    const isMuted = stemsMute[stemName] ?? false;
-                    const isSoloed = stemsSolo[stemName] ?? false;
-                    const hasAnySolo = Object.values(stemsSolo).some(v => v);
-                    const isSilenced = hasAnySolo ? !isSoloed : isMuted;
-
-                    return (
-                      <div key={stem.StemId} className={`flex flex-col gap-2 transition-all duration-200 ${isSilenced ? 'opacity-40' : 'opacity-100'}`}>
-                        <div className="flex justify-between text-xs font-semibold items-center">
-                          <span className="text-white flex items-center gap-2 capitalize font-semibold select-none">
-                            <span className="text-sm">{stemName}</span>
-                            <span className="flex items-center gap-1.5 shrink-0 ml-1">
-                              <button
-                                onClick={() => toggleStemMute(stemName)}
-                                className={`w-5 h-5 rounded-[4px] flex items-center justify-center text-[10px] font-black transition-all border cursor-pointer ${
-                                  isMuted
-                                    ? 'bg-red-500 text-white border-red-500 hover:bg-red-500'
-                                    : 'bg-brand-hover text-brand-gray border-transparent'
-                                }`}
-                              >
-                                M
-                              </button>
-                              <button
-                                onClick={() => toggleStemSolo(stemName)}
-                                className={`w-5 h-5 rounded-[4px] flex items-center justify-center text-[10px] font-black transition-all border cursor-pointer ${
-                                  isSoloed
-                                    ? 'bg-yellow-500 text-black border-yellow-500 hover:bg-yellow-500'
-                                    : 'bg-brand-hover text-brand-gray border-transparent'
-                                }`}
-                              >
-                                S
-                              </button>
-                            </span>
-                          </span>
-                          <span className="text-brand-gray font-mono text-xs">{Math.round(volume * 100)}%</span>
-                        </div>
-                        <input 
-                          type="range" 
-                          min="0" 
-                          max="1.5" 
-                          step="0.05"
-                          value={volume}
-                          onChange={(e) => setStemVolume(stemName, parseFloat(e.target.value))}
-                          className="w-full accent-brand-green dynamic-progress h-1.5 rounded-lg appearance-none cursor-pointer"
-                          style={{ '--slider-progress': `${(volume / 1.5) * 100}%` } as React.CSSProperties}
-                        />
-                      </div>
-                    );
-                  })}
-              </div>
-              </>
-              )}
-            </div>
-          )}
         </div>
       )}
     </>

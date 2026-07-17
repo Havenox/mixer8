@@ -6,6 +6,7 @@ import { MesaPlayer } from './MesaPlayer';
 import { GlobalTopHeader } from './GlobalTopHeader';
 import { LyricsChordsViewer } from './LyricsChordsViewer';
 import { DawView } from '../pages/DawView';
+import { MobileMixerOverlay } from './MobileMixerOverlay';
 import { 
   Home, Library, PlusCircle, Shield, 
   LogOut, User, Layers, ListMusic,
@@ -537,6 +538,13 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
                 CurrentTime={currentTime} 
                 OnClose={() => setActiveOverlay('none')} 
               />
+            </div>
+          )}
+
+          {/* 4. Overlay de Mixer de Som (Mobile) */}
+          {activeOverlay === 'mixer' && currentTrack && (
+            <div className="absolute inset-0 flex flex-col bg-brand-dark overflow-hidden animate-in fade-in duration-200">
+              <MobileMixerOverlay />
             </div>
           )}
         </div>
