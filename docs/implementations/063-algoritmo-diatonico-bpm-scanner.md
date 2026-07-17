@@ -1,26 +1,30 @@
-# Estudo de Caso 063: Algoritmo C# Diatônico de Tom & BPM, Automação no Extrator e Scanner de Backfill 1x
+# Estudo de Caso 063: Algoritmo C# Diatônico com Análise de Cadências V -> I, BPM e Scanner de Backfill 1x
 
 ## Contexto e Desafio
 
 Com a evolução das funcionalidades do player do Mixer8 para transposição dinâmica e controle de velocidade, fazia-se necessário registrar de forma persistente no PostgreSQL a **Tonalidade Base (`Key`)** e o **BPM Base (`Bpm`)** de cada faixa da biblioteca.
 
-No entanto, em teoria musical, o primeiro acorde de uma música não indica necessariamente sua tônica (por exemplo, a progressão $F \rightarrow G \rightarrow Am \rightarrow Dm$ começa no IV grau, mas pertence à tonalidade de **C Dó Maior**). Além disso, era preciso uma solução de varredura 1x (Backfill) para calcular e preencher os metadados de todas as faixas existentes sem a necessidade de reprocessar os áudios.
+Em testes empíricos iniciais, algoritmos simples de contagem de nota raiz sem peso harmônico frequentemente confundiam a Tonalidade Base com a **5ª Dominante ($V$)** ou com a **4ª Subdominante ($IV$)** (por exemplo, confundindo $Dm$ com $A$, $Gm$ com $D$, ou $A$ com $D$). Isso acontecia porque os campos harmônicos de uma tônica e de sua dominante compartilham quase todas as mesmas notas diatônicas.
 
-## Arquitetura da Solução
+## Arquitetura da Solução Aprimorada
 
 ### 1. Modelo de Dados (EF Core & PostgreSQL)
 Adicionados os campos `Bpm` (`int?`) e `Key` (`string?`) na entidade `Track` (`Track.cs` e migração EF Core `AddTrackBpmAndKey`).
 
-### 2. Algoritmo C# Diatônico & Análise Temporal (`MusicAnalysisHelper.cs`)
-Criamos uma engine nativa em C# de teoria musical e processamento de tempo:
+### 2. Algoritmo C# Diatônico Ponderado com Cadências ($V \to I$) (`MusicAnalysisHelper.cs`)
+Para resolver definitivamente as sobreposições de 4ª e 5ª, reestruturamos a engine C# com 4 regras essenciais de teoria musical:
+* **Detecção de Cadências Autênticas ($V \to I$ / $V \to i$)**:
+  * O algoritmo monitora as transições entre acordes em `chords.json`.
+  * Quando identifica a resolução da Dominante para a Tônica (ex: $A7 \to Dm$, $D7 \to Gm$, $E \to A$), a tonalidade candidata ganha um **bônus massivo de cadência (+25 pontos)**. Como a transição $A \to Dm$ é um movimento $V \to i$ em $Dm$, mas **não** em $A$, a confusão é completamente eliminada.
+* **Ponderação por Duração/Tempo de Permanência da Tônica**:
+  * Pondera cada acorde pelo número de batidas ativas na música.
+  * A tônica ($I$/$i$) de uma escala válida ganha peso proporcional ao tempo que permanece ativa. Se a tônica nem sequer aparece na música, a escala candidata sofre severa penalização (-50 pts).
+* **Resolução Plagal ($IV \to I$ / $iv \to i$)**:
+  * Resoluções subdominantes recebem bônus adicional de +10 pontos.
 * **Cálculo de BPM Base**:
-  * Analisa os carimbos de tempo (`curr_beat_time`) das batidas presentes no `chords.json`.
+  * Analisa os carimbos de tempo (`curr_beat_time`) das batidas em `chords.json`.
   * Filtra deltas atípicos (pausas/silêncios $> 2.5s$ ou marcas $< 0.2s$) para isolar o andamento musical.
-  * Obtém a média dos intervalos ($\overline{\Delta t}$) e calcula o BPM inteiro: $\text{BPM} = \text{Math.Round}(60 / \overline{\Delta t})$.
-* **Detecção Diatônica de Tonalidade Base (Key)**:
-  * Extrai os primeiros acordes únicos da música.
-  * Mapeia as 12 escalas diatônicas Maiores e Menores com os 7 graus de cada campo harmônico.
-  * Executa um sistema de pontuação diatônica (*Diatonic Scoring*) para identificar qual campo harmônico melhor acolhe a sequência de acordes, determinando a tônica exata mesmo quando a música não inicia no I grau.
+  * Deriva o BPM inteiro: $\text{BPM} = \text{Math.Round}(60 / \overline{\Delta t})$.
 
 ### 3. Automação no Extrator e Consolidação
 Sempre que uma nova música conclui a extração de stems e tem o arquivo `chords.json` gerado, o backend/extrator invoca o `MusicAnalysisHelper`, grava `track.Key` e `track.Bpm` no PostgreSQL e registra uma entrada nos logs de auditoria (`SystemEvents`).
@@ -32,7 +36,7 @@ Sempre que uma nova música conclui a extração de stems e tem o arquivo `chord
 ## Arquivos Modificados/Criados
 
 - **`mixer8-api/Domain/Track.cs`** & **`mixer8-extractor/Domain/Track.cs`**: Inclusão de `Bpm` e `Key`.
-- **`mixer8-api/Helpers/MusicAnalysisHelper.cs`** & **`mixer8-extractor/Helpers/MusicAnalysisHelper.cs`**: Engine C# de teoria musical e cálculo de BPM.
+- **`mixer8-api/Helpers/MusicAnalysisHelper.cs`** & **`mixer8-extractor/Helpers/MusicAnalysisHelper.cs`**: Engine C# de teoria musical, cadências $V \to I$ e cálculo de BPM.
 - **`mixer8-api/Infrastructure/Migrations/20260716234138_AddTrackBpmAndKey.cs`**: Migration EF Core.
 - **`mixer8-api/Controllers/SystemController.cs`**: Endpoint `POST /api/System/BackfillMusicMetadata`.
 - **`mixer8-api/Controllers/TracksController.cs`**: Análise automática ao consolidar novas stems.
@@ -42,4 +46,4 @@ Sempre que uma nova música conclui a extração de stems e tem o arquivo `chord
 
 1. **Compilação C#**: Os projetos `mixer8-api` e `mixer8-extractor` compilaram sem erros (`0 Erro(s)`).
 2. **Build React**: O frontend compilou com sucesso (`tsc -b`).
-3. **Deploy Docker**: Contêineres recriados e iniciados com sucesso (`docker compose up -d --build`).
+3. **Deploy Docker**: Contêineres reconstruídos e iniciados com sucesso (`docker compose up -d --build`).
