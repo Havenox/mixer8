@@ -269,6 +269,8 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
                     UploadedBy = pt.Track.UploadedBy,
                     UploadedByEmail = uploaderEmails.GetValueOrDefault(pt.Track.UploadedBy),
                     UploadedByUserName = uploaderUserNames.GetValueOrDefault(pt.Track.UploadedBy),
+                    Bpm = pt.Track.Bpm,
+                    Key = pt.Track.Key,
                     Stems = pt.Track.Stems.Select(s => new PlaylistStemResponseDto
                     {
                         StemId = s.StemId,
@@ -889,6 +891,8 @@ public class PlaylistTrackResponseDto
     public Guid UploadedBy { get; set; }
     public string? UploadedByEmail { get; set; }
     public string? UploadedByUserName { get; set; }
+    public int? Bpm { get; set; }
+    public string? Key { get; set; }
     public List<PlaylistStemResponseDto> Stems { get; set; } = new();
 }
 
