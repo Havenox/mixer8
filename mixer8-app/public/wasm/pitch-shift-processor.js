@@ -394,15 +394,19 @@ class PitchShiftProcessor extends AudioWorkletProcessor {
     };
 
     const wasmModule = options?.processorOptions?.wasmModule;
+    const transposeVal = options?.processorOptions?.transpose;
+    this.pitchSemitones = typeof transposeVal === 'number' ? transposeVal : 0;
+    this.forceProcess = !!options?.processorOptions?.forceProcess;
+
     if (wasmModule) {
-      this.initWasm(wasmModule);
+      this.initWasmSync(wasmModule);
     }
   }
 
-  async initWasm(wasmModule) {
+  initWasmSync(wasmModule) {
     try {
       const info = getWasmImports();
-      const instance = await WebAssembly.instantiate(wasmModule, info);
+      const instance = new WebAssembly.Instance(wasmModule, info);
       wasmExports = instance.exports;
       assignWasmExports(wasmExports);
       updateMemoryViews();
@@ -423,9 +427,9 @@ class PitchShiftProcessor extends AudioWorkletProcessor {
 
       this.isInitialized = true;
       this.port.postMessage({ type: 'STATUS', status: 'READY' });
-      console.log('[AudioWorklet] WASM Signalsmith Stretch inicializado com sucesso via WebAssembly.Module!');
+      console.log('[AudioWorklet] WASM Signalsmith Stretch inicializado de forma SINCRONA com sucesso!');
     } catch (err) {
-      console.error('[AudioWorklet] Falha ao inicializar WASM Signalsmith Stretch:', err);
+      console.error('[AudioWorklet] Falha ao inicializar WASM Signalsmith Stretch de forma sincrona:', err);
     }
   }
 
@@ -457,8 +461,17 @@ class PitchShiftProcessor extends AudioWorkletProcessor {
     const outL = output[0];
     const outR = output[1] || output[0];
 
-    // Se o WASM ainda estiver carregando ou sem transposição (pitch = 0), faz passthrough direto
-    if (!this.isInitialized || !this.stretchHandle || this.pitchSemitones === 0) {
+    // Se o WASM ainda estiver carregando, faz passthrough direto
+    if (!this.isInitialized || !this.stretchHandle) {
+      for (let i = 0; i < numSamples; i++) {
+        outL[i] = inL[i];
+        if (output[1]) output[1][i] = inR[i];
+      }
+      return true;
+    }
+
+    // Se sem transposição (pitch = 0) e não forçado, faz passthrough direto para economizar CPU
+    if (this.pitchSemitones === 0 && !this.forceProcess) {
       for (let i = 0; i < numSamples; i++) {
         outL[i] = inL[i];
         if (output[1]) output[1][i] = inR[i];

@@ -676,7 +676,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         await ctx.audioWorklet.addModule('/wasm/pitch-shift-processor.js?v=' + Date.now());
         const worklet = new AudioWorkletNode(ctx, 'pitch-shift-processor', {
-          processorOptions: { wasmModule }
+          processorOptions: { wasmModule, transpose },
+          outputChannelCount: [2]
         });
         worklet.connect(masterGain);
         pitchWorkletNodeRef.current = worklet;

@@ -145,10 +145,15 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
   const tempoRatio = calculatedBpm / baseBpm;
   const musicalSpeedRatio = tempoRatio * Math.pow(2, transpose / 12);
 
+  // Calcula a transposição induzida pela velocidade e os desvios necessários para o processador WASM
+  const transposeFromSpeed = 12 * Math.log2(tempoRatio);
+  const musicWorkletTranspose = transpose - transposeFromSpeed;
+  const metronomeWorkletTranspose = -transposeFromSpeed;
+
   // Determina se usaremos o Pitch Shifter WASM (Signalsmith Stretch) offline
   let useWasmPitchShift = false;
   let wasmModule: WebAssembly.Module | null = null;
-  if (transpose !== 0) {
+  if (transpose !== 0 || Math.abs(transposeFromSpeed) > 0.01) {
     try {
       const wasmRes = await fetch('/wasm/signalsmith-stretch.wasm');
       if (wasmRes.ok) {
@@ -191,20 +196,34 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
   // Lógica de Mute / Solo
   const hasAnySolo = Object.values(stemsSolo).some(v => v);
 
-  // Configuração do nó AudioWorklet de Pitch Shifter
+  // Configuração dos nós AudioWorklet de Pitch Shifter
   let pitchWorkletNode: AudioWorkletNode | null = null;
+  let metronomePitchNode: AudioWorkletNode | null = null;
+
   if (useWasmPitchShift && wasmModule) {
     try {
       await offlineCtx.audioWorklet.addModule('/wasm/pitch-shift-processor.js?v=' + Date.now());
+      
+      // Cria o nó de afinação para as pistas musicais
       pitchWorkletNode = new AudioWorkletNode(offlineCtx, 'pitch-shift-processor', {
-        processorOptions: { wasmModule }
+        processorOptions: { wasmModule, transpose: musicWorkletTranspose, forceProcess: true },
+        outputChannelCount: [2]
       });
-      pitchWorkletNode.port.postMessage({ type: 'SET_PITCH', semitones: transpose });
       pitchWorkletNode.connect(masterGain);
+
+      // Cria o nó de afinação para o metrônomo para anular a alteração de tom do resample
+      if (Math.abs(metronomeWorkletTranspose) > 0.01) {
+        metronomePitchNode = new AudioWorkletNode(offlineCtx, 'pitch-shift-processor', {
+          processorOptions: { wasmModule, transpose: metronomeWorkletTranspose, forceProcess: true },
+          outputChannelCount: [2]
+        });
+        metronomePitchNode.connect(masterGain);
+      }
     } catch (err) {
       console.error('[EXPORT-WASM] Falha ao registrar AudioWorklet WASM na OfflineCtx. Usando fallback de resample.', err);
       useWasmPitchShift = false;
       pitchWorkletNode = null;
+      metronomePitchNode = null;
     }
   }
 
@@ -235,11 +254,16 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
 
     if (isMetronome) {
       if (useWasmPitchShift) {
-        // Se as stems de música passam pelo pitch worklet (120ms de latência), atrasamos o metrônomo pelo mesmo valor
-        const delayNode = offlineCtx.createDelay(1.0);
-        delayNode.delayTime.value = 0.12;
-        pannerNode.connect(delayNode);
-        delayNode.connect(masterGain);
+        if (metronomePitchNode) {
+          // Se o metrônomo possui seu próprio processador de tom (que já possui a latência de 120ms)
+          pannerNode.connect(metronomePitchNode);
+        } else {
+          // Se não há processador de tom no metrônomo (não necessitou transposição de velocidade), atrasamos em 120ms para sincronizar
+          const delayNode = offlineCtx.createDelay(1.0);
+          delayNode.delayTime.value = 0.12;
+          pannerNode.connect(delayNode);
+          delayNode.connect(masterGain);
+        }
       } else {
         pannerNode.connect(masterGain);
       }
