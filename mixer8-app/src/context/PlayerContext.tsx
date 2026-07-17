@@ -609,7 +609,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       masterGainNodeRef.current = masterGain;
 
       try {
-        await ctx.audioWorklet.addModule('/wasm/pitch-shift-processor.js');
+        await ctx.audioWorklet.addModule('/wasm/pitch-shift-processor.js?v=' + Date.now());
         const worklet = new AudioWorkletNode(ctx, 'pitch-shift-processor');
         worklet.connect(masterGain);
         pitchWorkletNodeRef.current = worklet;
