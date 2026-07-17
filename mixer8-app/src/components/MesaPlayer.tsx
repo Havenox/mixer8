@@ -14,6 +14,8 @@ import type { IChordBeat } from '../hooks/useLyricsChords';
 export const MesaPlayer: React.FC = () => {
   const { 
     currentTrack, 
+    currentPlaylistId,
+    currentPlaylistName,
     isPlaying, 
     currentTime, 
     duration, 
@@ -678,19 +680,42 @@ export const MesaPlayer: React.FC = () => {
       {activeOverlay === 'player' && (
         <div className="fixed inset-0 bg-gradient-to-b from-brand-hover via-brand-black to-brand-black z-50 flex flex-col p-6 overflow-y-auto select-none md:hidden animate-in slide-in-from-bottom duration-300">
           {/* Header */}
-          <div className="flex items-center justify-between w-full shrink-0 mb-4">
+          <div className="flex items-center justify-between w-full shrink-0 mb-4 select-none">
             <button 
               onClick={() => setActiveOverlay('none')} 
-              className="p-2 text-brand-gray hover:text-white transition-colors cursor-pointer"
+              className="p-2 text-brand-gray hover:text-white transition-colors cursor-pointer shrink-0"
+              title="Fechar Player"
             >
               <ChevronDown className="w-6 h-6" />
             </button>
-            <div className="flex flex-col items-center">
-              <span className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">
-                Tocando da biblioteca
-              </span>
+            
+            <div className="flex flex-col items-center max-w-[220px] xs:max-w-[280px] text-center min-w-0">
+              {currentPlaylistId ? (
+                <button
+                  onClick={() => {
+                    setActiveOverlay('none');
+                    navigate(`/playlists/${currentPlaylistId}`);
+                  }}
+                  className="group flex flex-col items-center cursor-pointer min-w-0 max-w-full"
+                  title="Ir para a Playlist"
+                >
+                  <span className="text-[9px] text-brand-gray font-black uppercase tracking-widest leading-none group-hover:text-white transition-colors">
+                    Tocando da Playlist
+                  </span>
+                  <span className="text-xs font-bold text-white group-hover:text-brand-green transition-colors truncate max-w-full mt-0.5">
+                    {currentPlaylistName || 'Playlist'}
+                  </span>
+                </button>
+              ) : (
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] text-brand-gray font-bold uppercase tracking-wider">
+                    Tocando da biblioteca
+                  </span>
+                </div>
+              )}
             </div>
-            <div className="w-10" /> {/* Spacer */}
+
+            <div className="w-10 shrink-0" /> {/* Spacer */}
           </div>
 
           {/* Capa Gigante */}

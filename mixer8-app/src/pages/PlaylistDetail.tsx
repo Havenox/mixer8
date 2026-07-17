@@ -422,7 +422,7 @@ export const PlaylistDetail: React.FC = () => {
       }))
     })) : [];
 
-    loadTrack(trackToPlay, playlist?.PlaylistId, undefined, tracksQueue);
+    loadTrack(trackToPlay, playlist?.PlaylistId, undefined, tracksQueue, playlist?.Name);
   };
 
   const handleRemoveTrack = async (trackId: string) => {
@@ -1139,7 +1139,7 @@ export const PlaylistDetail: React.FC = () => {
                                         AudioUrl: s.AudioUrl
                                       }))
                                     })) : [];
-                                    await loadTrack(trackToPlay, playlist?.PlaylistId, undefined, tracksQueue);
+                                    await loadTrack(trackToPlay, playlist?.PlaylistId, undefined, tracksQueue, playlist?.Name);
                                     navigate('/daw');
                                   }}
                                   className={`font-bold truncate text-sm hover:underline cursor-pointer ${isCurrentTrack ? 'text-brand-green' : 'text-white'}`}
@@ -1346,7 +1346,7 @@ export const PlaylistDetail: React.FC = () => {
                                 AudioUrl: s.AudioUrl
                               }))
                             })) : [];
-                            await loadTrack(trackToPlay, playlist?.PlaylistId, undefined, tracksQueue);
+                            await loadTrack(trackToPlay, playlist?.PlaylistId, undefined, tracksQueue, playlist?.Name);
                             navigate('/daw');
                           }}
                           className={`font-bold text-sm truncate hover:underline cursor-pointer leading-tight ${

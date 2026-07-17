@@ -28,6 +28,9 @@ export interface ITrack {
 
 interface IPlayerContext {
   currentTrack: ITrack | null;
+  currentPlaylistId: string | null;
+  currentPlaylistName: string | null;
+  currentAlbumId: string | null;
   isPlaying: boolean;
   currentTime: number;
   duration: number;
@@ -37,7 +40,7 @@ interface IPlayerContext {
   stemsPan: Record<string, number>;
   masterVolume: number;
   currentQueue: ITrack[];
-  loadTrack: (track: ITrack | null, playlistId?: string, albumId?: string, tracksQueue?: ITrack[]) => void;
+  loadTrack: (track: ITrack | null, playlistId?: string, albumId?: string, tracksQueue?: ITrack[], playlistName?: string) => void;
   togglePlay: () => void;
   seek: (seconds: number) => void;
   setStemVolume: (type: string, volume: number) => void;
@@ -183,6 +186,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const { Token, CurrentUser } = useAuth();
   const [currentTrack, setCurrentTrack] = useState<ITrack | null>(null);
   const [currentPlaylistId, setCurrentPlaylistId] = useState<string | null>(null);
+  const [currentPlaylistName, setCurrentPlaylistName] = useState<string | null>(null);
   const [transpose, setTranspose] = useState<number>(0);
   const [bpmDelta, setBpmDelta] = useState<number>(0);
   const [activeOverlay, setActiveOverlay] = useState<ActiveOverlayType>('none');
@@ -232,10 +236,36 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [currentQueue, setCurrentQueue] = useState<ITrack[]>([]);
   const currentQueueRef = useRef<ITrack[]>([]);
 
-  // Referências mutáveis para garantir que closures em event listeners sempre acessem os dados mais recentes
   const currentTrackRef = useRef<ITrack | null>(null);
   const currentPlaylistIdRef = useRef<string | null>(null);
+  const currentPlaylistNameRef = useRef<string | null>(null);
   const currentAlbumIdRef = useRef<string | null>(null);
+
+  // Busca o nome da playlist se tivermos o playlistId mas faltar o nome da playlist
+  useEffect(() => {
+    if (!currentPlaylistId || currentPlaylistName) return;
+
+    let isMounted = true;
+    const fetchPlaylistInfo = async () => {
+      try {
+        const headers: Record<string, string> = {};
+        if (Token) headers['Authorization'] = `Bearer ${Token}`;
+        const res = await fetch(`${API_URL}/Playlists/${currentPlaylistId}`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && data?.Name) {
+            setCurrentPlaylistName(data.Name);
+            currentPlaylistNameRef.current = data.Name;
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao buscar nome da playlist:', err);
+      }
+    };
+
+    fetchPlaylistInfo();
+    return () => { isMounted = false; };
+  }, [currentPlaylistId, currentPlaylistName, Token]);
 
   // Referências de funções do player para evitar unbind/rebind de event listeners e handlers da mediaSession
   const playNextTrackRef = useRef<() => void>(() => {});
@@ -581,7 +611,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // 1. Regra de Repeat One (Repetir 1): Se estiver ativado, repete a faixa atual independente de shuffle/queue
     if (repeatModeRef.current === 'one') {
       console.log('[AUTOPLAY] Modo Repeat One ativo. Reiniciando a faixa atual:', activeTrack.TrackTitle);
-      loadTrack(activeTrack, currentPlaylistIdRef.current || undefined, currentAlbumIdRef.current || undefined);
+      loadTrack(activeTrack, currentPlaylistIdRef.current || undefined, currentAlbumIdRef.current || undefined, undefined, currentPlaylistNameRef.current || undefined);
       return;
     }
 
@@ -599,7 +629,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         
         // Registra no histórico para não tocá-la novamente
         playedTrackIdsRef.current.push(nextTrack.TrackId);
-        loadTrack(nextTrack, currentPlaylistIdRef.current || undefined, currentAlbumIdRef.current || undefined);
+        loadTrack(nextTrack, currentPlaylistIdRef.current || undefined, currentAlbumIdRef.current || undefined, undefined, currentPlaylistNameRef.current || undefined);
       } else {
         // Todas as faixas foram tocadas
         if (repeatModeRef.current === 'all') {
@@ -613,7 +643,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           const nextTrack = pool[randomIndex];
           
           playedTrackIdsRef.current.push(nextTrack.TrackId);
-          loadTrack(nextTrack, currentPlaylistIdRef.current || undefined, currentAlbumIdRef.current || undefined);
+          loadTrack(nextTrack, currentPlaylistIdRef.current || undefined, currentAlbumIdRef.current || undefined, undefined, currentPlaylistNameRef.current || undefined);
         } else {
           console.log('[AUTOPLAY] Todas as faixas tocadas no Shuffle. Parando player (Repeat Off)...');
           playedTrackIdsRef.current = [];
@@ -629,13 +659,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (currentIndex !== -1 && currentIndex < queue.length - 1) {
       const nextTrack = queue[currentIndex + 1];
       console.log('[AUTOPLAY] Pulando para a próxima faixa sequencial:', nextTrack.TrackTitle);
-      loadTrack(nextTrack, currentPlaylistIdRef.current || undefined, currentAlbumIdRef.current || undefined);
+      loadTrack(nextTrack, currentPlaylistIdRef.current || undefined, currentAlbumIdRef.current || undefined, undefined, currentPlaylistNameRef.current || undefined);
     } else {
       // Chegamos ao fim da fila
       if (repeatModeRef.current === 'all') {
         const nextTrack = queue[0];
         console.log('[AUTOPLAY] Fim da fila sequencial. Retornando ao início (Repeat All):', nextTrack.TrackTitle);
-        loadTrack(nextTrack, currentPlaylistIdRef.current || undefined, currentAlbumIdRef.current || undefined);
+        loadTrack(nextTrack, currentPlaylistIdRef.current || undefined, currentAlbumIdRef.current || undefined, undefined, currentPlaylistNameRef.current || undefined);
       } else {
         console.log('[AUTOPLAY] Fim da fila sequencial atingido. Parando player (Repeat Off)...');
         setIsPlayingSynced(false);
@@ -669,7 +699,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (prevTrack) {
           console.log('[PLAYBACK] Voltando para a faixa anterior do histórico do Shuffle:', prevTrack.TrackTitle);
           // Nota: chamamos loadTrack, que vai re-registrar ela no histórico se não estiver, mas o final da pilha já a contém
-          loadTrack(prevTrack, currentPlaylistIdRef.current || undefined, currentAlbumIdRef.current || undefined);
+          loadTrack(prevTrack, currentPlaylistIdRef.current || undefined, currentAlbumIdRef.current || undefined, undefined, currentPlaylistNameRef.current || undefined);
           return;
         }
       }
@@ -685,12 +715,12 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (currentIndex > 0) {
       const prevTrack = queue[currentIndex - 1];
       console.log('[PLAYBACK] Voltando para a faixa sequencial anterior:', prevTrack.TrackTitle);
-      loadTrack(prevTrack, currentPlaylistIdRef.current || undefined, currentAlbumIdRef.current || undefined);
+      loadTrack(prevTrack, currentPlaylistIdRef.current || undefined, currentAlbumIdRef.current || undefined, undefined, currentPlaylistNameRef.current || undefined);
     } else {
       if (repeatModeRef.current === 'all') {
         const prevTrack = queue[queue.length - 1];
         console.log('[PLAYBACK] Primeira faixa atingida. Indo para a última (Repeat All):', prevTrack.TrackTitle);
-        loadTrack(prevTrack, currentPlaylistIdRef.current || undefined, currentAlbumIdRef.current || undefined);
+        loadTrack(prevTrack, currentPlaylistIdRef.current || undefined, currentAlbumIdRef.current || undefined, undefined, currentPlaylistNameRef.current || undefined);
       } else {
         console.log('[PLAYBACK] Primeira faixa atingida. Reiniciando (Repeat Off/One)...');
         seek(0);
@@ -702,7 +732,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     track: ITrack | null,
     playlistId?: string,
     albumId?: string,
-    tracksQueue?: ITrack[]
+    tracksQueue?: ITrack[],
+    playlistName?: string
   ) => {
     console.log(`[PLAYER-LIFECYCLE] Iniciando loadTrack para a faixa: ${track?.TrackTitle || 'null'}`);
     setIsPlayingSynced(false);
@@ -715,11 +746,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Atualiza estados para renderização reativa
     setCurrentTrack(track);
     setCurrentPlaylistId(playlistId || null);
+    setCurrentPlaylistName(playlistName || null);
     setCurrentAlbumId(albumId || null);
 
     // Atualiza referências mutáveis imediatamente de forma síncrona
     currentTrackRef.current = track;
     currentPlaylistIdRef.current = playlistId || null;
+    currentPlaylistNameRef.current = playlistName || null;
     currentAlbumIdRef.current = albumId || null;
 
     if (tracksQueue) {
@@ -1368,6 +1401,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     <PlayerContext.Provider
       value={{
         currentTrack,
+        currentPlaylistId,
+        currentPlaylistName,
+        currentAlbumId,
         isPlaying,
         currentTime,
         duration,
