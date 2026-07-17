@@ -131,7 +131,7 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
         {/* Container agrupando navegação e avatar na direita */}
         <div className="flex items-center gap-5">
           {/* Navegação Rápida no Mobile */}
-          <div className="flex items-center gap-4.5">
+          <div className="flex items-center gap-3.5 sm:gap-4.5">
             <Link to="/" className={`hover:text-brand-green ${location.pathname === '/' ? 'text-brand-green' : 'text-white'}`} onClick={() => setIsMobileMenuOpen(false)} title="Explorar">
               <Home className="w-5 h-5" />
             </Link>
@@ -145,6 +145,12 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
                 </Link>
               </>
             )}
+
+            {/* Divisor entre navegação principal e ferramentas/admin */}
+            {IsAuthenticated && CurrentUser && (CurrentUser.UserRole === 'PaidUser' || CurrentUser.UserRole === 'Admin' || CurrentUser.UserRole === 'Moderator') && (
+              <div className="w-[1px] h-4 bg-brand-hover opacity-60 shrink-0" />
+            )}
+
             {IsAuthenticated && CurrentUser && (CurrentUser.UserRole === 'PaidUser' || CurrentUser.UserRole === 'Admin') && (
               <Link to="/dashboard?action=upload" className={`hover:text-brand-green ${location.search.includes('action=upload') ? 'text-brand-green' : 'text-white'}`} onClick={() => setIsMobileMenuOpen(false)} title="Adicionar nova música">
                 <UploadCloud className="w-5 h-5 shrink-0" />
@@ -244,19 +250,19 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
           </div>
 
           {/* Menus principais */}
-          <nav className="flex flex-col gap-3 font-semibold text-sm w-full">
+          <nav className="flex flex-col gap-3 text-sm font-semibold w-full">
             {(() => {
               const isExplorarActive = location.pathname === '/';
               return (
                 <Link 
                   to="/" 
-                  className={`flex items-center rounded-md transition-all ${
+                  className={`flex items-center rounded-md transition-all text-sm ${
                     isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'gap-4 py-2 px-3 w-full'
                   } ${isExplorarActive ? 'bg-[#242424] text-white font-bold' : 'text-white font-semibold hover:bg-brand-hover/50'}`}
                   title={isSidebarCollapsed ? "Explorar" : undefined}
                 >
                   <Home className={`w-5 h-5 shrink-0 ${isExplorarActive ? 'text-brand-green' : 'text-white'}`} />
-                  {!isSidebarCollapsed && <span>Explorar</span>}
+                  {!isSidebarCollapsed && <span className="truncate">Explorar</span>}
                 </Link>
               );
             })()}
@@ -267,20 +273,20 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
                 return (
                   <Link 
                     to="/dashboard" 
-                    className={`flex items-center rounded-md transition-all ${
+                    className={`flex items-center rounded-md transition-all text-sm ${
                       isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'gap-4 py-2 px-3 w-full'
                     } ${isLibraryActive ? 'bg-[#242424] text-white font-bold' : 'text-white font-semibold hover:bg-brand-hover/50'}`}
                     title={isSidebarCollapsed ? "Biblioteca" : undefined}
                   >
                     <Library className={`w-5 h-5 shrink-0 ${isLibraryActive ? 'text-brand-green' : 'text-white'}`} />
-                    {!isSidebarCollapsed && <span>Biblioteca</span>}
+                    {!isSidebarCollapsed && <span className="truncate">Biblioteca</span>}
                   </Link>
                 );
               })()
             ) : (
               <div 
                 onClick={openLoginModal}
-                className={`flex items-center justify-between rounded-md font-semibold text-sm text-white/50 cursor-pointer hover:text-white transition-all group ${
+                className={`flex items-center justify-between rounded-md text-sm font-semibold text-white/50 cursor-pointer hover:text-white transition-all group ${
                   isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'py-2 px-3 w-full'
                 }`}
                 title={isSidebarCollapsed ? "Biblioteca (Requer Login)" : undefined}
@@ -299,20 +305,20 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
                 return (
                   <Link 
                     to="/playlists" 
-                    className={`flex items-center rounded-md transition-all ${
+                    className={`flex items-center rounded-md transition-all text-sm ${
                       isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'gap-4 py-2 px-3 w-full'
                     } ${isPlaylistsActive ? 'bg-[#242424] text-white font-bold' : 'text-white font-semibold hover:bg-brand-hover/50'}`}
                     title={isSidebarCollapsed ? "Playlists" : undefined}
                   >
                     <ListMusic className={`w-5 h-5 shrink-0 ${isPlaylistsActive ? 'text-brand-green' : 'text-white'}`} />
-                    {!isSidebarCollapsed && <span>Playlists</span>}
+                    {!isSidebarCollapsed && <span className="truncate">Playlists</span>}
                   </Link>
                 );
               })()
             ) : (
               <div 
                 onClick={openLoginModal}
-                className={`flex items-center justify-between rounded-md font-semibold text-sm text-white/50 cursor-pointer hover:text-white transition-all group ${
+                className={`flex items-center justify-between rounded-md text-sm font-semibold text-white/50 cursor-pointer hover:text-white transition-all group ${
                   isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'py-2 px-3 w-full'
                 }`}
                 title={isSidebarCollapsed ? "Playlists (Requer Login)" : undefined}
@@ -329,7 +335,7 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
           <div className="h-[1px] bg-brand-hover my-1 w-full" />
 
           {/* Menus de ação (Exclusivo PaidUser / Admin) */}
-          <div className="flex flex-col gap-1.5 w-full">
+          <div className="flex flex-col gap-1.5 text-sm font-semibold w-full">
             {!isSidebarCollapsed && (
               <span className="text-[10px] text-brand-gray font-bold uppercase tracking-wider px-3 mb-1 block">
                 Ferramentas Stems
@@ -343,19 +349,19 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
                   return (
                     <Link 
                       to="/dashboard?action=upload" 
-                      className={`flex items-center rounded-md transition-all ${
+                      className={`flex items-center rounded-md transition-all text-sm ${
                         isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'gap-4 py-2 px-3 w-full'
                       } ${isUploadActive ? 'bg-[#242424] text-white font-bold' : 'text-white font-semibold hover:bg-brand-hover/50'}`}
                       title={isSidebarCollapsed ? "Adicionar nova música" : undefined}
                     >
                       <UploadCloud className={`w-5 h-5 shrink-0 ${isUploadActive ? 'text-brand-green' : 'text-white'}`} />
-                      {!isSidebarCollapsed && <span>Adicionar nova música</span>}
+                      {!isSidebarCollapsed && <span className="truncate">Adicionar nova música</span>}
                     </Link>
                   );
                 })()
               ) : (
                 <div 
-                  className={`flex items-center justify-between rounded-md font-semibold text-sm text-white/40 cursor-not-allowed select-none group relative ${
+                  className={`flex items-center justify-between rounded-md text-sm font-semibold text-white/40 cursor-not-allowed select-none group relative ${
                     isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'py-2 px-3 w-full'
                   }`}
                   title={isSidebarCollapsed ? "Adicionar nova música (Premium)" : undefined}
@@ -374,7 +380,7 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
             ) : (
               <div 
                 onClick={openLoginModal}
-                className={`flex items-center justify-between rounded-md font-semibold text-sm text-white/50 cursor-pointer hover:text-white transition-all group ${
+                className={`flex items-center justify-between rounded-md text-sm font-semibold text-white/50 cursor-pointer hover:text-white transition-all group ${
                   isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'py-2 px-3 w-full'
                 }`}
                 title={isSidebarCollapsed ? "Adicionar nova música (Requer Login)" : undefined}
@@ -390,7 +396,7 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
 
           {/* Menus de Admin / Mod */}
           {IsAuthenticated && CurrentUser && (CurrentUser.UserRole === 'Admin' || CurrentUser.UserRole === 'Moderator') && (
-            <div className="flex flex-col gap-1.5 w-full">
+            <div className="flex flex-col gap-1.5 text-sm font-semibold w-full">
               {!isSidebarCollapsed && (
                 <span className="text-[10px] text-brand-gray font-bold uppercase tracking-wider px-3 mb-1 block">
                   Administração
@@ -401,13 +407,13 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
                 return (
                   <Link 
                     to="/admin" 
-                    className={`flex items-center rounded-md transition-all ${
+                    className={`flex items-center rounded-md transition-all text-sm ${
                       isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'gap-4 py-2 px-3 w-full'
                     } ${isAdminActive ? 'bg-[#242424] text-white font-bold' : 'text-white font-semibold hover:bg-brand-hover/50'}`}
                     title={isSidebarCollapsed ? "Painel de Controle" : undefined}
                   >
                     <Shield className={`w-5 h-5 shrink-0 ${isAdminActive ? 'text-brand-green' : 'text-white'}`} />
-                    {!isSidebarCollapsed && <span>Painel de Controle</span>}
+                    {!isSidebarCollapsed && <span className="truncate">Painel de Controle</span>}
                   </Link>
                 );
               })()}

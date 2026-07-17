@@ -608,33 +608,39 @@ export const Admin: React.FC = () => {
       <div className="flex border-b border-brand-hover gap-1">
         <button
           onClick={() => setActiveTab('settings')}
-          className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition-all cursor-pointer ${
+          className={`flex items-center justify-center gap-2 px-4 sm:px-5 py-3 text-sm font-bold border-b-2 transition-all cursor-pointer ${
             activeTab === 'settings'
               ? 'border-brand-green text-brand-green bg-brand-hover/10 font-black'
               : 'border-transparent text-brand-gray hover:text-white hover:bg-brand-hover/5'
           }`}
+          title="Configurações"
         >
-          <Settings className="w-4 h-4" /> Configurações
+          <Settings className="w-4 h-4 shrink-0" />
+          <span className="hidden sm:inline">Configurações</span>
         </button>
         <button
           onClick={() => setActiveTab('users')}
-          className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition-all cursor-pointer ${
+          className={`flex items-center justify-center gap-2 px-4 sm:px-5 py-3 text-sm font-bold border-b-2 transition-all cursor-pointer ${
             activeTab === 'users'
               ? 'border-brand-green text-brand-green bg-brand-hover/10 font-black'
               : 'border-transparent text-brand-gray hover:text-white hover:bg-brand-hover/5'
           }`}
+          title="Usuários Ativos"
         >
-          <Users className="w-4 h-4" /> Usuários Ativos
+          <Users className="w-4 h-4 shrink-0" />
+          <span className="hidden sm:inline">Usuários Ativos</span>
         </button>
         <button
           onClick={() => setActiveTab('logs')}
-          className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition-all cursor-pointer ${
+          className={`flex items-center justify-center gap-2 px-4 sm:px-5 py-3 text-sm font-bold border-b-2 transition-all cursor-pointer ${
             activeTab === 'logs'
               ? 'border-brand-green text-brand-green bg-brand-hover/10 font-black'
               : 'border-transparent text-brand-gray hover:text-white hover:bg-brand-hover/5'
           }`}
+          title="Logs do Sistema"
         >
-          <ClipboardList className="w-4 h-4" /> Logs do Sistema
+          <ClipboardList className="w-4 h-4 shrink-0" />
+          <span className="hidden sm:inline">Logs do Sistema</span>
         </button>
       </div>
 
