@@ -42,7 +42,10 @@ export const DawView: React.FC = () => {
   const trackScrollRefs = useRef<(HTMLDivElement | null)[]>([]);
   const playheadScrollRef = useRef<HTMLDivElement>(null);
   const playheadLineRef = useRef<HTMLDivElement>(null);
-  const [zoomLevel, setZoomLevel] = useState(1.0);
+  const [zoomLevel, setZoomLevel] = useState(() => {
+    const cached = localStorage.getItem('mixer8:daw-zoom-level');
+    return cached ? parseFloat(cached) : 1.0;
+  });
 
   // Monitora largura da tela para responsividade síncrona
   const [isDesktopOrTablet, setIsDesktopOrTablet] = useState(window.innerWidth >= 768);
@@ -76,9 +79,10 @@ export const DawView: React.FC = () => {
     setZoomLevel(1.0);
   };
 
-  // Emite o nível de zoom para o GlobalTopHeader
+  // Emite o nível de zoom para o GlobalTopHeader e salva no localStorage
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('mixer8:zoom-change', { detail: { zoomLevel } }));
+    localStorage.setItem('mixer8:daw-zoom-level', String(zoomLevel));
   }, [zoomLevel]);
 
   // Escuta os comandos de zoom disparados pelo GlobalTopHeader

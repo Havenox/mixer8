@@ -20,7 +20,10 @@ export const GlobalTopHeader: React.FC = () => {
   } = usePlayer();
 
   const [chords, setChords] = useState<IChordBeat[] | null>(null);
-  const [activeZoom, setActiveZoom] = useState(1.0);
+  const [activeZoom, setActiveZoom] = useState(() => {
+    const cached = localStorage.getItem('mixer8:daw-zoom-level');
+    return cached ? parseFloat(cached) : 1.0;
+  });
 
   // Escuta atualizações do nível de Zoom enviadas pela DAW
   useEffect(() => {
@@ -143,7 +146,7 @@ export const GlobalTopHeader: React.FC = () => {
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
             <div className="flex flex-col items-center justify-center leading-none flex-1">
-              <span className="text-[9px] font-bold text-brand-gray/60 uppercase tracking-wider mb-0.5">Zoom</span>
+              <span className="text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-1">Zoom</span>
               <span className="text-xs font-black text-white font-mono">{activeZoom.toFixed(1)}x</span>
             </div>
             <button
@@ -176,7 +179,7 @@ export const GlobalTopHeader: React.FC = () => {
             className="h-[46px] w-[90px] bg-[#181818] border border-white/5 rounded-md flex flex-col items-center justify-center shrink-0 shadow-lg cursor-pointer select-none transition-all duration-200 hover:bg-[#222222] active:scale-95 animate-in fade-in duration-200"
             title="Alternar Exibição de Cifras"
           >
-            <span className="text-[9px] font-bold text-brand-gray/60 uppercase tracking-widest leading-none mb-1">
+            <span className="text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-1">
               Cifra
             </span>
             {showChords ? (
@@ -193,7 +196,7 @@ export const GlobalTopHeader: React.FC = () => {
 
         {/* Acorde Atual (Spotify style) */}
         <div className="h-[46px] w-24 bg-[#181818] border border-white/5 rounded-md flex flex-col items-center justify-center shrink-0 shadow-lg transition-all duration-200 hover:bg-[#222222]">
-          <span className="text-[9px] font-bold text-brand-gray/60 uppercase tracking-widest leading-none mb-0.5">
+          <span className="text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-1">
             Acorde
           </span>
           <span className="text-xs md:text-sm font-black text-brand-green tracking-wider font-mono leading-none min-w-[28px] text-center drop-shadow-[0_0_6px_rgba(34,197,94,0.35)]">
@@ -212,7 +215,7 @@ export const GlobalTopHeader: React.FC = () => {
           </button>
           
           <div className="flex flex-col items-center justify-center leading-none flex-1">
-            <span className="text-[9px] font-bold text-brand-gray/60 uppercase tracking-wider mb-0.5">
+            <span className="text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-1">
               Tom
             </span>
             <span className="text-xs font-black text-white">
@@ -253,7 +256,7 @@ export const GlobalTopHeader: React.FC = () => {
           </button>
           
           <div className="flex flex-col items-center justify-center leading-none flex-1">
-            <span className="text-[9px] font-bold text-brand-gray/60 uppercase tracking-wider mb-0.5">
+            <span className="text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-1">
               BPM
             </span>
             <span className="text-xs font-black text-white">

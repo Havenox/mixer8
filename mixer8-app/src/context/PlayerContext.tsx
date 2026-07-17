@@ -186,7 +186,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [transpose, setTranspose] = useState<number>(0);
   const [bpmDelta, setBpmDelta] = useState<number>(0);
   const [activeOverlay, setActiveOverlay] = useState<ActiveOverlayType>('none');
-  const [showChords, setShowChords] = useState<boolean>(false);
+  const [showChords, setShowChords] = useState<boolean>(() => {
+    return localStorage.getItem('mixer8:show-chords') === 'true';
+  });
   const [currentAlbumId, setCurrentAlbumId] = useState<string | null>(null);
 
   // Fecha qualquer overlay ativo quando nenhuma música estiver carregada
@@ -195,6 +197,38 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setActiveOverlay('none');
     }
   }, [currentTrack]);
+
+  // Carrega configurações de transposição e BPM específicas de cada música do localStorage
+  useEffect(() => {
+    if (currentTrack?.TrackId) {
+      const cachedTranspose = localStorage.getItem(`mixer8:track:${currentTrack.TrackId}:transpose`);
+      const cachedBpmDelta = localStorage.getItem(`mixer8:track:${currentTrack.TrackId}:bpm-delta`);
+      setTranspose(cachedTranspose ? parseInt(cachedTranspose) : 0);
+      setBpmDelta(cachedBpmDelta ? parseInt(cachedBpmDelta) : 0);
+    } else {
+      setTranspose(0);
+      setBpmDelta(0);
+    }
+  }, [currentTrack?.TrackId]);
+
+  // Salva transposição do tom da música atual no localStorage
+  useEffect(() => {
+    if (currentTrack?.TrackId) {
+      localStorage.setItem(`mixer8:track:${currentTrack.TrackId}:transpose`, String(transpose));
+    }
+  }, [transpose, currentTrack?.TrackId]);
+
+  // Salva variação de BPM da música atual no localStorage
+  useEffect(() => {
+    if (currentTrack?.TrackId) {
+      localStorage.setItem(`mixer8:track:${currentTrack.TrackId}:bpm-delta`, String(bpmDelta));
+    }
+  }, [bpmDelta, currentTrack?.TrackId]);
+
+  // Salva estado global de exibição de cifras no localStorage
+  useEffect(() => {
+    localStorage.setItem('mixer8:show-chords', String(showChords));
+  }, [showChords]);
   const [currentQueue, setCurrentQueue] = useState<ITrack[]>([]);
   const currentQueueRef = useRef<ITrack[]>([]);
 
