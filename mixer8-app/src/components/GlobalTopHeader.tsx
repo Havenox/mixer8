@@ -109,10 +109,21 @@ export const GlobalTopHeader: React.FC = () => {
     return transposeChord(currentTrack.Key, transpose);
   }, [currentTrack?.Key, transpose]);
 
+  // Limites dinâmicos de BPM (-50% a +100% do BPM original da faixa atual, com piso de 30 BPM)
+  const { minBpmDelta, maxBpmDelta } = useMemo(() => {
+    const base = currentTrack?.Bpm || 120;
+    const minBpm = Math.max(30, Math.round(base * 0.5));
+    const maxBpm = Math.round(base * 2.0);
+    return {
+      minBpmDelta: minBpm - base,
+      maxBpmDelta: maxBpm - base
+    };
+  }, [currentTrack?.Bpm]);
+
   // Calcula o BPM atual ajustado com a variação (delta)
   const calculatedBpm = useMemo(() => {
     const base = currentTrack?.Bpm || 120;
-    return Math.max(30, Math.min(300, base + bpmDelta));
+    return Math.max(30, base + bpmDelta);
   }, [currentTrack?.Bpm, bpmDelta]);
 
   if (!currentTrack) return null;
@@ -274,7 +285,7 @@ export const GlobalTopHeader: React.FC = () => {
         {/* Controle de BPM */}
         <div className="h-[32px] md:h-[46px] w-[84px] sm:w-[115px] md:w-[170px] bg-[#181818] border border-white/10 rounded-md md:rounded-lg flex items-center overflow-hidden shrink-0 shadow-md transition-all duration-200 hover:bg-[#222222]">
           <button
-            onClick={() => setBpmDelta(b => Math.max(-50, b - 1))}
+            onClick={() => setBpmDelta(b => Math.max(minBpmDelta, b - 1))}
             className="h-full w-5 md:w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-r border-white/10 transition-colors cursor-pointer active:scale-95 shrink-0"
             title="Diminuir 1 BPM"
           >
@@ -298,7 +309,7 @@ export const GlobalTopHeader: React.FC = () => {
           </div>
 
           <button
-            onClick={() => setBpmDelta(b => Math.min(50, b + 1))}
+            onClick={() => setBpmDelta(b => Math.min(maxBpmDelta, b + 1))}
             className="h-full w-5 md:w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-l border-white/10 transition-colors cursor-pointer active:scale-95 shrink-0"
             title="Aumentar 1 BPM"
           >
