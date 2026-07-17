@@ -62,6 +62,10 @@ Implementação de um motor de áudio DSP avançado de alta fidelidade em **WebA
 ---
 
 ## 📌 Commits Relacionados
-* `4986604`: `feat(wasm): adiciona wrapper C++ e artefatos de compilacao WASM SIMD Signalsmith Stretch`
-* `9c86bf7`: `feat(api): adiciona propriedade AudioEngineMode no UserProfile e atualiza endpoints do perfil`
-* `a88ab91`: `feat(audio): integra AudioWorklet WASM Signalsmith Stretch no player e seletor Power/Lite nas configuracoes`
+* `b32827c`: `feat(audio): conecta botoes de TOM e BPM do cabecalho fixo ao motor de audio WASM SIMD Signalsmith Stretch`
+* `b5cfcd7`: `fix(audio): corrige inicializacao do modulo WASM no AudioWorklet e preservacao de tom no ajuste de BPM`
+* `073aa88`: `feat(front): torna dinamico o alcance de BPM entre -50% e +100% do valor base com trava minima de 30 BPM`
+* `c892cdd`: `fix(audio): embute o codigo do wrapper WASM no pitch-shift-processor.js eliminando a chamada importScripts invalida em AudioWorklet`
+* `8ff3e1c`: `fix(audio): remove referencias a self.location e XMLHttpRequest do cabecalho Emscripten para compatibilidade total com AudioWorkletGlobalScope`
+* `19f5db6`: `fix(audio): adiciona cache busting no addModule e desativa cache HTTP no nginx para impedir reutilizacao de versoes antigas de pitch-shift-processor.js`
+* `d4511ea`: `feat(audio): pre-compila o modulo WASM na thread principal e transfere via processorOptions para AudioWorklet eliminando a necessidade de fetch interno`
