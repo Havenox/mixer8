@@ -10,7 +10,7 @@ A interface da DAW possuía um cabeçalho duplicado e controles musicais flutuan
 Também havia o desejo de alternar entre letras puras e letras cifradas (estilo Cifra Club / Ultimate Guitar) onde as notas musicais flutuam perfeitamente alinhadas acima de cada palavra correspondente de acordo com o tempo e tom transposto, de forma flexível e sem quebrar o baseline do texto.
 
 ## 🧠 Estratégia da Solução
-A solução envolveu descontinuar as rotas SPA `/daw` e `/lyrics` em prol de um **modelo de Overlays Globais de Layout (Opção B)**. O estado visual ativo é gerenciado centralmente por `activeOverlay` (`'none' | 'daw' | 'lyrics'`) em `PlayerContext.tsx`. 
+A solução envolveu descontinuar as rotas SPA `/daw` e `/lyrics` inativas em prol de um **modelo de Overlays Globais de Layout (Opção B)**. O estado visual ativo é gerenciado centralmente por `activeOverlay` (`'none' | 'daw' | 'lyrics'`) em `PlayerContext.tsx`. 
 No `PersistentLayout.tsx`, os painéis de DAW e Letras são injetados como overlays absolutos sobre o catálogo da biblioteca, o qual recebe `display: none` (`hidden`) apenas para ocultação visual. Isso mantém as páginas da biblioteca montadas no DOM em segundo plano, preservando integralmente o scroll do usuário e buscas ativas.
 Adicionalmente, centralizamos o botão sutil de Fechar (X) na extrema direita do cabeçalho global fixo (`GlobalTopHeader`) contido em um wrapper de largura estática, prevenindo qualquer layout shift horizontal nos controles de Tom, BPM e Acorde quando o botão é ocultado.
 
@@ -20,18 +20,22 @@ Para as cifras, introduzimos o estado global `showChords` no `PlayerContext.tsx`
 - **Isolamento e Destaque Temporal Único de Chords**: Cada acorde possui uma janela de tempo específica e mutuamente exclusiva que inicia no seu disparo e termina no disparo da próxima nota. Isso garante destaque verde brilhante (`text-brand-green` com glow) para **apenas uma nota por vez**, mantendo os demais acordes em branco opaco/nítido, impedindo destaques redundantes ou duplicados de notas idênticas na mesma estrofe.
 - **Janela de Atividade de Linha Ampliada**: Modificado o cálculo de ativação para que cada linha permaneça 100% ativa (opacidade 100%) desde o seu início (ou tempo 0s no caso da introdução da música) até o início exato da próxima frase. Isso impede que o painel perca o foco nos silêncios intermediários (gaps), permitindo que os acordes instrumentais ou de transição que tocam entre frases continuem recebendo highlight verde.
 - **Auto-fechamento por Roteamento**: Injetado um listener reativo em `PersistentLayout.tsx` que monitora mudanças no `location.pathname` e fecha qualquer overlay ativo (`activeOverlay = 'none'`) no instante em que o usuário troca de página na barra lateral, garantindo a consistência das visões do sistema.
+- **Padronização e Redução Visual dos Títulos**: Reestilizados todos os títulos das caixas de controle superiores (Zoom, Cifra, Acorde, Tom, BPM) para usarem `text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-1`. Isso diminui o ruído visual do cabeçalho e direciona a atenção para os valores ativos dos controles.
+- **Persistência de Preferências do Usuário (localStorage)**:
+  - **Global**: O nível de Zoom da DAW e a ativação de Cifras (ON/OFF) ficam persistidos no cache local globalmente, aplicando-se para todas as músicas reproduzidas.
+  - **Individual**: Alterações manuais no Tom (transpose) e variações de andamento (BPM) são salvas em chaves exclusivas de `TrackId` (`mixer8:track:${trackId}:...`), sendo restabelecidas automaticamente ao carregar a respectiva gravação.
 - **Opacidade Confortável**: Elevada a opacidade das estrofes inativas de 25% para 65% para garantir conforto de leitura durante o acompanhamento de letras extensas.
 
-## 🛠️ Implementação Técnica
+## 🛠️ Implementação Técnico-Estrutural
 
 ### Frontend (`mixer8-app`)
-* **`GlobalTopHeader.tsx`**: Centralizados metadados, acorde reativo, transposição, BPM e controles de Zoom. O bloco de Zoom agora renderiza no lado direito (à esquerda do bloco de Acorde) para manter estabilidade visual. Adicionado o botão Close (X) em contêiner de largura física invariável para evitar layout shifts. Injetada a caixa de controle `CIFRA` (ON/OFF) quando o painel de letras estiver ativo.
+* **`GlobalTopHeader.tsx`**: Centralizados metadados, acorde reativo, transposição, BPM e controles de Zoom. O bloco de Zoom agora renderiza no lado direito (à esquerda do bloco de Acorde) para manter estabilidade visual. Adicionado o botão Close (X) em contêiner de largura física invariável para evitar layout shifts. Injetada a caixa de controle `CIFRA` (ON/OFF) quando o painel de letras estiver ativo. Reestilizados os textos de topo das caixas.
 * **`PersistentLayout.tsx`**: Ajustado para injetar os overlays absolutos com transição suave e gerenciar a ocultação reativa (`hidden`) das páginas de conteúdo comum. Adicionado o listener reativo de auto-fechamento do overlay por mudança de rota do React Router.
 * **`MesaPlayer.tsx`**: Modificados os cliques de capa e de botões (tanto desktop quanto mobile) para alterar o estado `activeOverlay` em vez de navegar em rotas.
-* **`PlayerContext.tsx`**: Introduzido o estado global `activeOverlay` (com auto-limpeza) e o estado `showChords` para controle de cifra ativa.
+* **`PlayerContext.tsx`**: Introduzido o estado global `activeOverlay` (com auto-limpeza) e o estado `showChords` para controle de cifra ativa. Implementados os hooks de sincronização do localStorage para persistir de forma individual (por música) a transposição e o BPM delta, e de forma global o estado de cifra.
 * **`App.tsx`**: Removidas as rotas `/daw` e `/lyrics` e seus respectivos imports de componentes.
 * **`LyricsChordsViewer.tsx`**: Refatorado para alternar a exibição entre letra pura e cifrada. Se `showChords` estiver ativo, renderiza o container flex vertical com as notas alinhadas horizontalmente por baseline. Remove o cabeçalho local duplicado com botão de voltar e ajusta o realce temporal atômico das cifras e opacidades de leitura.
-* **`DawView.tsx`**: Ajustados os gatilhos e botões de retorno internos para executar `setActiveOverlay('none')` em vez de chamadas de roteador.
+* **`DawView.tsx`**: Ajustados os gatilhos e botões de retorno internos para executar `setActiveOverlay('none')` em vez de chamadas de roteador. Implementada a recuperação de Zoom inicial do localStorage e persistência no dispatch.
 
 ---
 
@@ -39,7 +43,7 @@ Para as cifras, introduzimos o estado global `showChords` no `PlayerContext.tsx`
 * **Preservação de Estado da Biblioteca**: O usuário pode abrir a DAW ou Letras a qualquer momento e fechá-las sem perder sua posição de rolagem ou filtro de busca atual na biblioteca de playlists.
 * **Layout 100% Estável**: O alinhamento do Zoom/Cifra na direita e o espaçador estático do botão X eliminam qualquer deslocamento horizontal de elementos no cabeçalho global.
 * **Navegação Consistente**: Clicar nos links de navegação da barra lateral encerra os overlays visualmente de forma instantânea, abrindo a nova rota em tela cheia.
-* **Experiência de Visualização Premium**: As cifras flutuam de forma fluida acima da letra em tempo real, transpondo de acordo com a alteração do tom base, mantendo um design limpo e de alto contraste.
+* **Usabilidade Premium e Memória de Contexto**: O player lembra o tom e andamento que o músico estava ensaiando para cada faixa individualmente, bem como suas configurações de zoom e preferências de visualização de cifras.
 
 ---
 **Nota do Desenvolvedor:** *A decisão por overlays absolutos baseados em CSS 'display: none' em React preserva o estado de mount da árvore do DOM, resultando em ganhos massivos de performance de renderização em SPAs de alta densidade como o catálogo do Mixer8.*
