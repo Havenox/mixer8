@@ -511,7 +511,7 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
       </div>
 
       {/* 2. CONTEÚDO PRINCIPAL (Mesa de Som com rolagem) */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden bg-brand-dark">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden bg-brand-dark pt-16 md:pt-0">
         {/* Cabeçalho Fixo Global (Aparece em todas as páginas se houver música na agulha) */}
         {currentTrack && <GlobalTopHeader />}
 
