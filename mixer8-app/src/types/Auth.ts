@@ -11,6 +11,7 @@ export interface IUser {
   Phone?: string;
   Bio?: string;
   AvatarUrl?: string;
+  AudioEngineMode?: string;
 }
 
 export interface IAuthState {

@@ -55,6 +55,8 @@ interface IPlayerContext {
   isPremium: boolean;
   transpose: number;
   setTranspose: React.Dispatch<React.SetStateAction<number>>;
+  audioEngineMode: 'Power' | 'Lite';
+  setAudioEngineMode: (mode: 'Power' | 'Lite') => void;
 }
 
 const PlayerContext = createContext<IPlayerContext | undefined>(undefined);
@@ -297,6 +299,39 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const masterGainNodeRef = useRef<GainNode | null>(null);
+  const pitchWorkletNodeRef = useRef<AudioWorkletNode | null>(null);
+
+  const [audioEngineMode, setAudioEngineModeState] = useState<'Power' | 'Lite'>(() => {
+    const saved = localStorage.getItem('mixer8_audio_engine_mode');
+    if (saved === 'Power' || saved === 'Lite') return saved;
+    return CurrentUser?.AudioEngineMode === 'Lite' ? 'Lite' : 'Power';
+  });
+
+  const setAudioEngineMode = (mode: 'Power' | 'Lite') => {
+    setAudioEngineModeState(mode);
+    localStorage.setItem('mixer8_audio_engine_mode', mode);
+  };
+
+  useEffect(() => {
+    if (CurrentUser?.AudioEngineMode === 'Lite' || CurrentUser?.AudioEngineMode === 'Power') {
+      setAudioEngineModeState(CurrentUser.AudioEngineMode as 'Power' | 'Lite');
+      localStorage.setItem('mixer8_audio_engine_mode', CurrentUser.AudioEngineMode);
+    }
+  }, [CurrentUser]);
+
+  // Atualização em tempo real da transposição de tom no WASM AudioWorklet ou no modo Lite
+  useEffect(() => {
+    if (audioEngineMode === 'Power' && pitchWorkletNodeRef.current) {
+      pitchWorkletNodeRef.current.port.postMessage({ type: 'SET_PITCH', semitones: transpose });
+    } else if (audioEngineMode === 'Lite') {
+      activeStemsRef.current.forEach(item => {
+        if (item.type !== 'Metrônomo') {
+          (item.audio as any).preservesPitch = false;
+          item.audio.playbackRate = Math.pow(2, transpose / 12);
+        }
+      });
+    }
+  }, [transpose, audioEngineMode]);
   
   // Referências para gerenciar elementos de áudio e nós do Web Audio API sem causar re-renders indesejados
   const activeStemsRef = useRef<{
@@ -453,7 +488,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     activeStemsRef.current = [];
   };
 
-  const initAudioContext = () => {
+  const initAudioContext = async () => {
     if (!audioContextRef.current) {
       // Suporta múltiplos browsers
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -465,6 +500,16 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       masterGain.gain.value = masterVolume;
       masterGain.connect(ctx.destination);
       masterGainNodeRef.current = masterGain;
+
+      try {
+        await ctx.audioWorklet.addModule('/wasm/pitch-shift-processor.js');
+        const worklet = new AudioWorkletNode(ctx, 'pitch-shift-processor');
+        worklet.connect(masterGain);
+        pitchWorkletNodeRef.current = worklet;
+        console.log('[WASM-AUDIO] AudioWorklet Signalsmith Stretch SIMD inicializado com sucesso.');
+      } catch (err) {
+        console.warn('[WASM-AUDIO] Falha ao carregar AudioWorklet WASM. Usando fallback Lite.', err);
+      }
     }
     return audioContextRef.current;
   };
@@ -649,7 +694,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return;
     }
 
-    const ctx = initAudioContext();
+    const ctx = await initAudioContext();
     
     // Ativa a fase de sincronização inicial silenciosa
     isSyncingRef.current = true;
@@ -760,21 +805,17 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         console.warn(`[PLAYER-AUDIO] StereoPanner não suportado para stem ${stemType}:`, err);
       }
       
-      // Conecta o fluxo: Áudio -> Volume Canal -> Stereo Panner (se houver) -> Volume Master -> Saída física
+      // Conecta o fluxo: Áudio -> Volume Canal -> Stereo Panner (se houver) -> PitchWorklet/Master -> Saída física
       sourceNode.connect(gainNode);
+      const targetDest: AudioNode = (stemType !== 'Metrônomo' && audioEngineMode === 'Power' && pitchWorkletNodeRef.current)
+        ? pitchWorkletNodeRef.current
+        : (masterGainNodeRef.current || ctx.destination);
+
       if (pannerNode) {
         gainNode.connect(pannerNode);
-        if (masterGainNodeRef.current) {
-          pannerNode.connect(masterGainNodeRef.current);
-        } else {
-          pannerNode.connect(ctx.destination);
-        }
+        pannerNode.connect(targetDest);
       } else {
-        if (masterGainNodeRef.current) {
-          gainNode.connect(masterGainNodeRef.current);
-        } else {
-          gainNode.connect(ctx.destination);
-        }
+        gainNode.connect(targetDest);
       }
 
       // Inicialmente ganho = 0 por conta da fase de sincronização silenciosa
@@ -894,7 +935,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const togglePlay = async () => {
     if (!currentTrack || activeStemsRef.current.length === 0) return;
 
-    const ctx = initAudioContext();
+    const ctx = await initAudioContext();
     if (ctx.state === 'suspended') {
       await ctx.resume();
     }
@@ -1300,7 +1341,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         toggleRepeatMode,
         isPremium,
         transpose,
-        setTranspose
+        setTranspose,
+        audioEngineMode,
+        setAudioEngineMode
       }}
     >
       {children}
