@@ -131,11 +131,11 @@ export const GlobalTopHeader: React.FC = () => {
         
         {/* Controles de Zoom (Apenas se a DAW estiver aberta, inseridos à esquerda dos botões existentes) */}
         {activeOverlay === 'daw' && (
-          <div className="h-[46px] w-[170px] bg-[#181818] border border-white/5 rounded-md flex items-center overflow-hidden shrink-0 select-none shadow-lg transition-all duration-200 hover:bg-[#222222] animate-in fade-in duration-200">
+          <div className="h-[46px] w-[150px] bg-[#181818] border border-white/5 rounded-md flex items-center overflow-hidden shrink-0 select-none shadow-lg transition-all duration-200 hover:bg-[#222222] animate-in fade-in duration-200">
             <button
               onClick={triggerZoomOut}
               disabled={activeZoom === 1.0}
-              className="h-full w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-r border-white/5 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+              className="h-full w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-r border-white/5 transition-colors cursor-pointer disabled:text-white/10 disabled:pointer-events-none"
               title="Afastar Zoom (Zoom Out)"
             >
               <ZoomOut className="w-3.5 h-3.5" />
@@ -147,7 +147,7 @@ export const GlobalTopHeader: React.FC = () => {
             <button
               onClick={triggerZoomIn}
               disabled={activeZoom === 16.0}
-              className="h-full w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-l border-r border-white/5 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+              className="h-full w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-l border-r border-white/5 transition-colors cursor-pointer disabled:text-white/10 disabled:pointer-events-none"
               title="Aproximar Zoom (Zoom In)"
             >
               <ZoomIn className="w-3.5 h-3.5" />
@@ -155,14 +155,14 @@ export const GlobalTopHeader: React.FC = () => {
             <button
               onClick={triggerZoomReset}
               disabled={activeZoom === 1.0}
-              className={`h-full w-12 flex items-center justify-center text-[9px] font-black uppercase tracking-wider transition-colors ${
+              className={`h-full w-9 flex items-center justify-center transition-colors ${
                 activeZoom === 1.0
-                  ? 'opacity-10 cursor-not-allowed pointer-events-none text-brand-gray/20'
-                  : 'text-brand-green hover:text-brand-green/85 hover:bg-brand-green/5 cursor-pointer'
+                  ? 'text-white/20 cursor-not-allowed pointer-events-none'
+                  : 'text-brand-green hover:text-brand-green/85 hover:bg-brand-green/5 cursor-pointer active:scale-95'
               }`}
               title="Redefinir Zoom"
             >
-              Reset
+              <RotateCcw className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
@@ -172,13 +172,13 @@ export const GlobalTopHeader: React.FC = () => {
           <span className="text-[9px] font-bold text-brand-gray/60 uppercase tracking-widest leading-none mb-0.5">
             Acorde
           </span>
-          <span className="text-sm md:text-base font-black text-brand-green tracking-wider font-mono uppercase leading-none min-w-[28px] text-center drop-shadow-[0_0_6px_rgba(34,197,94,0.35)]">
+          <span className="text-xs md:text-sm font-black text-brand-green tracking-wider font-mono leading-none min-w-[28px] text-center drop-shadow-[0_0_6px_rgba(34,197,94,0.35)]">
             {currentChord || '--'}
           </span>
         </div>
 
         {/* Controle de Tom (Transpose) */}
-        <div className="h-[46px] w-[180px] bg-[#181818] border border-white/5 rounded-md flex items-center overflow-hidden shrink-0 shadow-lg transition-all duration-200 hover:bg-[#222222]">
+        <div className="h-[46px] w-[160px] bg-[#181818] border border-white/5 rounded-md flex items-center overflow-hidden shrink-0 shadow-lg transition-all duration-200 hover:bg-[#222222]">
           <button
             onClick={() => setTranspose(t => Math.max(-6, t - 1))}
             className="h-full w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-r border-white/5 transition-colors cursor-pointer active:scale-95"
@@ -209,7 +209,7 @@ export const GlobalTopHeader: React.FC = () => {
             disabled={transpose === 0}
             className={`h-full w-9 flex items-center justify-center transition-colors active:scale-95 ${
               transpose === 0
-                ? 'opacity-10 cursor-not-allowed pointer-events-none text-brand-gray/20'
+                ? 'text-white/20 cursor-not-allowed pointer-events-none'
                 : 'text-brand-green hover:text-brand-green/85 hover:bg-brand-green/5 cursor-pointer'
             }`}
             title="Redefinir Tom Original"
@@ -219,7 +219,7 @@ export const GlobalTopHeader: React.FC = () => {
         </div>
 
         {/* Controle de BPM */}
-        <div className="h-[46px] w-[190px] bg-[#181818] border border-white/5 rounded-md flex items-center overflow-hidden shrink-0 shadow-lg transition-all duration-200 hover:bg-[#222222]">
+        <div className="h-[46px] w-[170px] bg-[#181818] border border-white/5 rounded-md flex items-center overflow-hidden shrink-0 shadow-lg transition-all duration-200 hover:bg-[#222222]">
           <button
             onClick={() => setBpmDelta(b => b - 1)}
             className="h-full w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-r border-white/5 transition-colors cursor-pointer active:scale-95"
@@ -250,7 +250,7 @@ export const GlobalTopHeader: React.FC = () => {
             disabled={bpmDelta === 0}
             className={`h-full w-9 flex items-center justify-center transition-colors active:scale-95 ${
               bpmDelta === 0
-                ? 'opacity-10 cursor-not-allowed pointer-events-none text-brand-gray/20'
+                ? 'text-white/20 cursor-not-allowed pointer-events-none'
                 : 'text-brand-green hover:text-brand-green/85 hover:bg-brand-green/5 cursor-pointer'
             }`}
             title="Redefinir BPM Original"
