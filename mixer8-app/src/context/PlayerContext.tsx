@@ -400,6 +400,21 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const audioContextRef = useRef<AudioContext | null>(null);
   const masterGainNodeRef = useRef<GainNode | null>(null);
   const pitchWorkletNodeRef = useRef<AudioWorkletNode | null>(null);
+  const metronomeDelayNodeRef = useRef<DelayNode | null>(null);
+
+  // Referências para gerenciar elementos de áudio e nós do Web Audio API sem causar re-renders indesejados
+  const activeStemsRef = useRef<{
+    audio: HTMLAudioElement;
+    gainNode: GainNode;
+    sourceNode: MediaElementAudioSourceNode;
+    pannerNode?: StereoPannerNode;
+    type: string;
+  }[]>([]);
+
+  // Referências locais para a barreira de sincronização e streaming progressivo silencioso
+  const syncBarrierPromiseRef = useRef<Promise<void> | null>(null);
+  const syncBarrierResolveRef = useRef<(() => void) | null>(null);
+  const isSyncingRef = useRef(false);
 
   const [audioEngineMode, setAudioEngineModeState] = useState<'Power' | 'Lite'>(() => {
     const saved = localStorage.getItem('mixer8_audio_engine_mode');
@@ -419,9 +434,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [CurrentUser]);
 
-  // Atualização em tempo real da transposição de tom (Pitch Shift em WASM/Lite) e velocidade/BPM (Time Stretch)
-  useEffect(() => {
-    const baseBpm = currentTrack?.Bpm || 120;
+  // Aplica as configurações atuais de Pitch (tom) e Tempo (BPM) a todos os elementos de áudio e nós de processamento
+  const applyPitchAndTempoSettings = useCallback(() => {
+    const baseBpm = currentTrackRef.current?.Bpm || 120;
     const targetBpm = Math.max(30, baseBpm + bpmDelta);
     const speedRatio = targetBpm / baseBpm;
 
@@ -429,6 +444,21 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // 1. Modo Power: WASM SIMD (Signalsmith Stretch) na thread de AudioWorklet cuida da afinação/tom
       if (pitchWorkletNodeRef.current) {
         pitchWorkletNodeRef.current.port.postMessage({ type: 'SET_PITCH', semitones: transpose });
+      }
+
+      // Compensação de latência de processamento do nó WASM (Signalsmith Stretch) no Metrônomo (120ms)
+      if (metronomeDelayNodeRef.current) {
+        const targetDelay = (transpose !== 0 && pitchWorkletNodeRef.current) ? 0.12 : 0.0;
+        try {
+          const ctx = audioContextRef.current;
+          if (ctx) {
+            metronomeDelayNodeRef.current.delayTime.setValueAtTime(targetDelay, ctx.currentTime);
+          } else {
+            metronomeDelayNodeRef.current.delayTime.value = targetDelay;
+          }
+        } catch (err) {
+          metronomeDelayNodeRef.current.delayTime.value = targetDelay;
+        }
       }
 
       // Altera o playbackRate dos elementos HTMLAudioElement mantendo preservesPitch = true (time stretch sem alterar tom nativo)
@@ -441,6 +471,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       });
     } else if (audioEngineMode === 'Lite') {
+      // No modo Lite, a latência é zero
+      if (metronomeDelayNodeRef.current) {
+        metronomeDelayNodeRef.current.delayTime.value = 0.0;
+      }
+
       // 2. Modo Lite: Web Audio API Nativo do navegador
       // Quando transpose === 0, mantém preservesPitch = true para que a alteração de BPM preserve o tom original (sem efeito de disco)
       const pitchRatio = Math.pow(2, transpose / 12);
@@ -465,21 +500,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       });
     }
-  }, [transpose, bpmDelta, audioEngineMode, currentTrack?.Bpm]);
-  
-  // Referências para gerenciar elementos de áudio e nós do Web Audio API sem causar re-renders indesejados
-  const activeStemsRef = useRef<{
-    audio: HTMLAudioElement;
-    gainNode: GainNode;
-    sourceNode: MediaElementAudioSourceNode;
-    pannerNode?: StereoPannerNode;
-    type: string;
-  }[]>([]);
+  }, [transpose, bpmDelta, audioEngineMode]);
 
-  // Referências locais para a barreira de sincronização e streaming progressivo silencioso
-  const syncBarrierPromiseRef = useRef<Promise<void> | null>(null);
-  const syncBarrierResolveRef = useRef<(() => void) | null>(null);
-  const isSyncingRef = useRef(false);
+  // Atualização em tempo real da transposição de tom e velocidade/BPM ao mudar estados reativos
+  useEffect(() => {
+    applyPitchAndTempoSettings();
+  }, [applyPitchAndTempoSettings, currentTrack?.Bpm]);
+
 
   // Estado de configurações globais de permissões do sistema
   const [systemSettings, setSystemSettings] = useState<Record<string, string>>({
@@ -620,6 +647,12 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       item.sourceNode.disconnect();
     });
     activeStemsRef.current = [];
+    if (metronomeDelayNodeRef.current) {
+      try {
+        metronomeDelayNodeRef.current.disconnect();
+      } catch (e) {}
+      metronomeDelayNodeRef.current = null;
+    }
   };
 
   const initAudioContext = async () => {
@@ -950,18 +983,36 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         console.warn(`[PLAYER-AUDIO] StereoPanner não suportado para stem ${stemType}:`, err);
       }
       
-      // Conecta o fluxo: Áudio -> Volume Canal -> Stereo Panner (se houver) -> PitchWorklet/Master -> Saída física
+      // Conecta o fluxo: Áudio -> Volume Canal -> Stereo Panner (se houver) -> Delay (se Metrônomo) -> PitchWorklet/Master -> Saída física
       sourceNode.connect(gainNode);
       const isMetronome = isMetronomeStem(stemType);
       const targetDest: AudioNode = (!isMetronome && audioEngineMode === 'Power' && pitchWorkletNodeRef.current)
         ? pitchWorkletNodeRef.current
         : (masterGainNodeRef.current || ctx.destination);
 
+      let delayNode: DelayNode | undefined;
+      if (isMetronome) {
+        try {
+          delayNode = ctx.createDelay(1.0);
+          const initialDelay = (transpose !== 0 && audioEngineMode === 'Power' && pitchWorkletNodeRef.current) ? 0.12 : 0.0;
+          delayNode.delayTime.value = initialDelay;
+          metronomeDelayNodeRef.current = delayNode;
+        } catch (err) {
+          console.warn('[PLAYER-AUDIO] Falha ao criar DelayNode para o metrônomo:', err);
+        }
+      }
+
+      const postPannerDest = (isMetronome && delayNode) ? delayNode : targetDest;
+
       if (pannerNode) {
         gainNode.connect(pannerNode);
-        pannerNode.connect(targetDest);
+        pannerNode.connect(postPannerDest);
       } else {
-        gainNode.connect(targetDest);
+        gainNode.connect(postPannerDest);
+      }
+
+      if (isMetronome && delayNode) {
+        delayNode.connect(targetDest);
       }
 
       // Inicialmente ganho = 0 por conta da fase de sincronização silenciosa
@@ -993,6 +1044,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     
     // Atualiza os ganhos de forma explícita respeitando mutes e solos persistidos de forma imediata e síncrona
     updateAudioGains(initialVolumes, globalMutes, globalSolos);
+
+    // Aplica as configurações de pitch (tom) e tempo (BPM delta) nas stems carregadas
+    applyPitchAndTempoSettings();
 
     // Sincroniza progresso e duração a partir do master audio
     if (masterAudioElement) {

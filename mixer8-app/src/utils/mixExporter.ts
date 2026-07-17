@@ -145,14 +145,35 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
   const tempoRatio = calculatedBpm / baseBpm;
   const musicalSpeedRatio = tempoRatio * Math.pow(2, transpose / 12);
 
+  // Determina se usaremos o Pitch Shifter WASM (Signalsmith Stretch) offline
+  let useWasmPitchShift = false;
+  let wasmModule: WebAssembly.Module | null = null;
+  if (transpose !== 0) {
+    try {
+      const wasmRes = await fetch('/wasm/signalsmith-stretch.wasm');
+      if (wasmRes.ok) {
+        const wasmBuffer = await wasmRes.arrayBuffer();
+        wasmModule = await WebAssembly.compile(wasmBuffer);
+        useWasmPitchShift = true;
+      }
+    } catch (err) {
+      console.warn('[EXPORT-WASM] Falha ao compilar WASM para exportação. Usando fallback de resample.', err);
+    }
+  }
+
   let maxDuration = 0;
   for (const { stemType, buffer } of stemBuffers) {
     const isMetronome = isMetronomeStem(stemType);
-    const effectiveSpeedRatio = isMetronome ? tempoRatio : musicalSpeedRatio;
+    // Se estiver usando o Pitch Shift via WASM, a velocidade harmônica não é acelerada pelo tom
+    const effectiveSpeedRatio = (isMetronome || useWasmPitchShift) ? tempoRatio : musicalSpeedRatio;
     const adjustedDuration = buffer.duration / effectiveSpeedRatio;
     if (adjustedDuration > maxDuration) {
       maxDuration = adjustedDuration;
     }
+  }
+
+  if (useWasmPitchShift) {
+    maxDuration += 0.12; // Compensação de latência do processador (120ms)
   }
 
   // 4. Cria a OfflineAudioContext (2 canais, 48000 Hz)
@@ -170,6 +191,23 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
   // Lógica de Mute / Solo
   const hasAnySolo = Object.values(stemsSolo).some(v => v);
 
+  // Configuração do nó AudioWorklet de Pitch Shifter
+  let pitchWorkletNode: AudioWorkletNode | null = null;
+  if (useWasmPitchShift && wasmModule) {
+    try {
+      await offlineCtx.audioWorklet.addModule('/wasm/pitch-shift-processor.js?v=' + Date.now());
+      pitchWorkletNode = new AudioWorkletNode(offlineCtx, 'pitch-shift-processor', {
+        processorOptions: { wasmModule }
+      });
+      pitchWorkletNode.port.postMessage({ type: 'SET_PITCH', semitones: transpose });
+      pitchWorkletNode.connect(masterGain);
+    } catch (err) {
+      console.error('[EXPORT-WASM] Falha ao registrar AudioWorklet WASM na OfflineCtx. Usando fallback de resample.', err);
+      useWasmPitchShift = false;
+      pitchWorkletNode = null;
+    }
+  }
+
   for (const { stemType, buffer } of stemBuffers) {
     const vol = stemsVolume[stemType] ?? 1.0;
     const muted = stemsMute[stemType] ?? false;
@@ -180,7 +218,7 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
     if (effectiveGain <= 0) continue; // Pista silenciada
 
     const isMetronome = isMetronomeStem(stemType);
-    const effectiveSpeedRatio = isMetronome ? tempoRatio : musicalSpeedRatio;
+    const effectiveSpeedRatio = (isMetronome || useWasmPitchShift) ? tempoRatio : musicalSpeedRatio;
 
     const source = offlineCtx.createBufferSource();
     source.buffer = buffer;
@@ -194,7 +232,24 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
 
     source.connect(gainNode);
     gainNode.connect(pannerNode);
-    pannerNode.connect(masterGain);
+
+    if (isMetronome) {
+      if (useWasmPitchShift) {
+        // Se as stems de música passam pelo pitch worklet (120ms de latência), atrasamos o metrônomo pelo mesmo valor
+        const delayNode = offlineCtx.createDelay(1.0);
+        delayNode.delayTime.value = 0.12;
+        pannerNode.connect(delayNode);
+        delayNode.connect(masterGain);
+      } else {
+        pannerNode.connect(masterGain);
+      }
+    } else {
+      if (useWasmPitchShift && pitchWorkletNode) {
+        pannerNode.connect(pitchWorkletNode);
+      } else {
+        pannerNode.connect(masterGain);
+      }
+    }
 
     source.start(0);
   }
