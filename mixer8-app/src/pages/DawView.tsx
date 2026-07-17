@@ -315,25 +315,55 @@ export const DawView: React.FC = () => {
 
           ctx.clearRect(0, 0, width, height);
 
-          const peaks = waveforms[stem.StemType] || [];
-          if (peaks.length === 0) return;
-
-          const middle = height / 2;
-          const step = width / peaks.length;
-
-          ctx.beginPath();
-          ctx.strokeStyle = '#000000';
-          ctx.lineWidth = 1.2;
-
-          for (let i = 0; i < peaks.length; i++) {
-            const val = peaks[i];
-            const amplitude = val * (middle - 4);
-            const x = i * step;
-
-            ctx.moveTo(x, middle - amplitude);
-            ctx.lineTo(x, middle + amplitude);
+          const points = waveforms[stem.StemType] || [];
+          if (points.length === 0) {
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(0, height / 2);
+            ctx.lineTo(width, height / 2);
+            ctx.stroke();
+            return;
           }
 
+          // Desenha a forma de onda contínua sólida usando todos os pontos do banco
+          ctx.beginPath();
+          
+          // Caminho do envelope superior (da esquerda para a direita)
+          for (let i = 0; i < points.length; i++) {
+            const x = (i / (points.length - 1 || 1)) * width;
+            const rawVal = points[i] || 0;
+            const absVal = Math.min(100, Math.abs(rawVal));
+            const amplitude = (absVal / 100.0) * (height * 0.42); // Normalizado (máximo 42% da altura)
+            const y = height / 2 - amplitude;
+            
+            if (i === 0) {
+              ctx.moveTo(x, y);
+            } else {
+              ctx.lineTo(x, y);
+            }
+          }
+
+          // Caminho do envelope inferior (da direita para a esquerda)
+          for (let i = points.length - 1; i >= 0; i--) {
+            const x = (i / (points.length - 1 || 1)) * width;
+            const rawVal = points[i] || 0;
+            const absVal = Math.min(100, Math.abs(rawVal));
+            const amplitude = (absVal / 100.0) * (height * 0.42);
+            const y = height / 2 + amplitude;
+            ctx.lineTo(x, y);
+          }
+
+          ctx.closePath();
+          ctx.fillStyle = '#000000';
+          ctx.fill();
+
+          // Linha central preta fina cortando o meio da waveform
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(0, height / 2);
+          ctx.lineTo(width, height / 2);
           ctx.stroke();
         });
       });
