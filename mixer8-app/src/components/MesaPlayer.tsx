@@ -621,7 +621,7 @@ export const MesaPlayer: React.FC = () => {
         <div className="flex items-center gap-0.5 shrink-0">
           {/* Atalho DAW */}
           <button 
-            onClick={(e) => { e.stopPropagation(); setActiveOverlay('daw'); }}
+            onClick={(e) => { e.stopPropagation(); setActiveOverlay(prev => prev === 'daw' ? 'none' : 'daw'); }}
             className={`p-1.5 transition-colors cursor-pointer rounded-full ${
               activeOverlay === 'daw' 
                 ? 'text-brand-green bg-brand-green/15' 
@@ -635,7 +635,7 @@ export const MesaPlayer: React.FC = () => {
           {/* Atalho Mixer */}
           {(hasMultipleStems || isProcessingOrSingleStem) && (
             <button 
-              onClick={(e) => { e.stopPropagation(); setActiveOverlay('mixer'); }}
+              onClick={(e) => { e.stopPropagation(); setActiveOverlay(prev => prev === 'mixer' ? 'none' : 'mixer'); }}
               className={`p-1.5 transition-colors cursor-pointer rounded-full ${
                 activeOverlay === 'mixer' 
                   ? 'text-brand-green bg-brand-green/15' 
@@ -649,7 +649,7 @@ export const MesaPlayer: React.FC = () => {
 
           {/* Atalho Letras & Cifras */}
           <button 
-            onClick={(e) => { e.stopPropagation(); setActiveOverlay('lyrics'); }}
+            onClick={(e) => { e.stopPropagation(); setActiveOverlay(prev => prev === 'lyrics' ? 'none' : 'lyrics'); }}
             className={`p-1.5 transition-colors cursor-pointer rounded-full ${
               activeOverlay === 'lyrics' 
                 ? 'text-brand-green bg-brand-green/15' 
@@ -696,7 +696,7 @@ export const MesaPlayer: React.FC = () => {
           {/* Capa Gigante */}
           <div className="flex-1 flex items-center justify-center my-4 max-h-[340px] shrink-0">
             <div 
-              onClick={() => setActiveOverlay('lyrics')}
+              onClick={() => setActiveOverlay(prev => prev === 'lyrics' ? 'none' : 'lyrics')}
               className="w-full aspect-square max-w-[260px] xs:max-w-[300px] rounded-lg overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.8)] border border-white/5 bg-brand-card flex items-center justify-center cursor-pointer"
               title="Abrir Letras & Cifras"
             >
@@ -839,7 +839,7 @@ export const MesaPlayer: React.FC = () => {
             {/* Linha 2: Utilidades (DAW, Mixer e Letras) */}
             <div className="flex items-center justify-center gap-3 w-full px-2">
               <button 
-                onClick={() => setActiveOverlay('daw')}
+                onClick={() => setActiveOverlay(prev => prev === 'daw' ? 'none' : 'daw')}
                 className="flex items-center gap-1.5 py-2 px-4 rounded-full border border-brand-hover text-brand-gray hover:text-white hover:border-brand-green/30 transition-all cursor-pointer"
                 title="Estúdio DAW"
               >
@@ -849,7 +849,7 @@ export const MesaPlayer: React.FC = () => {
 
               {(hasMultipleStems || isProcessingOrSingleStem) && (
                 <button 
-                  onClick={() => setActiveOverlay('mixer')}
+                  onClick={() => setActiveOverlay(prev => prev === 'mixer' ? 'none' : 'mixer')}
                   className="flex items-center gap-1.5 py-2 px-4 rounded-full border border-brand-hover text-brand-gray hover:text-white hover:border-brand-green/30 transition-all cursor-pointer"
                   title="Mixer de Som"
                 >
@@ -859,7 +859,7 @@ export const MesaPlayer: React.FC = () => {
               )}
 
               <button 
-                onClick={() => setActiveOverlay('lyrics')}
+                onClick={() => setActiveOverlay(prev => prev === 'lyrics' ? 'none' : 'lyrics')}
                 className="flex items-center gap-1.5 py-2 px-4 rounded-full border border-brand-hover text-brand-gray hover:text-white hover:border-brand-green/30 transition-all cursor-pointer"
                 title="Letras e Cifras"
               >
