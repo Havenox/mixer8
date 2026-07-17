@@ -305,7 +305,8 @@ const Explore: React.FC = () => {
           <img 
             src="/mixer8-logo.webp" 
             alt="Mixer8 Logo" 
-            className="h-3.5 w-auto object-contain select-none align-baseline translate-y-[2px]" 
+            className="w-auto object-contain select-none" 
+            style={{ height: '14px', transform: 'translateY(3.5px)' }}
           />
         </div>
         <p className="text-[10px] md:text-[11px] text-brand-gray m-0 leading-relaxed max-w-[700px]">
