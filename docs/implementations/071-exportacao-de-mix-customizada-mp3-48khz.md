@@ -22,21 +22,21 @@ Os requisitos estritos definidos foram:
 2. **Codificação PCM Float32 para MP3 192kbps 48kHz (`lamejs`)**:
    - Desenvolvemos o módulo `mixExporter.ts` que converte a matriz PCM Float32 de 48kHz resultante em buffers Int16 e encoda em MP3 192kbps via `lamejs`.
    - O processo roda em micro-blocos assíncronos (`setTimeout(r, 0)`), liberando a thread principal da UI a cada iteração e atualizando o progresso suavemente a 60fps no Toast sem congelar o navegador.
-3. **UX Não-Bloqueante (`ExportToast.tsx` & `GlobalTopHeader.tsx`)**:
+3. **UX Não-Bloqueante com Disco de Vinil Giratório (`ExportToast.tsx` & `GlobalTopHeader.tsx`)**:
    - Incluído o botão padronizado **"Exportar mix"** na barra fixada superior da DAW (`GlobalTopHeader.tsx`), exatamente à esquerda dos controles de Zoom.
-   - Criado o componente `<ExportToast />` em `PersistentLayout.tsx` com barra de progresso em verde, porcentagem dinâmica e botão de download automático.
+   - Criado o componente `<VinylRecord />` exibido dentro do `<ExportToast />`, que apresenta um disco de vinil estilizado em rotação com a imagem de capa (`cover.webp`) no rótulo central durante o export.
+4. **Anexação de Metadados e Capa Físicos ID3v2.3 (`id3Writer.ts`)**:
+   - Criado o utilitário `id3Writer.ts` que insere cabeçalhos ID3v2.3 nos bytes do MP3 gerado contendo Título, Artista, Álbum ("Mixer8 DAW") e o frame de imagem `APIC` com a capa física `cover.webp` da música.
 
 ## 🛠️ Implementação Técnica
 ### Frontend (`mixer8-app`)
-* **`package.json` & `lamejs.d.ts`**:
-  * Adicionada a dependência `lamejs` para codificação MP3 no navegador e a tipagem TypeScript correspondente.
+* **`id3Writer.ts`**:
+  * Utilitário TypeScript para gerar bytes de cabeçalhos e frames de tags ID3v2.3 (TIT2, TPE1, TALB, APIC) e anexá-los ao Blob de áudio MP3.
 * **`mixExporter.ts`**:
-  * Módulo assíncrono que carrega as stems, reconstrói o grafo Web Audio na `OfflineAudioContext`, executa `startRendering()` a 48000 Hz, encoda os canais estéreo em MP3 192kbps e constrói o `Blob` final.
-  * Formata o nome do arquivo sanitizado no padrão `<nomedamusica> - <nome do artista> (<tom> - <bpm>bpm).mp3`.
-* **`PlayerContext.tsx`**:
-  * Expostos os estados de exportação (`isExporting`, `exportProgress`, `exportStatusMessage`, `exportFileName`, `exportError`, `exportSuccess`) e as funções `exportMix()` e `closeExportToast()`.
+  * Módulo assíncrono que carrega as stems, reconstrói o grafo Web Audio na `OfflineAudioContext`, executa `startRendering()` a 48000 Hz, encoda os canais estéreo em MP3 192kbps, anexa os metadados ID3v2.3 com capa `cover.webp` e constrói o `Blob` final.
+  * Formata o nome do arquivo no padrão `<nomedamusica> - <nome do artista> (<tom> - <bpm>bpm).mp3`.
 * **`ExportToast.tsx`**:
-  * Componente toast flutuante estilizado no padrão dark Spotify-style com barra de progresso animada (`bg-gradient-to-r from-brand-green to-emerald-400`).
+  * Componente toast flutuante estilizado no padrão dark Spotify-style com disco de vinil giratório `<VinylRecord />` exibindo o selo da capa (`cover.webp`) e barra de progresso animada (`bg-gradient-to-r from-brand-green to-emerald-400`).
 * **`GlobalTopHeader.tsx`**:
   * Integrado o botão "Exportar mix" com ícone `Download` / `Loader2`, posicionado à esquerda do controle de Zoom na DAW.
 
