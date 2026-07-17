@@ -237,6 +237,15 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
     * **Knob Rotativo Físico e Arraste Linear**: Desenvolvido o componente `<RotaryKnob />` em SVG circular, com agulha indicadora e arraste linear vertical (Y delta) do cursor para precisão. O knob conta com atalho de clique duplo para retornar ao centro (0.0).
     * **Faders e Visual DAW**: Customizados faders de volume como retângulos de console analógico (sem "bolinhas" nativas). A tela `DawView` conta com waveforms em `<canvas>` 2D de alta densidade (1.5px de largura, 0.5px de espaçamento) pintadas em **preto sólido** sobre fundo **verde fosco do Mixer8** (verde fosco médio `#155f2e` na área reproduzida e verde fosco escuro `#0d2716` na área pendente). A agulha de playhead vertical é **branca brilhante** com guia triangular superior branca.
     * **Regra de Ocultação Mono**: O knob de Pan é condicionalmente ocultado nas pistas mono multifaixas (Voz, Baixo, Metrônomo), sendo visível apenas nas stems estéreo (Bateria, Guitarra, Outros) e na faixa Completo original.
+28. **Motor de Áudio WASM de Alta Fidelidade (Modo Power) com Signalsmith Stretch**:
+    * **Signalsmith Stretch WASM**: Integrado algoritmo MIT Spectral Phase-Locked Vocoder com suporte a WASM SIMD 128-bit (`-msimd128`) compilado via Emscripten em Docker.
+    * **AudioWorklet Processor**: O processamento de áudio ocorre em thread dedicada, garantindo performance a 60fps sem travar a thread principal da UI.
+    * **Bypass de Metrônomo**: Roteamento direto do canal Metrônomo contornando o processador de transposição para preservar a integridade do clique.
+    * **Persistência de Perfil**: Modo do player (`AudioEngineMode` - Power vs Lite) exposto no backend API com migração EF Core no PostgreSQL e configurável via painel settings no front.
+29. **Redesenho do Cabeçalho Fixo Global e Letras Integradas**:
+    * **GlobalTopHeader**: Cabeçalho fixo no topo (`h-[72px]`) com caixas musicais (Acorde, Tom, BPM e Zoom) de altura padronizada (`h-[46px]`), visual dark Spotify-style e ícones Lucide. Os controles ficam fixados na direita e o zoom na esquerda após o título da música, prevenindo layout shifts ao navegar para a DAW.
+    * **Reset Estável**: Botões de reset mantêm referências estáveis no DOM com opacidade/ponteiro desativados quando inativos, evitando saltos de dimensão horizontal.
+    * **Letras Integradas sem Colisão**: Modal de letras descontinuado por exibição integrada de tela cheia. O botão voltar foi isolado em uma barra superior transparente de 56px (`h-14`), impedindo que o texto da cifra se choque com o botão durante o scroll vertical.
 
 ---
 
