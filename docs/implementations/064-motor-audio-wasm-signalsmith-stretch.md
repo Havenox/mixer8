@@ -44,8 +44,9 @@ Implementação de um motor de áudio DSP avançado de alta fidelidade em **WebA
 * **EF Core Migration**: Criada a migração `20260717002257_AddAudioEngineModeToUserProfile` que adiciona a coluna `AudioEngineMode` no PostgreSQL (Padrão: `"Power"`).
 * **Endpoints de Perfil**: Atualizado `AuthController.cs` para retornar e atualizar o campo `AudioEngineMode` nos endpoints `/Auth/Me` e `PUT /Auth/Profile`.
 
-### 4. Interface do Player e Configurações (`PlayerContext.tsx` & `Settings.tsx`)
-* **`PlayerContext.tsx`**: Inicialização assíncrona da Web Audio API com `addModule('/wasm/pitch-shift-processor.js')` e sincronização do estado de transposição.
+### 4. Interface do Player e Configurações (`PlayerContext.tsx`, `GlobalTopHeader.tsx` & `Settings.tsx`)
+* **`PlayerContext.tsx`**: Inicialização assíncrona da Web Audio API com `addModule('/wasm/pitch-shift-processor.js')` e sincronização do estado de transposição de Tom (`transpose`) e variação de velocidade (`bpmDelta`). O cálculo do `speedRatio = (baseBpm + bpmDelta) / baseBpm` é aplicado ao `playbackRate` dos elementos de áudio enquanto a thread dedicada de AudioWorklet WASM cuida da alteração de afinação em alta fidelidade.
+* **`GlobalTopHeader.tsx`**: Conectados os botões de incremento e decremento (`-` e `+`) de **TOM** ($\pm 12$ semitons) e **BPM** ($\pm 50\text{ BPM}$) com suporte a clique de redefinição (*reset*).
 * **`Settings.tsx`**: Adicionada a seção **Motor de Áudio do Player (DSP Transposição)** permitindo ao usuário escolher entre **Modo Power (WASM SIMD)** e **Modo Lite (Aceleração Nativa)**.
 
 ---
