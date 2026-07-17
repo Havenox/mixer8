@@ -1,4 +1,4 @@
-import 'lamejs/lame.all.js';
+import lameCode from 'lamejs/lame.all.js?raw';
 import { transposeChord } from '../hooks/useLyricsChords';
 import type { ITrack } from '../context/PlayerContext';
 
@@ -20,6 +20,45 @@ export interface IMixExportResult {
   fileName: string;
   blob: Blob;
 }
+
+let cachedMp3EncoderClass: any = null;
+
+const getMp3EncoderClass = (): any => {
+  if (cachedMp3EncoderClass) {
+    return cachedMp3EncoderClass;
+  }
+  if (typeof window !== 'undefined' && (window as any).lamejs?.Mp3Encoder) {
+    cachedMp3EncoderClass = (window as any).lamejs.Mp3Encoder;
+    return cachedMp3EncoderClass;
+  }
+
+  try {
+    // Executa o bundle IIFE limpo de lame.all.js injetando window/globalThis
+    const evalFn = new Function('window', 'globalThis', `
+      ${lameCode}
+      if (typeof lamejs !== 'undefined') {
+        window.lamejs = lamejs;
+        globalThis.lamejs = lamejs;
+        return lamejs;
+      }
+      return null;
+    `);
+    const lameObj = evalFn(window, globalThis);
+    if (lameObj?.Mp3Encoder) {
+      cachedMp3EncoderClass = lameObj.Mp3Encoder;
+      return cachedMp3EncoderClass;
+    }
+  } catch (err) {
+    console.warn('[EXPORT] Erro ao avaliar bundle lame.all.js:', err);
+  }
+
+  if (typeof window !== 'undefined' && (window as any).lamejs?.Mp3Encoder) {
+    cachedMp3EncoderClass = (window as any).lamejs.Mp3Encoder;
+    return cachedMp3EncoderClass;
+  }
+
+  throw new Error('Não foi possível carregar o codificador MP3 (lamejs).');
+};
 
 const sanitizeFileName = (str: string): string => {
   return str.replace(/[/\\?%*:|"<>]/g, '').trim();
@@ -158,11 +197,7 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
   // 6. Codificação PCM Float32 -> MP3 192 kbps 48 kHz usando lamejs
   onProgress(55, 'Codificando MP3 192kbps 48kHz...');
 
-  const lamejsObj = (window as any).lamejs || (globalThis as any).lamejs;
-  const Mp3Encoder = lamejsObj?.Mp3Encoder;
-  if (!Mp3Encoder) {
-    throw new Error('Não foi possível carregar o codificador MP3 (lamejs).');
-  }
+  const Mp3Encoder = getMp3EncoderClass();
   const mp3encoder = new Mp3Encoder(2, sampleRate, 192);
 
   const leftChannelFloat = renderedAudioBuffer.getChannelData(0);
