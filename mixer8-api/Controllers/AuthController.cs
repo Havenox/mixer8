@@ -178,7 +178,8 @@ public class AuthController(Mixer8DbContext dbContext, IConfiguration configurat
             LastName = user.UserProfile?.LastName,
             Phone = user.UserProfile?.Phone,
             Bio = user.UserProfile?.Bio,
-            AvatarUrl = user.UserProfile?.AvatarUrl
+            AvatarUrl = user.UserProfile?.AvatarUrl,
+            AudioEngineMode = user.UserProfile?.AudioEngineMode ?? "Power"
         });
     }
 
@@ -286,6 +287,10 @@ public class AuthController(Mixer8DbContext dbContext, IConfiguration configurat
         user.UserProfile.Phone = request.Phone;
         user.UserProfile.Bio = request.Bio;
         user.UserProfile.AvatarUrl = request.AvatarUrl;
+        if (!string.IsNullOrWhiteSpace(request.AudioEngineMode))
+        {
+            user.UserProfile.AudioEngineMode = request.AudioEngineMode;
+        }
         user.UserProfile.UpdatedAt = DateTime.UtcNow;
         user.UpdatedAt = DateTime.UtcNow;
 
@@ -503,6 +508,7 @@ public class UserResponse
     public string? Phone { get; set; }
     public string? Bio { get; set; }
     public string? AvatarUrl { get; set; }
+    public string AudioEngineMode { get; set; } = "Power";
 }
 
 public class CheckUsernameResponse
@@ -521,6 +527,7 @@ public class UpdateProfileRequest
     public string? Phone { get; set; }
     public string? Bio { get; set; }
     public string? AvatarUrl { get; set; }
+    public string? AudioEngineMode { get; set; }
 }
 
 public class PublicProfileResponseDto

@@ -16,6 +16,7 @@ public class UserProfile
     public DateTime? BirthDate { get; set; }
     public string? Bio { get; set; }
     public UserProfilePreferences Preferences { get; set; } = new();
+    public string AudioEngineMode { get; set; } = "Power"; // "Power" (WASM SIMD - Alta Fidelidade) ou "Lite" (Aceleração Nativa)
     public string? AvatarUrl { get; set; }
     public string? RegistrationIp { get; set; }
     public string? LastLoginIp { get; set; }
