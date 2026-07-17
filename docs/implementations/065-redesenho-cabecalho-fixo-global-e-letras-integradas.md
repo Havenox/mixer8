@@ -16,16 +16,17 @@ Adicionalmente, centralizamos o botão sutil de Fechar (X) na extrema direita do
 
 Para as cifras, introduzimos o estado global `showChords` no `PlayerContext.tsx`.
 - **Botão CIFRA (ON/OFF)**: Renderizado no topo quando a tela de letras está ativa. Segue exatamente a mesma linguagem de design das demais caixas do cabeçalho, exibindo "ON" em verde brilhante ou "OFF" em cinza escuro.
-- **Renderização por Linha e Palavra**: Quando ativo, as palavras da linha são empilhadas verticalmente com um container `inline-flex flex-col items-start`. O acorde transposto (cruzado com a batida de áudio correspondente) flutua acima da palavra. Se a palavra não possuir acorde, injetamos `\u00A0` (non-breaking space) com a mesma altura para que a linha inteira de palavras permaneça alinhada horizontalmente no mesmo baseline, sem oscilações ou quebras de grade.
+- **Renderização por Linha e Palavra**: Quando ativo, as palavras da linha são empilhadas verticalmente com um container `inline-flex flex-col items-start`. O acorde transposto (cruzado com a batida de áudio correspondente) flutua acima da palavra. Se a palavra não possuir acorde, injetamos `\u00A0` (non-breaking space) com a mesma altura que ela para que a linha inteira de palavras permaneça alinhada horizontalmente no mesmo baseline, sem oscilações ou quebras de grade.
 - **Isolamento e Destaque Temporal Único de Chords**: Cada acorde possui uma janela de tempo específica e mutuamente exclusiva que inicia no seu disparo e termina no disparo da próxima nota. Isso garante destaque verde brilhante (`text-brand-green` com glow) para **apenas uma nota por vez**, mantendo os demais acordes em branco opaco/nítido, impedindo destaques redundantes ou duplicados de notas idênticas na mesma estrofe.
 - **Janela de Atividade de Linha Ampliada**: Modificado o cálculo de ativação para que cada linha permaneça 100% ativa (opacidade 100%) desde o seu início (ou tempo 0s no caso da introdução da música) até o início exato da próxima frase. Isso impede que o painel perca o foco nos silêncios intermediários (gaps), permitindo que os acordes instrumentais ou de transição que tocam entre frases continuem recebendo highlight verde.
+- **Auto-fechamento por Roteamento**: Injetado um listener reativo em `PersistentLayout.tsx` que monitora mudanças no `location.pathname` e fecha qualquer overlay ativo (`activeOverlay = 'none'`) no instante em que o usuário troca de página na barra lateral, garantindo a consistência das visões do sistema.
 - **Opacidade Confortável**: Elevada a opacidade das estrofes inativas de 25% para 65% para garantir conforto de leitura durante o acompanhamento de letras extensas.
 
 ## 🛠️ Implementação Técnica
 
 ### Frontend (`mixer8-app`)
 * **`GlobalTopHeader.tsx`**: Centralizados metadados, acorde reativo, transposição, BPM e controles de Zoom. O bloco de Zoom agora renderiza no lado direito (à esquerda do bloco de Acorde) para manter estabilidade visual. Adicionado o botão Close (X) em contêiner de largura física invariável para evitar layout shifts. Injetada a caixa de controle `CIFRA` (ON/OFF) quando o painel de letras estiver ativo.
-* **`PersistentLayout.tsx`**: Ajustado para injetar os overlays absolutos com transição suave e gerenciar a ocultação reativa (`hidden`) das páginas de conteúdo comum.
+* **`PersistentLayout.tsx`**: Ajustado para injetar os overlays absolutos com transição suave e gerenciar a ocultação reativa (`hidden`) das páginas de conteúdo comum. Adicionado o listener reativo de auto-fechamento do overlay por mudança de rota do React Router.
 * **`MesaPlayer.tsx`**: Modificados os cliques de capa e de botões (tanto desktop quanto mobile) para alterar o estado `activeOverlay` em vez de navegar em rotas.
 * **`PlayerContext.tsx`**: Introduzido o estado global `activeOverlay` (com auto-limpeza) e o estado `showChords` para controle de cifra ativa.
 * **`App.tsx`**: Removidas as rotas `/daw` e `/lyrics` e seus respectivos imports de componentes.
@@ -37,6 +38,7 @@ Para as cifras, introduzimos o estado global `showChords` no `PlayerContext.tsx`
 ## 🎯 Impacto e Resultado
 * **Preservação de Estado da Biblioteca**: O usuário pode abrir a DAW ou Letras a qualquer momento e fechá-las sem perder sua posição de rolagem ou filtro de busca atual na biblioteca de playlists.
 * **Layout 100% Estável**: O alinhamento do Zoom/Cifra na direita e o espaçador estático do botão X eliminam qualquer deslocamento horizontal de elementos no cabeçalho global.
+* **Navegação Consistente**: Clicar nos links de navegação da barra lateral encerra os overlays visualmente de forma instantânea, abrindo a nova rota em tela cheia.
 * **Experiência de Visualização Premium**: As cifras flutuam de forma fluida acima da letra em tempo real, transpondo de acordo com a alteração do tom base, mantendo um design limpo e de alto contraste.
 
 ---
