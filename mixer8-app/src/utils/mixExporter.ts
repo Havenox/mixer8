@@ -1,4 +1,4 @@
-import lamejs from 'lamejs';
+import 'lamejs/lame.all.js';
 import { transposeChord } from '../hooks/useLyricsChords';
 import type { ITrack } from '../context/PlayerContext';
 
@@ -158,7 +158,11 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
   // 6. Codificação PCM Float32 -> MP3 192 kbps 48 kHz usando lamejs
   onProgress(55, 'Codificando MP3 192kbps 48kHz...');
 
-  const Mp3Encoder = (lamejs as any).Mp3Encoder || (lamejs as any).default?.Mp3Encoder || lamejs.Mp3Encoder;
+  const lamejsObj = (window as any).lamejs || (globalThis as any).lamejs;
+  const Mp3Encoder = lamejsObj?.Mp3Encoder;
+  if (!Mp3Encoder) {
+    throw new Error('Não foi possível carregar o codificador MP3 (lamejs).');
+  }
   const mp3encoder = new Mp3Encoder(2, sampleRate, 192);
 
   const leftChannelFloat = renderedAudioBuffer.getChannelData(0);
