@@ -27,7 +27,19 @@ export const Playlists: React.FC = () => {
   const [collabPlaylistToLeave, setCollabPlaylistToLeave] = useState<IPlaylist | null>(null);
 
   const [searchInput, setSearchInput] = useState('');
-  const [showAll, setShowAll] = useState(false);
+  type VisibilityFilterType = 'all' | 'public' | 'private' | 'unlisted';
+  const [visibilityFilter, setVisibilityFilter] = useState<VisibilityFilterType>(() => {
+    const saved = localStorage.getItem('mixer8_visibility_filter');
+    if (saved === 'all' || saved === 'public' || saved === 'private' || saved === 'unlisted') {
+      return saved as VisibilityFilterType;
+    }
+    return 'public';
+  });
+
+  const changeVisibilityFilter = (newFilter: VisibilityFilterType) => {
+    setVisibilityFilter(newFilter);
+    localStorage.setItem('mixer8_visibility_filter', newFilter);
+  };
 
   // Helper para normalizar texto removendo acentos e pontuação (case/accent insensitive)
   const normalizeText = (text: string) => {
@@ -44,7 +56,15 @@ export const Playlists: React.FC = () => {
       normalizeText(p.Name).includes(query) ||
       (p.Description && normalizeText(p.Description).includes(query));
 
-    const matchesVisibility = showAll ? true : p.Visibility === 'Public';
+    let matchesVisibility = true;
+    const vis = (p.Visibility || 'Public').toLowerCase();
+    if (visibilityFilter === 'public') {
+      matchesVisibility = vis === 'public';
+    } else if (visibilityFilter === 'private') {
+      matchesVisibility = vis === 'private';
+    } else if (visibilityFilter === 'unlisted') {
+      matchesVisibility = vis === 'unlisted';
+    }
 
     return matchesSearch && matchesVisibility;
   });
@@ -162,27 +182,28 @@ export const Playlists: React.FC = () => {
         </div>
 
         {/* Filtros de Visibilidade */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowAll(false)}
-            className={`py-0.5 px-2.5 rounded-full text-[10px] font-bold transition-all border cursor-pointer ${
-              !showAll 
-                ? 'bg-brand-green/10 text-brand-green border-brand-green/30 shadow-md shadow-brand-green/5' 
-                : 'bg-transparent border-white/10 text-brand-gray hover:text-white hover:border-white/25'
-            }`}
-          >
-            Públicas
-          </button>
-          <button
-            onClick={() => setShowAll(true)}
-            className={`py-0.5 px-2.5 rounded-full text-[10px] font-bold transition-all border cursor-pointer ${
-              showAll 
-                ? 'bg-brand-green/10 text-brand-green border-brand-green/30 shadow-md shadow-brand-green/5' 
-                : 'bg-transparent border-white/10 text-brand-gray hover:text-white hover:border-white/25'
-            }`}
-          >
-            Todas
-          </button>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {[
+            { id: 'public', label: 'Públicas' },
+            { id: 'all', label: 'Todas' },
+            { id: 'private', label: 'Privadas' },
+            { id: 'unlisted', label: 'Não-Listadas' },
+          ].map((filter) => {
+            const isActive = visibilityFilter === filter.id;
+            return (
+              <button
+                key={filter.id}
+                onClick={() => changeVisibilityFilter(filter.id as VisibilityFilterType)}
+                className={`py-0.5 px-2.5 rounded-full text-[10px] font-bold transition-all border cursor-pointer select-none ${
+                  isActive 
+                    ? 'bg-brand-green/10 text-brand-green border-brand-green/30 shadow-md shadow-brand-green/5' 
+                    : 'bg-transparent border-white/10 text-brand-gray hover:text-white hover:border-white/25'
+                }`}
+              >
+                {filter.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 

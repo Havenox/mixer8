@@ -32,7 +32,20 @@ export const Dashboard: React.FC = () => {
 
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [showAll, setShowAll] = useState(false);
+  
+  type VisibilityFilterType = 'all' | 'public' | 'private' | 'unlisted';
+  const [visibilityFilter, setVisibilityFilter] = useState<VisibilityFilterType>(() => {
+    const saved = localStorage.getItem('mixer8_visibility_filter');
+    if (saved === 'all' || saved === 'public' || saved === 'private' || saved === 'unlisted') {
+      return saved as VisibilityFilterType;
+    }
+    return 'public';
+  });
+
+  const changeVisibilityFilter = (newFilter: VisibilityFilterType) => {
+    setVisibilityFilter(newFilter);
+    localStorage.setItem('mixer8_visibility_filter', newFilter);
+  };
 
   const [toastMessage, setToastMessage] = useState('');
   const [showToast, setShowToast] = useState(false);
@@ -332,8 +345,17 @@ export const Dashboard: React.FC = () => {
         headers['Authorization'] = `Bearer ${Token}`;
       }
       const searchParam = debouncedSearch.trim() ? `&search=${encodeURIComponent(debouncedSearch.trim())}` : '';
-      const showAllParam = `&showAll=${showAll}`;
-      const res = await fetch(`${API_URL}/Tracks?page=${targetPage}&limit=10${searchParam}${showAllParam}`, { headers });
+      let showAllParam = '&showAll=true';
+      let visibilityParam = '';
+      if (visibilityFilter === 'public') {
+        showAllParam = '&showAll=false';
+        visibilityParam = '&visibility=Public';
+      } else if (visibilityFilter === 'private') {
+        visibilityParam = '&visibility=Private';
+      } else if (visibilityFilter === 'unlisted') {
+        visibilityParam = '&visibility=Unlisted';
+      }
+      const res = await fetch(`${API_URL}/Tracks?page=${targetPage}&limit=10${searchParam}${showAllParam}${visibilityParam}`, { headers });
       if (res.ok) {
         const data = await res.json();
         if (resetPage) {
@@ -362,7 +384,7 @@ export const Dashboard: React.FC = () => {
 
   useEffect(() => {
     fetchTracks(true);
-  }, [Token, debouncedSearch, showAll]);
+  }, [Token, debouncedSearch, visibilityFilter]);
 
   const handleLayoutToggle = (mode: 'grid' | 'list') => {
     setLayoutMode(mode);
@@ -651,27 +673,28 @@ export const Dashboard: React.FC = () => {
         </div>
 
         {/* Filtros de Visibilidade */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowAll(false)}
-            className={`py-0.5 px-2.5 rounded-full text-[10px] font-bold transition-all border cursor-pointer ${
-              !showAll 
-                ? 'bg-brand-green/10 text-brand-green border-brand-green/30 shadow-md shadow-brand-green/5' 
-                : 'bg-transparent border-white/10 text-brand-gray hover:text-white hover:border-white/25'
-            }`}
-          >
-            Públicas
-          </button>
-          <button
-            onClick={() => setShowAll(true)}
-            className={`py-0.5 px-2.5 rounded-full text-[10px] font-bold transition-all border cursor-pointer ${
-              showAll 
-                ? 'bg-brand-green/10 text-brand-green border-brand-green/30 shadow-md shadow-brand-green/5' 
-                : 'bg-transparent border-white/10 text-brand-gray hover:text-white hover:border-white/25'
-            }`}
-          >
-            Todas
-          </button>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {[
+            { id: 'public', label: 'Públicas' },
+            { id: 'all', label: 'Todas' },
+            { id: 'private', label: 'Privadas' },
+            { id: 'unlisted', label: 'Não-Listadas' },
+          ].map((filter) => {
+            const isActive = visibilityFilter === filter.id;
+            return (
+              <button
+                key={filter.id}
+                onClick={() => changeVisibilityFilter(filter.id as VisibilityFilterType)}
+                className={`py-0.5 px-2.5 rounded-full text-[10px] font-bold transition-all border cursor-pointer select-none ${
+                  isActive 
+                    ? 'bg-brand-green/10 text-brand-green border-brand-green/30 shadow-md shadow-brand-green/5' 
+                    : 'bg-transparent border-white/10 text-brand-gray hover:text-white hover:border-white/25'
+                }`}
+              >
+                {filter.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
