@@ -73,6 +73,7 @@ interface IPlayerContext {
   exportProgress: number;
   exportStatusMessage: string;
   exportFileName: string;
+  exportCoverUrl?: string;
   exportError: string | null;
   exportSuccess: boolean;
   exportMix: () => Promise<void>;
@@ -1443,6 +1444,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [exportProgress, setExportProgress] = useState(0);
   const [exportStatusMessage, setExportStatusMessage] = useState('');
   const [exportFileName, setExportFileName] = useState('');
+  const [exportCoverUrl, setExportCoverUrl] = useState<string | undefined>(undefined);
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportSuccess, setExportSuccess] = useState(false);
 
@@ -1453,6 +1455,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setExportProgress(0);
     setExportStatusMessage('');
     setExportFileName('');
+    setExportCoverUrl(undefined);
   };
 
   const exportMix = async () => {
@@ -1467,6 +1470,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setExportError(null);
     setExportProgress(0);
     setExportStatusMessage('Iniciando exportação assíncrona...');
+    setExportCoverUrl(currentTrackRef.current?.CoverUrl);
 
     try {
       const result = await exportMixToMp3({
@@ -1555,6 +1559,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         exportProgress,
         exportStatusMessage,
         exportFileName,
+        exportCoverUrl,
         exportError,
         exportSuccess,
         exportMix,

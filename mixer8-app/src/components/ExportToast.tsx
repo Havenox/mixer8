@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePlayer } from '../context/PlayerContext';
 import { CheckCircle2, AlertTriangle, X, Disc } from 'lucide-react';
 import { SERVER_URL } from '../config';
@@ -51,14 +51,42 @@ export const ExportToast: React.FC = () => {
     exportProgress,
     exportStatusMessage,
     exportFileName,
+    exportCoverUrl,
     exportError,
     exportSuccess,
     closeExportToast
   } = usePlayer();
 
+  const [countdown, setCountdown] = useState(10);
+
+  // Contador regressivo de 10 segundos para fechar o Toast automaticamente após o sucesso
+  useEffect(() => {
+    if (!exportSuccess) {
+      setCountdown(10);
+      return;
+    }
+
+    setCountdown(10);
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          closeExportToast();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [exportSuccess, closeExportToast]);
+
   if (!isExporting && !exportSuccess && !exportError) {
     return null;
   }
+
+  // Usa a capa preservada da exportação ou faz fallback para a capa atual da faixa
+  const targetCoverUrl = exportCoverUrl || currentTrack?.CoverUrl;
 
   return (
     <div className="fixed bottom-24 right-4 md:bottom-28 md:right-8 z-50 max-w-sm w-full bg-[#181818]/95 backdrop-blur-md border border-white/15 rounded-xl shadow-2xl p-4 transition-all animate-in slide-in-from-bottom-5 duration-300 select-none">
@@ -71,7 +99,7 @@ export const ExportToast: React.FC = () => {
           {!exportError ? (
             <div className="relative shrink-0">
               <VinylRecord
-                coverUrl={currentTrack?.CoverUrl}
+                coverUrl={targetCoverUrl}
                 isSpinning={isExporting}
               />
               {exportSuccess && (
@@ -124,11 +152,16 @@ export const ExportToast: React.FC = () => {
         </div>
       )}
 
-      {/* Success Message */}
+      {/* Success Message with Auto-dismiss countdown */}
       {exportSuccess && (
-        <p className="text-[11px] text-emerald-400 font-medium mt-1">
-          O MP3 com capa e metadados ID3v2 foi baixado automaticamente.
-        </p>
+        <div className="mt-1.5 flex items-center justify-between gap-2">
+          <p className="text-[11px] text-emerald-400 font-medium leading-tight">
+            O MP3 com capa e metadados ID3v2 foi baixado automaticamente.
+          </p>
+          <span className="text-[10px] text-brand-gray/80 font-mono font-bold shrink-0 whitespace-nowrap bg-white/5 px-1.5 py-0.5 rounded border border-white/10">
+            {countdown}s
+          </span>
+        </div>
       )}
 
       {/* Error Message */}
