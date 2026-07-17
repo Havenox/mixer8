@@ -432,6 +432,11 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
     * **Processamento Offline Direto nos Buffers:** A exportação de mixagem (`mixExporter.ts`) foi reescrita para aplicar time-stretching e pitch-shifting diretamente sobre os arrays Float32 dos buffers de áudio carregados em memória na thread principal usando a biblioteca WASM.
     * **Mixagem e Sincronia Estáveis:** As faixas processadas são injetadas na `OfflineAudioContext` em velocidade nativa `1.0`, eliminando qualquer desvio de tom (por falta de suporte a `preservesPitch` nas stems do navegador) e garantindo sincronia exata e sem latências residuais entre a música e o metrônomo.
 
+38. **Modal de Confirmação de Cancelamento da Exportação e Refinamentos Visuais no Toast e Cabeçalho**:
+    * **Rotulagem do Botão no Cabeçalho:** Simplificado o rótulo do botão de exportação no cabeçalho fixo (`GlobalTopHeader.tsx`) de 'Exportar mix' para 'Exportar'.
+    * **Botão 'X' e Abortamento de Exportação:** Adicionado botão de fechar ('X') permanente no canto superior direito da notificação toast (`ExportToast.tsx`), ativo tanto no mobile quanto no desktop durante o processamento.
+    * **Modal de Confirmação Integrado:** Ao clicar em 'X' durante a exportação, é exibido um modal de confirmação centralizado com backdrop blur perfeitamente estilizado perguntando 'Cancelar exportação?'. Ao selecionar 'Sim, cancelar', a requisição e renderização do arquivo MP3 são interrompidas instantaneamente via `AbortController` (`abortExport()`). Ao clicar em 'Não, continuar', o modal fecha e o processo de exportação segue seu fluxo sem interrupções.
+
 ---
 
 ## 🎯 Próximo Milestone: Ajustes de Fluxo e Segurança de Rede

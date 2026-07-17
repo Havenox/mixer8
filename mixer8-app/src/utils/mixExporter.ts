@@ -16,6 +16,7 @@ export interface IMixExportOptions {
   isPremium: boolean;
   getCachedOrFetchAudioUrl: (url: string, isPremiumUser: boolean) => Promise<string>;
   onProgress: (progress: number, statusMessage: string) => void;
+  signal?: AbortSignal;
 }
 
 export interface IMixExportResult {
@@ -79,8 +80,10 @@ async function processAudioBufferOffline(
   buffer: AudioBuffer,
   tempoRatio: number,
   transpose: number,
-  wasmExports: any
+  wasmExports: any,
+  signal?: AbortSignal
 ): Promise<AudioBuffer> {
+  if (signal?.aborted) throw new Error('Aborted');
   const sampleRate = buffer.sampleRate;
   const channels = buffer.numberOfChannels;
   const inputSamples = buffer.length;
@@ -183,10 +186,11 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
   const totalStems = currentTrack.Stems.length;
 
   for (let i = 0; i < totalStems; i++) {
+    if (options.signal?.aborted) throw new Error('Aborted');
     const stem = currentTrack.Stems[i];
     const progressPercent = 5 + Math.round(((i + 1) / totalStems) * 25);
     onProgress(progressPercent, `Baixando stem ${stem.StemType} (${i + 1}/${totalStems})...`);
-
+ 
     try {
       const resolvedUrl = await getCachedOrFetchAudioUrl(stem.AudioUrl, isPremium);
       const response = await fetch(resolvedUrl);
@@ -201,25 +205,27 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
       console.warn(`[EXPORT] Erro ao processar stem ${stem.StemType}:`, err);
     }
   }
-
+ 
   try {
     await decodeCtx.close();
   } catch (e) {
     // Ignora erros ao fechar o contexto de decodificação temporário
   }
-
+ 
   if (stemBuffers.length === 0) {
     throw new Error('Falha ao decodificar as pistas de áudio da música.');
   }
+ 
+  if (options.signal?.aborted) throw new Error('Aborted');
 
   // 3. Processa tempo e afinação offline via Signalsmith Stretch (WASM) na thread principal
   onProgress(30, 'Processando tempo e afinação offline via Signalsmith Stretch (WASM)...');
-
+ 
   const wasmRes = await fetch('/wasm/signalsmith-stretch.wasm');
   if (!wasmRes.ok) throw new Error('HTTP ' + wasmRes.status + ' buscando signalsmith-stretch.wasm');
   const wasmBuffer = await wasmRes.arrayBuffer();
   const wasmModule = await WebAssembly.compile(wasmBuffer);
-
+ 
   let wasmInstance: WebAssembly.Instance;
   const imports = {
     a: {
@@ -245,25 +251,26 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
       }
     }
   };
-  
+   
   wasmInstance = await WebAssembly.instantiate(wasmModule, imports);
   const wasmExports = wasmInstance.exports;
-
+ 
   const processedBuffers: { stemType: string; buffer: AudioBuffer }[] = [];
   const tempoRatio = calculatedBpm / baseBpm;
-
+ 
   for (let i = 0; i < stemBuffers.length; i++) {
+    if (options.signal?.aborted) throw new Error('Aborted');
     const { stemType, buffer } = stemBuffers[i];
     const progressPercent = 30 + Math.round(((i + 1) / stemBuffers.length) * 25);
     onProgress(progressPercent, `Processando áudio da stem ${stemType} (${i + 1}/${stemBuffers.length})...`);
-
+ 
     const isMetronome = isMetronomeStem(stemType);
     const targetTranspose = isMetronome ? 0 : transpose;
-
+ 
     if (tempoRatio === 1.0 && targetTranspose === 0) {
       processedBuffers.push({ stemType, buffer });
     } else {
-      const processed = await processAudioBufferOffline(buffer, tempoRatio, targetTranspose, wasmExports);
+      const processed = await processAudioBufferOffline(buffer, tempoRatio, targetTranspose, wasmExports, options.signal);
       processedBuffers.push({ stemType, buffer: processed });
     }
   }
@@ -333,10 +340,11 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
   const mp3DataChunks: Uint8Array[] = [];
 
   for (let i = 0; i < totalSamples; i += sampleBlockSize) {
+    if (options.signal?.aborted) throw new Error('Aborted');
     const end = Math.min(i + sampleBlockSize, totalSamples);
     const leftChunk = floatToInt16(leftChannelFloat.subarray(i, end));
     const rightChunk = floatToInt16(rightChannelFloat.subarray(i, end));
-
+ 
     const mp3buf = mp3encoder.encodeBuffer(leftChunk, rightChunk);
     if (mp3buf.length > 0) {
       mp3DataChunks.push(new Uint8Array(mp3buf));
