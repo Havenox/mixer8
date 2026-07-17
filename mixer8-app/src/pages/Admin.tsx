@@ -8,7 +8,8 @@ import {
   ClipboardList, 
   Search, 
   ArrowUpDown, 
-  Database
+  Database,
+  ChevronDown
 } from 'lucide-react';
 
 import { API_URL } from '../config';
@@ -60,6 +61,11 @@ export const Admin: React.FC = () => {
   const [isBackfilling, setIsBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState<string | null>(null);
   const [backfillError, setBackfillError] = useState<string | null>(null);
+
+  // Estados de controle das seções retráteis (sanfona)
+  const [isDownloadOpen, setIsDownloadOpen] = useState(false);
+  const [isWebhookOpen, setIsWebhookOpen] = useState(false);
+  const [isMetadataOpen, setIsMetadataOpen] = useState(false);
 
   const handleBackfillMetadata = async () => {
     setIsBackfilling(true);
@@ -664,111 +670,147 @@ export const Admin: React.FC = () => {
               </div>
             )}
 
-            <div className="flex flex-col gap-3">
-              <span className="text-xs font-bold text-white flex items-center gap-2">
-                📥 Permissões para Download Offline
-              </span>
-              <p className="text-[11px] text-brand-gray -mt-1 leading-normal">
-                Determine quais níveis de acesso têm permissão de salvar músicas localmente. Visitantes não autenticados são mapeados como <strong>Anonymous</strong>.
-              </p>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 my-1">
-                {[
-                  { id: 'admin', label: 'Administrador' },
-                  { id: 'moderator', label: 'Moderador' },
-                  { id: 'paiduser', label: 'Paid PRO' },
-                  { id: 'user', label: 'Free Tier' },
-                  { id: 'anonymous', label: 'Anônimo (Não Logado)' }
-                ].map(item => (
-                  <label key={item.id} className="flex items-center gap-2 text-xs text-white cursor-pointer select-none">
-                    <input 
-                      type="checkbox"
-                      checked={offlineRoles[item.id] || false}
-                      onChange={(e) => setOfflineRoles(prev => ({ ...prev, [item.id]: e.target.checked }))}
-                      className="accent-brand-green w-4 h-4 cursor-pointer"
-                    />
-                    <span>{item.label}</span>
-                  </label>
-                ))}
-              </div>
-
-              <div className="flex flex-col gap-1.5 mt-2">
-                <label className="text-xs font-semibold text-brand-gray">Funções Customizadas Adicionais (separadas por vírgula)</label>
-                <input 
-                  type="text"
-                  value={customRolesText}
-                  onChange={(e) => setCustomRolesText(e.target.value)}
-                  placeholder="ex: premium1, premium2"
-                  disabled={isSavingSettings}
-                  className="w-full bg-black border border-brand-hover rounded p-2.5 text-brand-green focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green"
-                />
-              </div>
-
-              {/* Webhook Configuration Section */}
-              <div className="flex flex-col gap-1.5 mt-4 border-t border-brand-hover pt-4">
-                <span className="text-xs font-bold text-white flex items-center gap-2">
-                  🔗 Webhook de Monitoramento de Acessos
-                </span>
-                <p className="text-[11px] text-brand-gray -mt-1 leading-normal">
-                  URL para onde a API enviará uma notificação em tempo real (POST JSON) a cada novo acesso à plataforma (ex: n8n, Zapier, Webhook).
-                </p>
-                <div className="flex gap-2 mt-1">
-                  <input 
-                    type="text"
-                    value={webhookUrl}
-                    onChange={(e) => setWebhookUrl(e.target.value)}
-                    placeholder="https://n8n.seuservidor.com/webhook/access"
-                    disabled={isSavingSettings || isTestingWebhook}
-                    className="flex-1 bg-black border border-brand-hover rounded p-2.5 text-brand-green focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleTestWebhook}
-                    disabled={isSavingSettings || isTestingWebhook || !webhookUrl.trim()}
-                    className="px-4 bg-brand-hover border border-brand-border text-white text-xs font-bold rounded hover:bg-brand-border active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 flex items-center gap-1.5 cursor-pointer"
-                  >
-                    {isTestingWebhook ? 'Testando...' : 'Testar Webhook'}
-                  </button>
-                </div>
-                {testSuccess && (
-                  <span className="text-[11px] text-brand-green font-semibold mt-0.5">
-                    ✓ Webhook de teste disparado com sucesso! Verifique seu integrador.
+            <div className="flex flex-col gap-4">
+              {/* Seção 1: Download Offline */}
+              <div className="border border-brand-hover rounded bg-black/20 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setIsDownloadOpen(!isDownloadOpen)}
+                  className="w-full flex items-center justify-between p-3.5 hover:bg-brand-hover/10 transition-colors text-left focus:outline-none cursor-pointer"
+                >
+                  <span className="text-xs font-bold text-white flex items-center gap-2">
+                    📥 Permissões para Download Offline
                   </span>
-                )}
-                {testError && (
-                  <span className="text-[11px] text-red-400 font-semibold mt-0.5">
-                    ⚠ {testError}
-                  </span>
+                  <ChevronDown className={`w-4 h-4 text-brand-gray transition-transform duration-200 ${isDownloadOpen ? 'rotate-180 text-white' : ''}`} />
+                </button>
+                {isDownloadOpen && (
+                  <div className="p-4 border-t border-brand-hover flex flex-col gap-3 bg-black/40 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <p className="text-[11px] text-brand-gray leading-normal m-0">
+                      Determine quais níveis de acesso têm permissão de salvar músicas localmente. Visitantes não autenticados são mapeados como <strong>Anonymous</strong>.
+                    </p>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 my-1">
+                      {[
+                        { id: 'admin', label: 'Administrador' },
+                        { id: 'moderator', label: 'Moderador' },
+                        { id: 'paiduser', label: 'Paid PRO' },
+                        { id: 'user', label: 'Free Tier' },
+                        { id: 'anonymous', label: 'Anônimo (Não Logado)' }
+                      ].map(item => (
+                        <label key={item.id} className="flex items-center gap-2 text-xs text-white cursor-pointer select-none">
+                          <input 
+                            type="checkbox"
+                            checked={offlineRoles[item.id] || false}
+                            onChange={(e) => setOfflineRoles(prev => ({ ...prev, [item.id]: e.target.checked }))}
+                            className="accent-brand-green w-4 h-4 cursor-pointer"
+                          />
+                          <span>{item.label}</span>
+                        </label>
+                      ))}
+                    </div>
+
+                    <div className="flex flex-col gap-1.5 mt-1">
+                      <label className="text-xs font-semibold text-brand-gray">Funções Customizadas Adicionais (separadas por vírgula)</label>
+                      <input 
+                        type="text"
+                        value={customRolesText}
+                        onChange={(e) => setCustomRolesText(e.target.value)}
+                        placeholder="ex: premium1, premium2"
+                        disabled={isSavingSettings}
+                        className="w-full bg-black border border-brand-hover rounded p-2.5 text-brand-green focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green"
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
 
-              {/* Audio Metadata Sync Section (Tom & BPM Backfill) */}
-              <div className="flex flex-col gap-1.5 mt-4 border-t border-brand-hover pt-4">
-                <span className="text-xs font-bold text-white flex items-center gap-2">
-                  🎵 Sincronização de Metadados de Áudio (Tom & BPM)
-                </span>
-                <p className="text-[11px] text-brand-gray -mt-1 leading-normal">
-                  Executa a leitura dos arquivos de cifras (chords.json) de todas as músicas extraídas existentes para calcular e registrar a Tonalidade Base (Key) e o BPM no banco de dados.
-                </p>
-                <div className="flex gap-2 mt-1">
-                  <button
-                    type="button"
-                    onClick={handleBackfillMetadata}
-                    disabled={isBackfilling}
-                    className="px-4 py-2 bg-brand-green/10 border border-brand-green/30 text-brand-green text-xs font-bold rounded hover:bg-brand-green/20 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 flex items-center gap-2 cursor-pointer"
-                  >
-                    {isBackfilling ? 'Analisando e calculando Tom/BPM no servidor...' : 'Sincronizar Tons e BPMs das Músicas Existentes'}
-                  </button>
-                </div>
-                {backfillResult && (
-                  <span className="text-[11px] text-brand-green font-semibold mt-1">
-                    {backfillResult}
+              {/* Seção 2: Webhook de Monitoramento */}
+              <div className="border border-brand-hover rounded bg-black/20 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setIsWebhookOpen(!isWebhookOpen)}
+                  className="w-full flex items-center justify-between p-3.5 hover:bg-brand-hover/10 transition-colors text-left focus:outline-none cursor-pointer"
+                >
+                  <span className="text-xs font-bold text-white flex items-center gap-2">
+                    🔗 Webhook de Monitoramento de Acessos
                   </span>
+                  <ChevronDown className={`w-4 h-4 text-brand-gray transition-transform duration-200 ${isWebhookOpen ? 'rotate-180 text-white' : ''}`} />
+                </button>
+                {isWebhookOpen && (
+                  <div className="p-4 border-t border-brand-hover flex flex-col gap-3 bg-black/40 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <p className="text-[11px] text-brand-gray leading-normal m-0">
+                      URL para onde a API enviará uma notificação em tempo real (POST JSON) a cada novo acesso à plataforma (ex: n8n, Zapier, Webhook).
+                    </p>
+                    <div className="flex gap-2 mt-1">
+                      <input 
+                        type="text"
+                        value={webhookUrl}
+                        onChange={(e) => setWebhookUrl(e.target.value)}
+                        placeholder="https://n8n.seuservidor.com/webhook/access"
+                        disabled={isSavingSettings || isTestingWebhook}
+                        className="flex-1 bg-black border border-brand-hover rounded p-2.5 text-brand-green focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleTestWebhook}
+                        disabled={isSavingSettings || isTestingWebhook || !webhookUrl.trim()}
+                        className="px-4 bg-brand-hover border border-brand-border text-white text-xs font-bold rounded hover:bg-brand-border active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 flex items-center gap-1.5 cursor-pointer"
+                      >
+                        {isTestingWebhook ? 'Testando...' : 'Testar Webhook'}
+                      </button>
+                    </div>
+                    {testSuccess && (
+                      <span className="text-[11px] text-brand-green font-semibold mt-0.5 animate-in fade-in">
+                        ✓ Webhook de teste disparado com sucesso! Verifique seu integrador.
+                      </span>
+                    )}
+                    {testError && (
+                      <span className="text-[11px] text-red-400 font-semibold mt-0.5 animate-in fade-in">
+                        ⚠ {testError}
+                      </span>
+                    )}
+                  </div>
                 )}
-                {backfillError && (
-                  <span className="text-[11px] text-red-400 font-semibold mt-1">
-                    ⚠ {backfillError}
+              </div>
+
+              {/* Seção 3: Sincronização de Metadados de Áudio */}
+              <div className="border border-brand-hover rounded bg-black/20 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setIsMetadataOpen(!isMetadataOpen)}
+                  className="w-full flex items-center justify-between p-3.5 hover:bg-brand-hover/10 transition-colors text-left focus:outline-none cursor-pointer"
+                >
+                  <span className="text-xs font-bold text-white flex items-center gap-2">
+                    🎵 Sincronização de Metadados de Áudio (Tom & BPM)
                   </span>
+                  <ChevronDown className={`w-4 h-4 text-brand-gray transition-transform duration-200 ${isMetadataOpen ? 'rotate-180 text-white' : ''}`} />
+                </button>
+                {isMetadataOpen && (
+                  <div className="p-4 border-t border-brand-hover flex flex-col gap-3 bg-black/40 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <p className="text-[11px] text-brand-gray leading-normal m-0">
+                      Executa a leitura dos arquivos de cifras (chords.json) de todas as músicas extraídas existentes para calcular e registrar a Tonalidade Base (Key) e o BPM no banco de dados.
+                    </p>
+                    <div className="flex gap-2 mt-1">
+                      <button
+                        type="button"
+                        onClick={handleBackfillMetadata}
+                        disabled={isBackfilling}
+                        className="px-4 py-2 bg-brand-green/10 border border-brand-green/30 text-brand-green text-xs font-bold rounded hover:bg-brand-green/20 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 flex items-center gap-2 cursor-pointer"
+                      >
+                        {isBackfilling ? 'Analisando e calculando Tom/BPM no servidor...' : 'Sincronizar Tons e BPMs das Músicas Existentes'}
+                      </button>
+                    </div>
+                    {backfillResult && (
+                      <span className="text-[11px] text-brand-green font-semibold mt-1 animate-in fade-in">
+                        {backfillResult}
+                      </span>
+                    )}
+                    {backfillError && (
+                      <span className="text-[11px] text-red-400 font-semibold mt-1 animate-in fade-in">
+                        ⚠ {backfillError}
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
