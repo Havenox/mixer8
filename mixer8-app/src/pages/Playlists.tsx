@@ -29,7 +29,7 @@ export const Playlists: React.FC = () => {
   const [searchInput, setSearchInput] = useState('');
   type VisibilityFilterType = 'all' | 'public' | 'private' | 'unlisted';
   const [visibilityFilter, setVisibilityFilter] = useState<VisibilityFilterType>(() => {
-    const saved = localStorage.getItem('mixer8_visibility_filter');
+    const saved = localStorage.getItem('mixer8_visibility_filter_playlists');
     if (saved === 'all' || saved === 'public' || saved === 'private' || saved === 'unlisted') {
       return saved as VisibilityFilterType;
     }
@@ -38,7 +38,7 @@ export const Playlists: React.FC = () => {
 
   const changeVisibilityFilter = (newFilter: VisibilityFilterType) => {
     setVisibilityFilter(newFilter);
-    localStorage.setItem('mixer8_visibility_filter', newFilter);
+    localStorage.setItem('mixer8_visibility_filter_playlists', newFilter);
   };
 
   // Helper para normalizar texto removendo acentos e pontuação (case/accent insensitive)

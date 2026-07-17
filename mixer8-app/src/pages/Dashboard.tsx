@@ -35,7 +35,7 @@ export const Dashboard: React.FC = () => {
   
   type VisibilityFilterType = 'all' | 'public' | 'private' | 'unlisted';
   const [visibilityFilter, setVisibilityFilter] = useState<VisibilityFilterType>(() => {
-    const saved = localStorage.getItem('mixer8_visibility_filter');
+    const saved = localStorage.getItem('mixer8_visibility_filter_library');
     if (saved === 'all' || saved === 'public' || saved === 'private' || saved === 'unlisted') {
       return saved as VisibilityFilterType;
     }
@@ -44,7 +44,7 @@ export const Dashboard: React.FC = () => {
 
   const changeVisibilityFilter = (newFilter: VisibilityFilterType) => {
     setVisibilityFilter(newFilter);
-    localStorage.setItem('mixer8_visibility_filter', newFilter);
+    localStorage.setItem('mixer8_visibility_filter_library', newFilter);
   };
 
   const [toastMessage, setToastMessage] = useState('');
