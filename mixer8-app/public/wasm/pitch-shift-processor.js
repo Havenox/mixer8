@@ -83,13 +83,12 @@ var wasmBinaryFile;
 function findWasmBinary() { return locateFile("signalsmith-stretch.wasm"); }
 function getBinarySync(file) { throw new Error("Sync WASM fetch not supported"); }
 async function getWasmBinary(binaryFile) {
-  if (!wasmBinary) {
-    try {
-      var response = await readAsync(binaryFile);
-      return new Uint8Array(response);
-    } catch {}
-  }
-  return getBinarySync(binaryFile);
+  if (wasmBinary) return wasmBinary;
+  var response = await fetch(binaryFile);
+  if (!response.ok) throw new Error(`HTTP ${response.status} fetching ${binaryFile}`);
+  var buffer = await response.arrayBuffer();
+  wasmBinary = new Uint8Array(buffer);
+  return wasmBinary;
 }
 
 async function instantiateArrayBuffer(binaryFile, imports) {
@@ -105,11 +104,13 @@ async function instantiateArrayBuffer(binaryFile, imports) {
 
 async function instantiateAsync(binary, binaryFile, imports) {
   try {
-    var response = fetch(binaryFile);
+    var response = await fetch(binaryFile);
+    if (!response.ok) throw new Error(`HTTP ${response.status} fetching ${binaryFile}`);
     var instantiationResult = await WebAssembly.instantiateStreaming(response, imports);
     return instantiationResult;
   } catch (reason) {
-    return instantiateArrayBuffer(binaryFile, imports);
+    console.warn('[WASM] instantiateStreaming failed, falling back to ArrayBuffer:', reason);
+    return await instantiateArrayBuffer(binaryFile, imports);
   }
 }
 
