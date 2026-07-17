@@ -329,6 +329,21 @@ export const MesaPlayer: React.FC = () => {
         {/* Direita: Mixagem DAW & Volume Geral */}
         <div className="flex items-center gap-2 md:gap-4 flex-1 md:flex-none md:w-1/4 justify-end min-w-0 md:min-w-[220px] relative select-none">
           
+          {/* Botão de Estúdio DAW (PC/Tablet) */}
+          <button 
+            onClick={() => {
+              setActiveOverlay(prev => prev === 'daw' ? 'none' : 'daw');
+            }}
+            className={`hidden md:flex items-center justify-center p-2 rounded-full border transition-all cursor-pointer shrink-0 ${
+              activeOverlay === 'daw'
+                ? 'bg-brand-green/10 border-brand-green text-brand-green shadow-md font-bold'
+                : 'border-brand-hover text-brand-gray hover:text-white hover:border-white'
+            }`}
+            title="Estúdio DAW (PC/Tablet)"
+          >
+            <Activity className="w-4 h-4 shrink-0" />
+          </button>
+
           {/* Botão de Mixer se houver múltiplas stems ou estiver em processamento */}
           {(hasMultipleStems || isProcessingOrSingleStem) && (
             <button 
@@ -357,21 +372,6 @@ export const MesaPlayer: React.FC = () => {
             title="Letras e Cifras"
           >
             <Music className="w-4 h-4 shrink-0" />
-          </button>
-
-          {/* Botão de Estúdio DAW (PC/Tablet) */}
-          <button 
-            onClick={() => {
-              setActiveOverlay(prev => prev === 'daw' ? 'none' : 'daw');
-            }}
-            className={`hidden md:flex items-center justify-center p-2 rounded-full border transition-all cursor-pointer shrink-0 ${
-              activeOverlay === 'daw'
-                ? 'bg-brand-green/10 border-brand-green text-brand-green shadow-md font-bold'
-                : 'border-brand-hover text-brand-gray hover:text-white hover:border-white'
-            }`}
-            title="Estúdio DAW (PC/Tablet)"
-          >
-            <Activity className="w-4 h-4 shrink-0" />
           </button>
 
           {/* Barra de volume geral real com Bolinha Premium */}
