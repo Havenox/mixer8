@@ -425,15 +425,17 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       });
     } else if (audioEngineMode === 'Lite') {
-      // 2. Modo Lite: Web Audio API Nativo do navegador (desativa preservesPitch para permitir variacao de tom por velocidade)
+      // 2. Modo Lite: Web Audio API Nativo do navegador
+      // Quando transpose === 0, mantém preservesPitch = true para que a alteração de BPM preserve o tom original (sem efeito de disco)
       const pitchRatio = Math.pow(2, transpose / 12);
       const combinedRate = pitchRatio * speedRatio;
+      const shouldPreservePitch = transpose === 0;
 
       activeStemsRef.current.forEach(item => {
         if (item.audio) {
-          (item.audio as any).preservesPitch = false;
-          (item.audio as any).webkitPreservesPitch = false;
-          (item.audio as any).mozPreservesPitch = false;
+          (item.audio as any).preservesPitch = shouldPreservePitch;
+          (item.audio as any).webkitPreservesPitch = shouldPreservePitch;
+          (item.audio as any).mozPreservesPitch = shouldPreservePitch;
           item.audio.playbackRate = combinedRate;
         }
       });
