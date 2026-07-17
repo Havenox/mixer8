@@ -25,7 +25,7 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         ".mp4", ".mkv", ".avi", ".mov", ".flv", ".webm", ".m4v", ".3gp", ".ts"
     };
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] int? page, [FromQuery] int? limit, [FromQuery] string? search, [FromQuery] bool showAll = false)
+    public async Task<IActionResult> GetAll([FromQuery] int? page, [FromQuery] int? limit, [FromQuery] string? search, [FromQuery] bool showAll = false, [FromQuery] string? visibility = null)
     {
         Guid? userId = null;
         bool isAdmin = false;
@@ -53,6 +53,11 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
                 (t.DeletionPending && isAdmin) ||
                 (!t.DeletionPending && t.Visibility == "Public")
             );
+        }
+
+        if (!string.IsNullOrWhiteSpace(visibility))
+        {
+            query = query.Where(t => t.Visibility == visibility);
         }
 
         if (!string.IsNullOrWhiteSpace(search))
