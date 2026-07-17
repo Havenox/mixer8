@@ -17,6 +17,8 @@ Adicionalmente, centralizamos o botão sutil de Fechar (X) na extrema direita do
 Para as cifras, introduzimos o estado global `showChords` no `PlayerContext.tsx`.
 - **Botão CIFRA (ON/OFF)**: Renderizado no topo quando a tela de letras está ativa. Segue exatamente a mesma linguagem de design das demais caixas do cabeçalho, exibindo "ON" em verde brilhante ou "OFF" em cinza escuro.
 - **Renderização por Linha e Palavra**: Quando ativo, as palavras da linha são empilhadas verticalmente com um container `inline-flex flex-col items-start`. O acorde transposto (cruzado com a batida de áudio correspondente) flutua acima da palavra. Se a palavra não possuir acorde, injetamos `\u00A0` (non-breaking space) com a mesma altura para que a linha inteira de palavras permaneça alinhada horizontalmente no mesmo baseline, sem oscilações ou quebras de grade.
+- **Isolamento e Destaque Temporal Único de Chords**: Cada acorde possui uma janela de tempo específica e mutuamente exclusiva que inicia no seu disparo e termina no disparo da próxima nota. Isso garante destaque verde brilhante (`text-brand-green` com glow) para **apenas uma nota por vez**, mantendo os demais acordes em branco opaco/nítido, impedindo destaques redundantes ou duplicados de notas idênticas na mesma estrofe.
+- **Opacidade Confortável**: Elevada a opacidade das estrofes inativas de 25% para 65% para garantir conforto de leitura durante o acompanhamento de letras extensas.
 
 ## 🛠️ Implementação Técnica
 
@@ -26,7 +28,7 @@ Para as cifras, introduzimos o estado global `showChords` no `PlayerContext.tsx`
 * **`MesaPlayer.tsx`**: Modificados os cliques de capa e de botões (tanto desktop quanto mobile) para alterar o estado `activeOverlay` em vez de navegar em rotas.
 * **`PlayerContext.tsx`**: Introduzido o estado global `activeOverlay` (com auto-limpeza) e o estado `showChords` para controle de cifra ativa.
 * **`App.tsx`**: Removidas as rotas `/daw` e `/lyrics` e seus respectivos imports de componentes.
-* **`LyricsChordsViewer.tsx`**: Refatorado para alternar a exibição entre letra pura e cifrada. Se `showChords` estiver ativo, renderiza o container flex vertical com as notas alinhadas horizontalmente por baseline.
+* **`LyricsChordsViewer.tsx`**: Refatorado para alternar a exibição entre letra pura e cifrada. Se `showChords` estiver ativo, renderiza o container flex vertical com as notas alinhadas horizontalmente por baseline. Remove o cabeçalho local duplicado com botão de voltar e ajusta o realce temporal atômico das cifras e opacidades de leitura.
 * **`DawView.tsx`**: Ajustados os gatilhos e botões de retorno internos para executar `setActiveOverlay('none')` em vez de chamadas de roteador.
 
 ---
