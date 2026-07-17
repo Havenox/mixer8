@@ -207,10 +207,6 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         
         // Atualiza a barra lateral
         await fetchPlaylists();
-        
-        setTimeout(() => {
-          setIsAddOpen(false);
-        }, 1000);
       } else {
         const errData = await res.json();
         setError(errData.ErrorMessage || 'Erro ao adicionar música.');
@@ -433,8 +429,14 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       {/* MODAL 1: ADICIONAR MÚSICA À PLAYLIST */}
       {isAddOpen && targetTrack && (
-        <div className="fixed inset-0 bg-black/85 flex items-center justify-center z-[100] p-4 select-none animate-in fade-in duration-200">
-          <div className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded-md shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200">
+        <div 
+          onClick={() => setIsAddOpen(false)}
+          className="fixed inset-0 bg-black/85 flex items-center justify-center z-[100] p-4 select-none animate-in fade-in duration-200"
+        >
+          <div 
+            onClick={e => e.stopPropagation()}
+            className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded-md shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200"
+          >
             <button 
               onClick={() => setIsAddOpen(false)}
               className="absolute top-4 right-4 text-brand-gray hover:text-white cursor-pointer"
@@ -520,8 +522,15 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       {/* MODAL 2: CRIAR PLAYLIST */}
       {isCreateOpen && (
-        <div className="fixed inset-0 bg-black/85 flex items-center justify-center z-[100] p-4 select-none animate-in fade-in duration-200">
+        <div 
+          onClick={() => {
+            setIsCreateOpen(false);
+            if (targetTrack) setIsAddOpen(true);
+          }}
+          className="fixed inset-0 bg-black/85 flex items-center justify-center z-[100] p-4 select-none animate-in fade-in duration-200"
+        >
           <form 
+            onClick={e => e.stopPropagation()}
             onSubmit={handleCreatePlaylistSubmit}
             className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded-md shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200"
           >
@@ -667,8 +676,14 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       {/* MODAL 3: CONFIGURAÇÃO DE PLAYLIST (UNIFICADO/GLOBAL) */}
       {playlistToEdit && (
-        <div className="fixed inset-0 bg-black/85 flex items-center justify-center z-[100] p-4 select-none animate-in fade-in duration-200">
-          <div className="bg-brand-card border border-brand-hover w-full max-w-lg p-6 rounded-md shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+        <div 
+          onClick={() => { if (!isSavingEdit) setPlaylistToEdit(null); }}
+          className="fixed inset-0 bg-black/85 flex items-center justify-center z-[100] p-4 select-none animate-in fade-in duration-200"
+        >
+          <div 
+            onClick={e => e.stopPropagation()}
+            className="bg-brand-card border border-brand-hover w-full max-w-lg p-6 rounded-md shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
+          >
             <button 
               type="button"
               onClick={() => setPlaylistToEdit(null)}
@@ -923,8 +938,14 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       {/* MODAL 4: CONFIRMAÇÃO DE EXCLUSÃO DE PLAYLIST (UNIFICADO/GLOBAL) */}
       {playlistToDelete && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 select-none animate-in fade-in duration-200">
-          <div className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200">
+        <div 
+          onClick={() => { if (!isDeleting) setPlaylistToDelete(null); }}
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 select-none animate-in fade-in duration-200"
+        >
+          <div 
+            onClick={e => e.stopPropagation()}
+            className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200"
+          >
             <button 
               type="button"
               onClick={() => setPlaylistToDelete(null)}

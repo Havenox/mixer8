@@ -1507,8 +1507,14 @@ export const PlaylistDetail: React.FC = () => {
 
       {/* MODAL DE EXCLUSÃO DE MÚSICA DA PLATAFORMA (Timer de 3s - Admin) */}
       {trackToDelete && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
-          <div className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200">
+        <div 
+          onClick={() => { if (!isDeleting) setTrackToDelete(null); }}
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200"
+        >
+          <div 
+            onClick={e => e.stopPropagation()}
+            className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200"
+          >
             <button 
               onClick={() => setTrackToDelete(null)}
               className="absolute top-4 right-4 text-brand-gray hover:text-white cursor-pointer"
@@ -1610,8 +1616,14 @@ export const PlaylistDetail: React.FC = () => {
 
       {/* MODAL DE REVISÃO E AVALIAÇÃO DE EXCLUSÃO (ADMIN ONLY) */}
       {trackToReview && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
-          <div className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200">
+        <div 
+          onClick={() => { if (!isDeleting) setTrackToReview(null); }}
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200"
+        >
+          <div 
+            onClick={e => e.stopPropagation()}
+            className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200"
+          >
             <button 
               onClick={() => setTrackToReview(null)}
               className="absolute top-4 right-4 text-brand-gray hover:text-white cursor-pointer"
@@ -1727,8 +1739,14 @@ export const PlaylistDetail: React.FC = () => {
 
       {/* MODAL DE CONFIRMAÇÃO DE REMOÇÃO DE MÚSICA DA PLAYLIST (CUSTOM REACT MODAL) */}
       {trackToRemove && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
-          <div className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200">
+        <div 
+          onClick={() => setTrackToRemove(null)}
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200"
+        >
+          <div 
+            onClick={e => e.stopPropagation()}
+            className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200"
+          >
             <button 
               onClick={() => setTrackToRemove(null)}
               className="absolute top-4 right-4 text-brand-gray hover:text-white cursor-pointer"
@@ -1791,8 +1809,14 @@ export const PlaylistDetail: React.FC = () => {
 
       {/* MODAL DE CONFIRMAÇÃO DE REMOÇÃO DE DOWNLOADS DA PLAYLIST */}
       {showRemoveDownloadModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
-          <div className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200">
+        <div 
+          onClick={() => setShowRemoveDownloadModal(false)}
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200"
+        >
+          <div 
+            onClick={e => e.stopPropagation()}
+            className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200"
+          >
             <button 
               onClick={() => setShowRemoveDownloadModal(false)}
               className="absolute top-4 right-4 text-brand-gray hover:text-white cursor-pointer"
@@ -1834,8 +1858,14 @@ export const PlaylistDetail: React.FC = () => {
 
       {/* MODAL DE CONFIRMAÇÃO DE REMOÇÃO DE DOWNLOAD DE MÚSICA INDIVIDUAL */}
       {trackToRemoveDownload && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
-          <div className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200">
+        <div 
+          onClick={() => setTrackToRemoveDownload(null)}
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200"
+        >
+          <div 
+            onClick={e => e.stopPropagation()}
+            className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200"
+          >
             <button 
               onClick={() => setTrackToRemoveDownload(null)}
               className="absolute top-4 right-4 text-brand-gray hover:text-white cursor-pointer"

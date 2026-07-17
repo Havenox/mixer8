@@ -9,7 +9,7 @@ import { usePlayer } from '../context/PlayerContext';
 import type { ITrack } from '../context/PlayerContext';
 import { usePlaylists } from '../context/PlaylistContext';
 import { useAuth } from '../context/AuthContext';
-import { SERVER_URL } from '../config';
+import { SERVER_URL, API_URL } from '../config';
 
 interface ExploreShelfProps {
   title: string;
@@ -56,8 +56,8 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
   onPlaylistContextMenu,
   onToggleSavePlaylist
 }) => {
-  const { CurrentUser, IsAuthenticated, openLoginModal } = useAuth();
-  const { loadTrack, currentTrack, isPlaying, togglePlay } = usePlayer();
+  const { CurrentUser, IsAuthenticated, openLoginModal, Token } = useAuth();
+  const { loadTrack, currentTrack, isPlaying, togglePlay, currentPlaylistId } = usePlayer();
   const { openAddToPlaylist } = usePlaylists();
   const navigate = useNavigate();
 
@@ -82,6 +82,33 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
 
   const handlePlaylistClick = (playlistId: string) => {
     navigate(`/playlists/${playlistId}`);
+  };
+
+  const handlePlayPlaylistClick = async (e: React.MouseEvent, playlist: any) => {
+    e.stopPropagation();
+    const isActivePlaylist = currentPlaylistId === playlist.PlaylistId;
+    if (isActivePlaylist) {
+      togglePlay();
+      return;
+    }
+
+    try {
+      const headers: Record<string, string> = {};
+      if (Token) {
+        headers['Authorization'] = `Bearer ${Token}`;
+      }
+      const res = await fetch(`${API_URL}/Playlists/${playlist.PlaylistId}`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.Tracks && data.Tracks.length > 0) {
+          const tracksQueue = data.Tracks.map((pt: any) => pt.Track);
+          const firstTrack = tracksQueue[0];
+          loadTrack(firstTrack, playlist.PlaylistId, undefined, tracksQueue, playlist.Name);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao iniciar reprodução da playlist:', err);
+    }
   };
 
   if (isLoading) {
@@ -266,10 +293,13 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
             itemsToShow.map((playlist) => {
               const canManage = playlist.IsOwner || CurrentUser?.UserRole === 'Admin';
               const canContext = canManage || playlist.IsSaved || playlist.IsCollaborator;
+              const isActivePlaylist = currentPlaylistId === playlist.PlaylistId;
               return (
                 <div 
                   key={playlist.PlaylistId} 
-                  className="bg-brand-card border border-brand-hover p-4 rounded-md hover:bg-brand-hover transition-all flex flex-col gap-3 group shadow-lg relative cursor-pointer select-none"
+                  className={`bg-brand-card border p-4 rounded-md hover:bg-brand-hover transition-all flex flex-col gap-3 group shadow-lg relative cursor-pointer select-none ${
+                    isActivePlaylist ? 'border-brand-green/30 bg-brand-hover/40' : 'border-brand-hover'
+                  }`}
                   onClick={() => handlePlaylistClick(playlist.PlaylistId)}
                   onContextMenu={(e) => {
                     if (!IsAuthenticated) {
@@ -283,7 +313,7 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
                     }
                   }}
                 >
-                  {/* Botão de opções */}
+                  {/* Botão rápido de opções para mobile/acessibilidade */}
                   {canContext ? (
                     <button
                       onClick={(e) => {
@@ -319,9 +349,17 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
                         <ListMusic className="w-16 h-16 text-brand-green/20 group-hover:text-brand-green/40 transition-colors duration-300" />
                       </div>
                     )}
-                    <div className="absolute w-12 h-12 rounded-full bg-brand-green text-black flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 hover:scale-105 transition-all shadow-lg duration-250 cursor-pointer">
-                      <Play className="w-6 h-6 fill-current translate-x-[1px]" />
-                    </div>
+                    <button 
+                      type="button"
+                      onClick={(e) => handlePlayPlaylistClick(e, playlist)}
+                      className="absolute w-12 h-12 rounded-full bg-brand-green text-black flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 hover:scale-105 transition-all shadow-lg duration-250 cursor-pointer border-0 z-10"
+                    >
+                      {isActivePlaylist && isPlaying ? (
+                        <Pause className="w-6 h-6 fill-current" />
+                      ) : (
+                        <Play className="w-6 h-6 fill-current translate-x-[1px]" />
+                      )}
+                    </button>
 
                     {(!playlist.IsOwner || !IsAuthenticated) && onToggleSavePlaylist && (
                       <button
@@ -343,7 +381,9 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
                   </div>
 
                   <div className="flex flex-col truncate">
-                    <span className="font-bold text-sm text-white truncate group-hover:text-brand-green transition-colors duration-200">
+                    <span className={`font-bold text-sm text-white truncate group-hover:text-brand-green transition-colors duration-200 ${
+                      isActivePlaylist ? 'text-brand-green' : 'text-white'
+                    }`}>
                       {playlist.Name}
                     </span>
                     {playlist.Description && (
@@ -461,10 +501,13 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
             itemsToShow.map((playlist) => {
               const canManage = playlist.IsOwner || CurrentUser?.UserRole === 'Admin';
               const canContext = canManage || playlist.IsSaved || playlist.IsCollaborator;
+              const isActivePlaylist = currentPlaylistId === playlist.PlaylistId;
               return (
                 <div 
                   key={playlist.PlaylistId} 
-                  className="bg-brand-card/30 border border-brand-hover p-2.5 rounded-md hover:bg-brand-hover/60 hover:border-brand-green/30 hover:scale-[1.02] transition-all duration-200 cursor-pointer flex items-center gap-3 relative group select-none min-w-0"
+                  className={`bg-brand-card/30 border p-2.5 rounded-md hover:bg-brand-hover/60 hover:scale-[1.02] transition-all duration-200 cursor-pointer flex items-center gap-3 relative group select-none min-w-0 ${
+                    isActivePlaylist ? 'border-brand-green/30 bg-brand-hover/40' : 'border-brand-hover'
+                  }`}
                   onClick={() => handlePlaylistClick(playlist.PlaylistId)}
                   onContextMenu={(e) => {
                     if (!IsAuthenticated) {
@@ -489,14 +532,24 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
                     ) : (
                       <ListMusic className="w-5 h-5 text-brand-green/40" />
                     )}
-                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Play className="w-5 h-5 text-brand-green fill-current translate-x-[0.5px]" />
-                    </div>
+                    <button 
+                      type="button"
+                      onClick={(e) => handlePlayPlaylistClick(e, playlist)}
+                      className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border-0 z-10"
+                    >
+                      {isActivePlaylist && isPlaying ? (
+                        <Pause className="w-5 h-5 text-brand-green fill-current" />
+                      ) : (
+                        <Play className="w-5 h-5 text-brand-green fill-current translate-x-[0.5px]" />
+                      )}
+                    </button>
                   </div>
 
                   {/* Detalhes de Texto */}
                   <div className="flex flex-col min-w-0 flex-1 gap-0.5">
-                    <span className="font-bold text-xs truncate text-white group-hover:text-brand-green transition-colors" title={playlist.Name}>
+                    <span className={`font-bold text-xs truncate group-hover:text-brand-green transition-colors ${
+                      isActivePlaylist ? 'text-brand-green' : 'text-white'
+                    }`} title={playlist.Name}>
                       {playlist.Name}
                     </span>
                     <span className="text-[10px] text-brand-gray truncate">

@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
-  ArrowLeft, ListMusic, User, Loader2, Clock
+  ArrowLeft, ListMusic, User, Loader2, Clock, Play, Pause
 } from 'lucide-react';
+import { usePlayer } from '../context/PlayerContext';
 
 import { API_URL, SERVER_URL } from '../config';
 
@@ -34,6 +35,34 @@ export const PublicProfile: React.FC = () => {
   const { username } = useParams<{ username: string }>();
   const navigate = useNavigate();
   const { Token } = useAuth();
+  const { currentPlaylistId, isPlaying, togglePlay, loadTrack } = usePlayer();
+
+  const handlePlayPlaylistClick = async (e: React.MouseEvent, playlist: any) => {
+    e.stopPropagation();
+    const isActivePlaylist = currentPlaylistId === playlist.PlaylistId;
+    if (isActivePlaylist) {
+      togglePlay();
+      return;
+    }
+
+    try {
+      const headers: Record<string, string> = {};
+      if (Token) {
+        headers['Authorization'] = `Bearer ${Token}`;
+      }
+      const res = await fetch(`${API_URL}/Playlists/${playlist.PlaylistId}`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.Tracks && data.Tracks.length > 0) {
+          const tracksQueue = data.Tracks.map((pt: any) => pt.Track);
+          const firstTrack = tracksQueue[0];
+          loadTrack(firstTrack, playlist.PlaylistId, undefined, tracksQueue, playlist.Name);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao iniciar reprodução da playlist:', err);
+    }
+  };
 
   const [profile, setProfile] = useState<IPublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -213,29 +242,46 @@ export const PublicProfile: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-[repeat(auto-fill,minmax(180px,220px))] gap-3 sm:gap-4">
-            {profile.PublicPlaylists.map((playlist) => (
-              <div 
-                key={playlist.PlaylistId} 
-                className="bg-brand-card border border-brand-hover p-2.5 sm:p-4 rounded hover:bg-brand-hover transition-all flex flex-col gap-2 sm:gap-3 group shadow-lg relative cursor-pointer"
-                onClick={() => navigate(`/playlists/${playlist.PlaylistId}`)}
-              >
-                <div className="aspect-square bg-black border border-brand-hover rounded flex items-center justify-center text-brand-green shadow-md overflow-hidden relative shrink-0">
-                  {playlist.CoverUrl ? (
-                    <img 
-                      src={playlist.CoverUrl.startsWith('http') ? playlist.CoverUrl : `${SERVER_URL}${playlist.CoverUrl}`} 
-                      alt={playlist.Name} 
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <ListMusic className="w-12 h-12" />
-                  )}
-                </div>
-                
-                <div className="flex flex-col truncate">
-                  <span className="font-bold text-sm text-white truncate">{playlist.Name}</span>
-                  {playlist.Description && (
-                    <span className="text-[11px] text-brand-gray truncate mt-0.5">{playlist.Description}</span>
-                  )}
+            {profile.PublicPlaylists.map((playlist) => {
+              const isActivePlaylist = currentPlaylistId === playlist.PlaylistId;
+              return (
+                <div 
+                  key={playlist.PlaylistId} 
+                  className={`bg-brand-card border p-2.5 sm:p-4 rounded hover:bg-brand-hover transition-all flex flex-col gap-2 sm:gap-3 group shadow-lg relative cursor-pointer ${
+                    isActivePlaylist ? 'border-brand-green/30 bg-brand-hover/40' : 'border-brand-hover'
+                  }`}
+                  onClick={() => navigate(`/playlists/${playlist.PlaylistId}`)}
+                >
+                  <div className="aspect-square bg-black border border-brand-hover rounded flex items-center justify-center text-brand-green shadow-md overflow-hidden relative shrink-0">
+                    {playlist.CoverUrl ? (
+                      <img 
+                        src={playlist.CoverUrl.startsWith('http') ? playlist.CoverUrl : `${SERVER_URL}${playlist.CoverUrl}`} 
+                        alt={playlist.Name} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    ) : (
+                      <ListMusic className="w-12 h-12 text-brand-green/20 group-hover:text-brand-green/40 transition-colors" />
+                    )}
+                    <button 
+                      type="button"
+                      onClick={(e) => handlePlayPlaylistClick(e, playlist)}
+                      className="absolute w-12 h-12 rounded-full bg-brand-green text-black flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 hover:scale-105 transition-all shadow-lg duration-250 cursor-pointer border-0"
+                    >
+                      {isActivePlaylist && isPlaying ? (
+                        <Pause className="w-6 h-6 fill-current" />
+                      ) : (
+                        <Play className="w-6 h-6 fill-current translate-x-[1px]" />
+                      )}
+                    </button>
+                  </div>
+                  
+                  <div className="flex flex-col truncate">
+                    <span className={`font-bold text-sm text-white truncate group-hover:text-brand-green transition-colors duration-200 ${
+                      isActivePlaylist ? 'text-brand-green' : 'text-white'
+                    }`}>{playlist.Name}</span>
+                    {playlist.Description && (
+                      <span className="text-[11px] text-brand-gray truncate mt-0.5">{playlist.Description}</span>
+                    )}
                   
                   {/* Qtd Músicas • Reloginho Duração */}
                   <div className="flex items-center gap-1.5 text-[10px] text-brand-green font-semibold mt-1.5 select-none leading-none">
@@ -248,7 +294,8 @@ export const PublicProfile: React.FC = () => {
                   </div>
                 </div>
               </div>
-            ))}
+            );
+          })}
           </div>
         )}
       </div>

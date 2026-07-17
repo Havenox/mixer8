@@ -257,7 +257,7 @@ export const Playlists: React.FC = () => {
                 className="px-4 py-2 hover:bg-brand-hover hover:text-brand-green flex items-center gap-2.5 transition-colors"
               >
                 <Edit className="w-4 h-4 text-brand-gray" />
-                <span>Editar Ajustes</span>
+                <span>Editar Playlist</span>
               </div>
               <div className="h-[1px] bg-brand-hover my-1" />
               <div 

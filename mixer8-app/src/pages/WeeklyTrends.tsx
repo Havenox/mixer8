@@ -338,8 +338,14 @@ export const WeeklyTrends: React.FC = () => {
 
       {/* MODAIS (EDITAR/EXCLUIR/REVISAR) */}
       {trackToDelete && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
-          <div className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200">
+        <div 
+          onClick={() => { if (!isDeleting) setTrackToDelete(null); }}
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200"
+        >
+          <div 
+            onClick={e => e.stopPropagation()}
+            className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200"
+          >
             <button onClick={() => setTrackToDelete(null)} className="absolute top-4 right-4 text-brand-gray hover:text-white cursor-pointer">
               <X className="w-5 h-5" />
             </button>
@@ -383,8 +389,14 @@ export const WeeklyTrends: React.FC = () => {
       )}
 
       {trackToReview && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
-          <div className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200">
+        <div 
+          onClick={() => { if (!isDeleting) setTrackToReview(null); }}
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200"
+        >
+          <div 
+            onClick={e => e.stopPropagation()}
+            className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200"
+          >
             <button onClick={() => setTrackToReview(null)} className="absolute top-4 right-4 text-brand-gray hover:text-white cursor-pointer">
               <X className="w-5 h-5" />
             </button>
@@ -457,8 +469,15 @@ export const WeeklyTrends: React.FC = () => {
       )}
 
       {trackToEdit && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
-          <form onSubmit={handleSaveEdit} className="bg-brand-card border border-brand-hover w-full max-w-lg p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200">
+        <div 
+          onClick={() => { if (!isSaving) setTrackToEdit(null); }}
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200"
+        >
+          <form 
+            onClick={e => e.stopPropagation()}
+            onSubmit={handleSaveEdit} 
+            className="bg-brand-card border border-brand-hover w-full max-w-lg p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200"
+          >
             <button type="button" onClick={() => setTrackToEdit(null)} className="absolute top-4 right-4 text-brand-gray hover:text-white cursor-pointer">
               <X className="w-5 h-5" />
             </button>

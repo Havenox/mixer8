@@ -140,7 +140,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200">
+    <div 
+      onClick={onClose}
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200"
+    >
       <div 
         className="w-full max-w-[420px] bg-brand-card border border-brand-hover p-6 rounded-md shadow-2xl flex flex-col gap-5 relative animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}

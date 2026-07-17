@@ -979,8 +979,14 @@ export const Dashboard: React.FC = () => {
 
       {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO DE MÚSICA (ADMIN) */}
       {trackToDelete && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
-          <div className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200">
+        <div 
+          onClick={() => { if (!isDeleting) setTrackToDelete(null); }}
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200"
+        >
+          <div 
+            onClick={e => e.stopPropagation()}
+            className="bg-brand-card border border-brand-hover w-full max-w-md p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200"
+          >
             <button 
               onClick={() => setTrackToDelete(null)}
               className="absolute top-4 right-4 text-brand-gray hover:text-white cursor-pointer"
@@ -1199,8 +1205,12 @@ export const Dashboard: React.FC = () => {
 
       {/* MODAL DE EDIÇÃO DE MÚSICA (ADMIN) */}
       {trackToEdit && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
+        <div 
+          onClick={() => { if (!isSaving) setTrackToEdit(null); }}
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200"
+        >
           <form 
+            onClick={e => e.stopPropagation()}
             onSubmit={handleSaveEdit}
             className="bg-brand-card border border-brand-hover w-full max-w-lg p-6 rounded shadow-2xl flex flex-col gap-4 relative animate-in zoom-in-95 duration-200"
           >

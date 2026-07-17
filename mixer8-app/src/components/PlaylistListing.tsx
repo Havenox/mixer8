@@ -1,10 +1,11 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  ListMusic, Lock, Globe, EyeOff, Play, MoreVertical, MoreHorizontal, Clock, Heart, User, Loader2 
+  ListMusic, Lock, Globe, EyeOff, Play, Pause, MoreVertical, MoreHorizontal, Clock, Heart, User, Loader2 
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { SERVER_URL } from '../config';
+import { usePlayer } from '../context/PlayerContext';
+import { SERVER_URL, API_URL } from '../config';
 
 interface PlaylistListingProps {
   playlists: any[];
@@ -43,8 +44,36 @@ export const PlaylistListing: React.FC<PlaylistListingProps> = ({
   onToggleSavePlaylist,
   onPlaylistContextMenu
 }) => {
-  const { CurrentUser } = useAuth();
+  const { CurrentUser, Token } = useAuth();
   const navigate = useNavigate();
+  const { currentPlaylistId, isPlaying, togglePlay, loadTrack } = usePlayer();
+
+  const handlePlayPlaylistClick = async (e: React.MouseEvent, playlist: any) => {
+    e.stopPropagation();
+    const isActivePlaylist = currentPlaylistId === playlist.PlaylistId;
+    if (isActivePlaylist) {
+      togglePlay();
+      return;
+    }
+
+    try {
+      const headers: Record<string, string> = {};
+      if (Token) {
+        headers['Authorization'] = `Bearer ${Token}`;
+      }
+      const res = await fetch(`${API_URL}/Playlists/${playlist.PlaylistId}`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.Tracks && data.Tracks.length > 0) {
+          const tracksQueue = data.Tracks.map((pt: any) => pt.Track);
+          const firstTrack = tracksQueue[0];
+          loadTrack(firstTrack, playlist.PlaylistId, undefined, tracksQueue, playlist.Name);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao iniciar reprodução da playlist:', err);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -86,12 +115,15 @@ export const PlaylistListing: React.FC<PlaylistListingProps> = ({
           {playlists.map((playlist) => {
             const canManage = playlist.IsOwner || CurrentUser?.UserRole === 'Admin';
             const canContext = canManage || playlist.IsSaved || playlist.IsCollaborator;
+            const isActivePlaylist = currentPlaylistId === playlist.PlaylistId;
             
             return (
               <React.Fragment key={playlist.PlaylistId}>
                 {/* Desktop View */}
                 <div
-                  className="hidden md:grid md:grid-cols-[50px_1fr_120px_120px_100px_80px] gap-4 items-center px-4 py-2.5 rounded-md border border-brand-hover bg-brand-card/40 hover:bg-brand-hover/60 transition-all group relative cursor-pointer"
+                  className={`hidden md:grid md:grid-cols-[50px_1fr_120px_120px_100px_80px] gap-4 items-center px-4 py-2.5 rounded-md border transition-all group relative cursor-pointer ${
+                    isActivePlaylist ? 'bg-brand-hover/40 border-brand-green/30' : 'border-brand-hover bg-brand-card/40 hover:bg-brand-hover/60'
+                  }`}
                   onClick={() => handlePlaylistClick(playlist.PlaylistId)}
                   onContextMenu={(e) => {
                     if (canContext) {
@@ -115,7 +147,9 @@ export const PlaylistListing: React.FC<PlaylistListingProps> = ({
 
                   {/* Info */}
                   <div className="flex flex-col min-w-0">
-                    <span className="font-bold text-white text-sm truncate group-hover:text-brand-green transition-colors duration-200">
+                    <span className={`font-bold text-sm truncate group-hover:text-brand-green transition-colors duration-200 ${
+                      isActivePlaylist ? 'text-brand-green' : 'text-white'
+                    }`}>
                       {playlist.Name}
                     </span>
                     {playlist.Description && (
@@ -212,7 +246,9 @@ export const PlaylistListing: React.FC<PlaylistListingProps> = ({
 
                 {/* Mobile View */}
                 <div
-                  className="flex md:hidden items-center gap-3 p-2 rounded-md active:bg-brand-hover/40 transition-colors cursor-pointer"
+                  className={`flex md:hidden items-center gap-3 p-2 rounded-md transition-colors cursor-pointer ${
+                    isActivePlaylist ? 'bg-brand-hover/40 text-brand-green' : 'active:bg-brand-hover/40'
+                  }`}
                   onClick={() => handlePlaylistClick(playlist.PlaylistId)}
                   onContextMenu={(e) => {
                     if (canContext) {
@@ -236,7 +272,7 @@ export const PlaylistListing: React.FC<PlaylistListingProps> = ({
 
                   {/* Info */}
                   <div className="flex-1 min-w-0 flex flex-col justify-center">
-                    <span className="font-bold text-white text-sm truncate leading-tight">
+                    <span className={`font-bold text-sm truncate leading-tight ${isActivePlaylist ? 'text-brand-green' : 'text-white'}`}>
                       {playlist.Name}
                     </span>
                     <span className="text-xs text-brand-gray truncate mt-1 leading-none">
@@ -281,11 +317,13 @@ export const PlaylistListing: React.FC<PlaylistListingProps> = ({
       {playlists.map((playlist) => {
         const canManage = playlist.IsOwner || CurrentUser?.UserRole === 'Admin';
         const canContext = canManage || playlist.IsSaved || playlist.IsCollaborator;
-        
+        const isActivePlaylist = currentPlaylistId === playlist.PlaylistId;
         return (
           <div 
             key={playlist.PlaylistId} 
-            className="bg-brand-card border border-brand-hover p-2.5 sm:p-4 rounded-md hover:bg-brand-hover transition-all flex flex-col gap-2 sm:gap-3 group shadow-lg relative cursor-pointer"
+            className={`bg-brand-card border p-2.5 sm:p-4 rounded-md hover:bg-brand-hover transition-all flex flex-col gap-2 sm:gap-3 group shadow-lg relative cursor-pointer ${
+              isActivePlaylist ? 'border-brand-green/30 bg-brand-hover/40' : 'border-brand-hover'
+            }`}
             onClick={() => handlePlaylistClick(playlist.PlaylistId)}
             onContextMenu={(e) => {
               if (canContext) {
@@ -322,9 +360,17 @@ export const PlaylistListing: React.FC<PlaylistListingProps> = ({
               )}
               
               {/* Botão flutuante de reprodução/detalhes no hover */}
-              <div className="absolute w-12 h-12 rounded-full bg-brand-green text-black flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 hover:scale-105 transition-all shadow-lg duration-250 cursor-pointer">
-                <Play className="w-6 h-6 fill-current translate-x-[1px]" />
-              </div>
+              <button 
+                type="button"
+                onClick={(e) => handlePlayPlaylistClick(e, playlist)}
+                className="absolute w-12 h-12 rounded-full bg-brand-green text-black flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 hover:scale-105 transition-all shadow-lg duration-250 cursor-pointer border-0"
+              >
+                {isActivePlaylist && isPlaying ? (
+                  <Pause className="w-6 h-6 fill-current" />
+                ) : (
+                  <Play className="w-6 h-6 fill-current translate-x-[1px]" />
+                )}
+              </button>
 
               {!playlist.IsOwner && onToggleSavePlaylist && (
                 <button
@@ -345,7 +391,9 @@ export const PlaylistListing: React.FC<PlaylistListingProps> = ({
             </div>
             
             <div className="flex flex-col truncate">
-              <span className="font-bold text-sm text-white truncate group-hover:text-brand-green transition-colors duration-200" title={playlist.Name}>
+              <span className={`font-bold text-sm text-white truncate group-hover:text-brand-green transition-colors duration-200 ${
+                isActivePlaylist ? 'text-brand-green' : 'text-white'
+              }`} title={playlist.Name}>
                 {playlist.Name}
               </span>
               
