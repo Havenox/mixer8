@@ -442,7 +442,8 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
 
 39. **Isolamento Estrito e Persistência Individual de Tom e Tempo por Faixa**:
     * **Eliminação de Vazamentos de Estado:** Removidos efeitos colaterais (`useEffects`) que reescreviam a transposição de tom (`transpose`) e delta de BPM (`bpmDelta`) no `localStorage` ao alternar entre faixas.
-    * **Carregamento Sincronizado por Música (`loadTrack`):** Ao carregar uma música (manual ou automaticamente via fila/autoplay), o `PlayerContext` lê diretamente as chaves `mixer8:track:<TrackId>:transpose` e `mixer8:track:<TrackId>:bpm-delta` no `localStorage`. Se não houver configuração salva para a faixa atual, reseta os valores estritamente para `0`.
+    * **Sincronização por Referências Mutáveis (`transposeRef` / `bpmDeltaRef`):** Implementadas referências mutáveis que sincronizam o tom e o tempo instantaneamente no ciclo de vida assíncrono do `loadTrack`, contornando o atraso de estado assíncrono do React.
+    * **Carregamento Sincronizado por Música (`loadTrack`):** Ao carregar uma música (manual ou automaticamente via fila/autoplay), o `PlayerContext` lê as chaves `mixer8:track:<TrackId>:transpose` e `mixer8:track:<TrackId>:bpm-delta` no `localStorage`. Atualiza as refs e dispara `applyPitchAndTempoSettings(targetTranspose, targetBpmDelta)` imediatamente após a criação dos nós de áudio, aplicando a transposição correta desde o primeiro milissegundo de reprodução.
     * **Setters Dedicados por Faixa (`setTransposeSynced` / `setBpmDeltaSynced`):** A alteração de Tom ou BPM via interface do usuário salva a nova configuração exclusivamente sob a chave `TrackId` ativa no `localStorage`. Mudar de música não afeta nem sobrescreve os valores das faixas subsequentes.
 
 ---

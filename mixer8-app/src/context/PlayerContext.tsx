@@ -206,6 +206,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [currentPlaylistName, setCurrentPlaylistName] = useState<string | null>(null);
   const [transpose, setTranspose] = useState<number>(0);
   const [bpmDelta, setBpmDelta] = useState<number>(0);
+  const transposeRef = useRef<number>(0);
+  const bpmDeltaRef = useRef<number>(0);
   const [activeOverlay, setActiveOverlay] = useState<ActiveOverlayType>('none');
   const [showChords, setShowChords] = useState<boolean>(() => {
     return localStorage.getItem('mixer8:show-chords') === 'true';
@@ -219,27 +221,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [currentTrack]);
 
-  // Setter sincronizado de transposição do tom da música atual por TrackId no localStorage
-  const setTransposeSynced = useCallback((val: number | ((prev: number) => number)) => {
-    setTranspose(prev => {
-      const nextVal = typeof val === 'function' ? val(prev) : val;
-      if (currentTrackRef.current?.TrackId) {
-        localStorage.setItem(`mixer8:track:${currentTrackRef.current.TrackId}:transpose`, String(nextVal));
-      }
-      return nextVal;
-    });
-  }, []);
 
-  // Setter sincronizado de variação de BPM da música atual por TrackId no localStorage
-  const setBpmDeltaSynced = useCallback((val: number | ((prev: number) => number)) => {
-    setBpmDelta(prev => {
-      const nextVal = typeof val === 'function' ? val(prev) : val;
-      if (currentTrackRef.current?.TrackId) {
-        localStorage.setItem(`mixer8:track:${currentTrackRef.current.TrackId}:bpm-delta`, String(nextVal));
-      }
-      return nextVal;
-    });
-  }, []);
 
   // Salva estado global de exibição de cifras no localStorage
   useEffect(() => {
@@ -413,19 +395,22 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const isSyncingRef = useRef(false);
 
   // Aplica as configurações atuais de Pitch (tom) e Tempo (BPM) a todos os elementos de áudio e nós de processamento
-  const applyPitchAndTempoSettings = useCallback(() => {
+  const applyPitchAndTempoSettings = useCallback((overrideTranspose?: number, overrideBpmDelta?: number) => {
+    const activeTranspose = overrideTranspose !== undefined ? overrideTranspose : transposeRef.current;
+    const activeBpmDelta = overrideBpmDelta !== undefined ? overrideBpmDelta : bpmDeltaRef.current;
+
     const baseBpm = currentTrackRef.current?.Bpm || 120;
-    const targetBpm = Math.max(30, baseBpm + bpmDelta);
+    const targetBpm = Math.max(30, baseBpm + activeBpmDelta);
     const speedRatio = targetBpm / baseBpm;
 
     // Modo Power (Único): WASM SIMD (Signalsmith Stretch) na thread de AudioWorklet cuida da afinação/tom
     if (pitchWorkletNodeRef.current) {
-      pitchWorkletNodeRef.current.port.postMessage({ type: 'SET_PITCH', semitones: transpose });
+      pitchWorkletNodeRef.current.port.postMessage({ type: 'SET_PITCH', semitones: activeTranspose });
     }
 
     // Compensação de latência de processamento do nó WASM (Signalsmith Stretch) no Metrônomo (120ms)
     if (metronomeDelayNodeRef.current) {
-      const targetDelay = (transpose !== 0 && pitchWorkletNodeRef.current) ? 0.12 : 0.0;
+      const targetDelay = (activeTranspose !== 0 && pitchWorkletNodeRef.current) ? 0.12 : 0.0;
       try {
         const ctx = audioContextRef.current;
         if (ctx) {
@@ -447,9 +432,35 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         item.audio.playbackRate = speedRatio;
       }
     });
-  }, [transpose, bpmDelta]);
+  }, []);
 
-  // Atualização em tempo real da transposição de tom e velocidade/BPM ao mudar estados reativos
+  // Setter sincronizado de transposição do tom da música atual por TrackId no localStorage
+  const setTransposeSynced = useCallback((val: number | ((prev: number) => number)) => {
+    setTranspose(prev => {
+      const nextVal = typeof val === 'function' ? val(prev) : val;
+      transposeRef.current = nextVal;
+      if (currentTrackRef.current?.TrackId) {
+        localStorage.setItem(`mixer8:track:${currentTrackRef.current.TrackId}:transpose`, String(nextVal));
+      }
+      applyPitchAndTempoSettings(nextVal, bpmDeltaRef.current);
+      return nextVal;
+    });
+  }, [applyPitchAndTempoSettings]);
+
+  // Setter sincronizado de variação de BPM da música atual por TrackId no localStorage
+  const setBpmDeltaSynced = useCallback((val: number | ((prev: number) => number)) => {
+    setBpmDelta(prev => {
+      const nextVal = typeof val === 'function' ? val(prev) : val;
+      bpmDeltaRef.current = nextVal;
+      if (currentTrackRef.current?.TrackId) {
+        localStorage.setItem(`mixer8:track:${currentTrackRef.current.TrackId}:bpm-delta`, String(nextVal));
+      }
+      applyPitchAndTempoSettings(transposeRef.current, nextVal);
+      return nextVal;
+    });
+  }, [applyPitchAndTempoSettings]);
+
+  // Atualização em tempo real da transposição de tom e velocidade/BPM ao mudar a faixa
   useEffect(() => {
     applyPitchAndTempoSettings();
   }, [applyPitchAndTempoSettings, currentTrack?.Bpm]);
@@ -623,7 +634,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         await ctx.audioWorklet.addModule('/wasm/pitch-shift-processor.js?v=' + Date.now());
         const worklet = new AudioWorkletNode(ctx, 'pitch-shift-processor', {
-          processorOptions: { wasmModule, transpose },
+          processorOptions: { wasmModule, transpose: transposeRef.current },
           outputChannelCount: [2]
         });
         worklet.connect(masterGain);
@@ -779,15 +790,18 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setCurrentTime(0);
     setDuration(0);
     // Carrega configurações salvas de Tom (transpose) e Tempo (bpmDelta) estritamente específicas da faixa atual
+    let targetTranspose = 0;
+    let targetBpmDelta = 0;
     if (track?.TrackId) {
       const cachedTranspose = localStorage.getItem(`mixer8:track:${track.TrackId}:transpose`);
       const cachedBpmDelta = localStorage.getItem(`mixer8:track:${track.TrackId}:bpm-delta`);
-      setTranspose(cachedTranspose !== null ? parseInt(cachedTranspose, 10) : 0);
-      setBpmDelta(cachedBpmDelta !== null ? parseInt(cachedBpmDelta, 10) : 0);
-    } else {
-      setTranspose(0);
-      setBpmDelta(0);
+      if (cachedTranspose !== null) targetTranspose = parseInt(cachedTranspose, 10);
+      if (cachedBpmDelta !== null) targetBpmDelta = parseInt(cachedBpmDelta, 10);
     }
+    setTranspose(targetTranspose);
+    setBpmDelta(targetBpmDelta);
+    transposeRef.current = targetTranspose;
+    bpmDeltaRef.current = targetBpmDelta;
     
     // Atualiza estados para renderização reativa
     setCurrentTrack(track);
@@ -1002,7 +1016,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     updateAudioGains(initialVolumes, globalMutes, globalSolos);
 
     // Aplica as configurações de pitch (tom) e tempo (BPM delta) nas stems carregadas
-    applyPitchAndTempoSettings();
+    applyPitchAndTempoSettings(targetTranspose, targetBpmDelta);
 
     // Sincroniza progresso e duração a partir do master audio
     if (masterAudioElement) {
