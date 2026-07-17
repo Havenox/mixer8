@@ -3,8 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   UploadCloud, FileAudio, 
-  Sparkles, ShieldAlert, AlertTriangle, Plus, Trash2, X, Music, Loader2, Settings, RefreshCw, Image,
-  LayoutGrid, List, ArrowLeftRight, Search
+  ShieldAlert, AlertTriangle, Plus, Trash2, X, Music, Loader2, Settings, RefreshCw, Image,
+  LayoutGrid, List, ArrowLeftRight, Search, Check
 } from 'lucide-react';
 
 import { usePlayer } from '../context/PlayerContext';
@@ -234,13 +234,13 @@ export const Dashboard: React.FC = () => {
 
   // Controle de Upload de arquivos
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<string[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [downloadUrl, setDownloadUrl] = useState('');
   const [uploadTab, setUploadTab] = useState<'file' | 'link'>('file');
   const [songName, setSongName] = useState('');
   const [artistName, setArtistName] = useState('');
   const [newTrackId, setNewTrackId] = useState<string | null>(null);
+  const [toastType, setToastType] = useState<'success' | 'warning' | 'error'>('warning');
 
   // Busca metadados do YouTube/URL automaticamente ao colar o link (com debounce)
   useEffect(() => {
@@ -312,14 +312,6 @@ export const Dashboard: React.FC = () => {
     setArtistName(temp);
   };
 
-  const getFriendlyStatus = (log: string) => {
-    if (!log) return 'Iniciando processo...';
-    const clean = log.includes(']') ? log.split(']').pop()?.trim() || '' : log;
-    if (clean === 'AguardandoDownload') return 'Aguardando na fila de download...';
-    if (clean === 'Processando: Baixando mídia') return 'Baixando mídia do link...';
-    if (clean === 'Processando: Aguardando Extração') return 'Conversão concluída! Iniciando extração...';
-    return clean;
-  };
 
   // Verifica se a URL contém ?action=upload para abrir o modal
   const showUploadSection = new URLSearchParams(location.search).get('action') === 'upload';
@@ -413,7 +405,7 @@ export const Dashboard: React.FC = () => {
     return Array.from(idsSet).sort().join(',');
   }, [tracks, newTrackId]);
 
-  // 2. Pooling do progresso real da conversão do Worker na VPS
+  // 2. Polling do progresso real da conversão do Worker na VPS em segundo plano
   useEffect(() => {
     let interval: any;
 
@@ -434,38 +426,6 @@ export const Dashboard: React.FC = () => {
                 return updated ? updated : t;
               });
             });
-
-            if (newTrackId) {
-              const uploadedTrack = data.find(t => t.TrackId === newTrackId);
-              if (uploadedTrack) {
-                // Adiciona atualização do log se o status mudou
-                setUploadProgress(prev => {
-                  const currentStatus = `[WORKER STATUS] ${uploadedTrack.ExtractionStatus}`;
-                  if (prev.length === 0 || prev[prev.length - 1] !== currentStatus) {
-                    return [...prev, currentStatus];
-                  }
-                  return prev;
-                });
-
-                if (
-                  uploadedTrack.ExtractionStatus === 'Pronto' ||
-                  uploadedTrack.ExtractionStatus.startsWith('Processando')
-                ) {
-                  setIsUploading(false);
-                  setSelectedFile(null);
-                  setSongName('');
-                  setArtistName('');
-                  setNewTrackId(null);
-                  navigate('/dashboard'); // Fecha o modal
-                } else if (uploadedTrack.ExtractionStatus === 'Falhou') {
-                  setUploadProgress(prev => [...prev, `🔴 [ERRO] Ocorreu uma falha no processamento do Bot na VPS.`]);
-                  setTimeout(() => {
-                    setIsUploading(false);
-                    setNewTrackId(null);
-                  }, 4000);
-                }
-              }
-            }
           }
         } catch {
           // Mantém conexão silenciosa
@@ -474,7 +434,7 @@ export const Dashboard: React.FC = () => {
     }
 
     return () => clearInterval(interval);
-  }, [processingIdsStr, Token, newTrackId, navigate]);
+  }, [processingIdsStr, Token]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -496,7 +456,6 @@ export const Dashboard: React.FC = () => {
     if (!selectedFile || !Token) return;
 
     setIsUploading(true);
-    setUploadProgress([`[API] Enviando arquivo físico de áudio para a API do Mixer8...`]);
 
     const formData = new FormData();
     formData.append('File', selectedFile);
@@ -518,20 +477,29 @@ export const Dashboard: React.FC = () => {
           if (prev.some(t => t.TrackId === createdTrack.TrackId)) return prev;
           return [createdTrack, ...prev];
         });
-        setIsUploading(false);
+        
+        setToastType('success');
+        setToastMessage(`Música "${createdTrack.TrackTitle}" enviada com sucesso! O processamento foi iniciado.`);
+        setShowToast(true);
+
         setSelectedFile(null);
         setSongName('');
         setArtistName('');
         setNewTrackId(null);
-        navigate('/dashboard'); // Fecha o modal imediatamente pois a prévia de 1-stem já está disponível
+        setIsUploading(false);
+        navigate('/dashboard'); // Fecha o modal imediatamente
       } else {
         const errorData = await res.json();
-        setUploadProgress(prev => [...prev, `[ERRO API] Falha ao realizar upload: ${errorData.ErrorMessage || 'Erro Desconhecido'}`]);
-        setTimeout(() => setIsUploading(false), 4000);
+        setToastType('error');
+        setToastMessage(`Falha ao realizar upload: ${errorData.ErrorMessage || 'Erro Desconhecido'}`);
+        setShowToast(true);
+        setIsUploading(false);
       }
     } catch {
-      setUploadProgress(prev => [...prev, `[ERRO DE CONEXÃO] Não foi possível conectar com o servidor API.`]);
-      setTimeout(() => setIsUploading(false), 4000);
+      setToastType('error');
+      setToastMessage('Não foi possível conectar com o servidor API.');
+      setShowToast(true);
+      setIsUploading(false);
     }
   };
 
@@ -539,7 +507,6 @@ export const Dashboard: React.FC = () => {
     if (!downloadUrl.trim() || !Token) return;
 
     setIsUploading(true);
-    setUploadProgress([`[API] Solicitando download do link à API do Mixer8...`]);
 
     try {
       const res = await fetch(`${API_URL}/Tracks/ImportUrl`, {
@@ -561,17 +528,21 @@ export const Dashboard: React.FC = () => {
           if (prev.some(t => t.TrackId === createdTrack.TrackId)) return prev;
           return [createdTrack, ...prev];
         });
-        setNewTrackId(createdTrack.TrackId);
-        setUploadProgress(prev => [
-          ...prev, 
-          `[API OK] Link importado com sucesso. ID da Música: ${createdTrack.TrackId}`,
-          `[FILA] Link enviado para a fila de downloads do yt-dlp no PostgreSQL.`,
-          `[FILA] Aguardando o microsserviço de download capturar a tarefa...`
-        ]);
+
+        setToastType('success');
+        setToastMessage(`Solicitação da música "${createdTrack.TrackTitle}" recebida! O download foi enfileirado.`);
+        setShowToast(true);
+
+        setDownloadUrl('');
+        setSongName('');
+        setArtistName('');
+        setIsUploading(false);
+        navigate('/dashboard'); // Fecha o modal
       } else {
         const errorData = await res.json();
         if (res.status === 409 || errorData.ErrorMessage === 'TRACK_ALREADY_EXISTS') {
           const trackTitle = errorData.TrackTitle || 'Música existente';
+          setToastType('warning');
           setToastMessage(`A música "${trackTitle}" já existe na plataforma! Redirecionando para a busca...`);
           setShowToast(true);
 
@@ -584,13 +555,17 @@ export const Dashboard: React.FC = () => {
           setSearchInput(downloadUrl.trim());
           setDebouncedSearch(downloadUrl.trim());
         } else {
-          setUploadProgress(prev => [...prev, `[ERRO API] Falha ao importar link: ${errorData.ErrorMessage || 'Erro Desconhecido'}`]);
-          setTimeout(() => setIsUploading(false), 4000);
+          setToastType('error');
+          setToastMessage(`Falha ao importar link: ${errorData.ErrorMessage || 'Erro Desconhecido'}`);
+          setShowToast(true);
+          setIsUploading(false);
         }
       }
     } catch {
-      setUploadProgress(prev => [...prev, `[ERRO DE CONEXÃO] Não foi possível conectar com o servidor API.`]);
-      setTimeout(() => setIsUploading(false), 4000);
+      setToastType('error');
+      setToastMessage('Não foi possível conectar com o servidor API.');
+      setShowToast(true);
+      setIsUploading(false);
     }
   };
 
@@ -719,40 +694,46 @@ export const Dashboard: React.FC = () => {
         />
       )}
 
-      {/* MODAL DE UPLOAD / SIMULADOR DO PLAYWRIGHT Headless */}
+      {/* MODAL DE UPLOAD */}
       {showUploadSection && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 select-none animate-in fade-in duration-200">
-          
-          <div className="w-full max-w-[650px] bg-brand-card border border-brand-hover rounded-lg shadow-2xl p-6 md:p-8 flex flex-col gap-6 relative max-h-[90vh] overflow-y-auto">
-            
+        <div 
+          onClick={() => { if (!isUploading) navigate('/dashboard'); }}
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 select-none animate-in fade-in duration-200"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-[650px] bg-brand-card border border-brand-hover rounded-lg shadow-2xl p-6 md:p-8 flex flex-col gap-6 relative max-h-[90vh] overflow-y-auto"
+          >
             <button 
               onClick={() => { if (!isUploading) navigate('/dashboard'); }}
-              className="absolute right-4 top-4 text-brand-gray hover:text-white transition-colors font-bold text-sm cursor-pointer disabled:opacity-30"
+              className="absolute right-4 top-4 text-brand-gray hover:text-white transition-all cursor-pointer disabled:opacity-30 active:scale-95 flex items-center justify-center w-8 h-8 rounded-full hover:bg-brand-hover/40"
               disabled={isUploading}
+              title="Fechar"
             >
-              Fechar
+              <X className="w-4.5 h-4.5" />
             </button>
 
             <div className="flex flex-col gap-1 border-b border-brand-hover pb-4">
               <div className="flex items-center gap-2 text-brand-green">
-                <Sparkles className="w-6 h-6" />
-                <h2 className="text-lg font-black text-white m-0">Separador de Stems Inteligente</h2>
+                <UploadCloud className="w-6 h-6" />
+                <h2 className="text-lg font-black text-white m-0">Adicionar Nova Música</h2>
               </div>
               <p className="text-xs text-brand-gray">
-                Faça o upload do seu áudio. O nosso robô headless do .NET 10 logará de forma autônoma na plataforma de stems via cookies, enviará o arquivo, processará a separação de 5 faixas e salvará na VPS.
+                Faça o upload do seu áudio ou insira o link da música diretamente do youtube ou youtube músic. Prefira adicionar músicas do tipo "Topic" para maior fidelidade e qualidade de audio.
               </p>
             </div>
 
-            {!isUploading ? (
+            {true ? (
               <div className="flex flex-col gap-4 animate-in fade-in duration-200">
                 <div className="flex border-b border-brand-hover">
                   <button
+                    disabled={isUploading}
                     onClick={() => {
                       setUploadTab('file');
                       setSongName('');
                       setArtistName('');
                     }}
-                    className={`flex-1 py-2 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+                    className={`flex-1 py-2 text-xs font-bold transition-all border-b-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                       uploadTab === 'file'
                         ? 'border-brand-green text-white'
                         : 'border-transparent text-brand-gray hover:text-white'
@@ -761,13 +742,14 @@ export const Dashboard: React.FC = () => {
                     Upload de Arquivo
                   </button>
                   <button
+                    disabled={isUploading}
                     onClick={() => {
                       setUploadTab('link');
                       setSongName('');
                       setArtistName('');
                       setDownloadUrl('');
                     }}
-                    className={`flex-1 py-2 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+                    className={`flex-1 py-2 text-xs font-bold transition-all border-b-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                       uploadTab === 'link'
                         ? 'border-brand-green text-white'
                         : 'border-transparent text-brand-gray hover:text-white'
@@ -779,7 +761,7 @@ export const Dashboard: React.FC = () => {
 
                 {uploadTab === 'file' && (
                   <div className="flex flex-col gap-4 animate-in fade-in duration-150">
-                    <div className="border border-dashed border-brand-hover hover:border-brand-green bg-black rounded-lg p-8 flex flex-col items-center justify-center gap-3 transition-colors relative group">
+                    <div className={`border border-dashed border-brand-hover hover:border-brand-green bg-black rounded-lg p-8 flex flex-col items-center justify-center gap-3 transition-colors relative group ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
                       <UploadCloud className="w-12 h-12 text-brand-gray group-hover:text-brand-green transition-colors" />
                       <div className="text-center flex flex-col gap-1">
                         <span className="text-sm font-semibold text-white">Arraste seu arquivo de áudio</span>
@@ -790,7 +772,8 @@ export const Dashboard: React.FC = () => {
                         type="file" 
                         accept="audio/*"
                         onChange={handleFileChange}
-                        className="absolute inset-0 opacity-0 cursor-pointer"
+                        disabled={isUploading}
+                        className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
                       />
                     </div>
 
@@ -806,7 +789,8 @@ export const Dashboard: React.FC = () => {
                         
                         <button 
                           onClick={() => setSelectedFile(null)}
-                          className="text-xs text-red-400 hover:underline cursor-pointer"
+                          disabled={isUploading}
+                          className="text-xs text-red-400 hover:underline cursor-pointer disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed"
                         >
                           Remover
                         </button>
@@ -821,7 +805,8 @@ export const Dashboard: React.FC = () => {
                             type="text" 
                             value={songName}
                             onChange={(e) => setSongName(e.target.value)}
-                            className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green"
+                            disabled={isUploading}
+                            className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green disabled:opacity-50"
                           />
                         </div>
                         <div className="flex flex-col gap-1 text-xs">
@@ -830,7 +815,8 @@ export const Dashboard: React.FC = () => {
                             type="text" 
                             value={artistName}
                             onChange={(e) => setArtistName(e.target.value)}
-                            className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green"
+                            disabled={isUploading}
+                            className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green disabled:opacity-50"
                           />
                         </div>
                       </div>
@@ -838,10 +824,17 @@ export const Dashboard: React.FC = () => {
 
                     <button 
                       onClick={startExtraction}
-                      disabled={!selectedFile}
-                      className="w-full py-3 bg-brand-green text-black font-bold text-sm rounded hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed transition-all mt-2 cursor-pointer"
+                      disabled={!selectedFile || isUploading}
+                      className="w-full py-3 bg-brand-green text-black font-bold text-sm rounded hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed transition-all mt-2 cursor-pointer flex items-center justify-center gap-2"
                     >
-                      Iniciar Extração Headless (5 Stems)
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Enviando áudio...</span>
+                        </>
+                      ) : (
+                        <span>Realizar Upload</span>
+                      )}
                     </button>
                   </div>
                 )}
@@ -849,13 +842,14 @@ export const Dashboard: React.FC = () => {
                 {uploadTab === 'link' && (
                   <div className="flex flex-col gap-4 animate-in fade-in duration-150">
                     <div className="flex flex-col gap-1 text-xs">
-                      <label className="font-semibold text-brand-gray">Link de Mídia (YouTube, etc.)</label>
+                      <label className="font-semibold text-brand-gray">Link de Mídia (Youtube ou Youtube Music)</label>
                       <input 
                         type="text" 
                         placeholder="https://www.youtube.com/watch?v=..."
                         value={downloadUrl}
                         onChange={(e) => setDownloadUrl(e.target.value)}
-                        className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green w-full"
+                        disabled={isUploading}
+                        className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green w-full disabled:opacity-50"
                       />
                     </div>
 
@@ -867,13 +861,15 @@ export const Dashboard: React.FC = () => {
                           placeholder="Ex: Yesterday"
                           value={songName}
                           onChange={(e) => setSongName(e.target.value)}
-                          className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green w-full"
+                          disabled={isUploading}
+                          className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green w-full disabled:opacity-50"
                         />
                       </div>
                       <button
                         type="button"
                         onClick={swapSongAndArtist}
-                        className="p-2 bg-brand-card hover:bg-brand-hover text-brand-gray hover:text-white rounded border border-brand-hover hover:border-brand-green flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer h-[38px]"
+                        disabled={isUploading}
+                        className="p-2 bg-brand-card hover:bg-brand-hover text-brand-gray hover:text-white rounded border border-brand-hover hover:border-brand-green flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer h-[38px] disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Inverter Música e Artista"
                       >
                         <ArrowLeftRight className="w-4 h-4" />
@@ -885,49 +881,30 @@ export const Dashboard: React.FC = () => {
                           placeholder="Ex: The Beatles"
                           value={artistName}
                           onChange={(e) => setArtistName(e.target.value)}
-                          className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green w-full"
+                          disabled={isUploading}
+                          className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green w-full disabled:opacity-50"
                         />
                       </div>
                     </div>
 
                     <button 
                       onClick={startUrlImport}
-                      disabled={!downloadUrl.trim() || !songName.trim() || !artistName.trim()}
-                      className="w-full py-3 bg-brand-green text-black font-bold text-sm rounded hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed transition-all mt-2 cursor-pointer"
+                      disabled={!downloadUrl.trim() || !songName.trim() || !artistName.trim() || isUploading}
+                      className="w-full py-3 bg-brand-green text-black font-bold text-sm rounded hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed transition-all mt-2 cursor-pointer flex items-center justify-center gap-2"
                     >
-                      Iniciar Download e Extração (5 Stems)
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Processando solicitação...</span>
+                        </>
+                      ) : (
+                        <span>Solicitar Download</span>
+                      )}
                     </button>
                   </div>
                 )}
               </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-10 px-4 gap-6 animate-in fade-in duration-300">
-                <div className="relative flex items-center justify-center">
-                  {/* Outer glowing ring */}
-                  <div className="absolute w-20 h-20 rounded-full border-2 border-brand-green/20 animate-ping duration-1000" />
-                  {/* Inner spinning gradient ring */}
-                  <div className="w-16 h-16 rounded-full border-t-2 border-r-2 border-brand-green animate-spin" />
-                  {/* Central icon */}
-                  <div className="absolute text-brand-green">
-                    <Sparkles className="w-6 h-6 animate-pulse" />
-                  </div>
-                </div>
-
-                <div className="flex flex-col items-center text-center gap-2">
-                  <h3 className="text-base font-bold text-white tracking-wide">
-                    {uploadTab === 'file' ? 'Enviando Áudio...' : 'Baixando e Processando...'}
-                  </h3>
-                  <p className="text-xs text-brand-gray max-w-sm h-8 flex items-center justify-center">
-                    {getFriendlyStatus(uploadProgress[uploadProgress.length - 1])}
-                  </p>
-                </div>
-
-                <div className="bg-brand-hover/20 border border-brand-hover p-3 rounded-lg text-[10px] text-brand-gray flex items-center gap-2 max-w-md w-full">
-                  <ShieldAlert className="w-4 h-4 text-brand-green shrink-0 animate-pulse" />
-                  <span>Por favor, não feche esta janela. O download e a conversão estão sendo processados em nossa VPS de alta performance.</span>
-                </div>
-              </div>
-            )}
+            ) : null}
 
           </div>
 
@@ -1551,10 +1528,20 @@ export const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Toast Notificação de Duplicado */}
+      {/* Toast Notificação */}
       {showToast && (
-        <div className="fixed bottom-20 md:bottom-28 right-4 md:right-8 bg-amber-400 text-black px-4.5 py-3 rounded-lg shadow-2xl flex items-center gap-2.5 font-bold text-xs z-[200] animate-in slide-in-from-bottom duration-300 select-none border border-amber-500/20">
-          <ShieldAlert className="w-4 h-4 shrink-0" />
+        <div 
+          className={`fixed bottom-20 md:bottom-28 right-4 md:right-8 px-4.5 py-3 rounded-lg shadow-2xl flex items-center gap-2.5 font-bold text-xs z-[200] animate-in slide-in-from-bottom duration-300 select-none border ${
+            toastType === 'success' 
+              ? 'bg-brand-green text-black border-brand-green/20' 
+              : toastType === 'error'
+              ? 'bg-red-500 text-white border-red-600/20'
+              : 'bg-amber-400 text-black border-amber-500/20'
+          }`}
+        >
+          {toastType === 'success' && <Check className="w-4 h-4 shrink-0" />}
+          {toastType === 'error' && <AlertTriangle className="w-4 h-4 shrink-0" />}
+          {toastType === 'warning' && <ShieldAlert className="w-4 h-4 shrink-0" />}
           <span>{toastMessage}</span>
         </div>
       )}
