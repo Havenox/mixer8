@@ -609,8 +609,15 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       masterGainNodeRef.current = masterGain;
 
       try {
+        const wasmRes = await fetch('/wasm/signalsmith-stretch.wasm');
+        if (!wasmRes.ok) throw new Error('HTTP ' + wasmRes.status + ' fetching signalsmith-stretch.wasm');
+        const wasmBuffer = await wasmRes.arrayBuffer();
+        const wasmModule = await WebAssembly.compile(wasmBuffer);
+
         await ctx.audioWorklet.addModule('/wasm/pitch-shift-processor.js?v=' + Date.now());
-        const worklet = new AudioWorkletNode(ctx, 'pitch-shift-processor');
+        const worklet = new AudioWorkletNode(ctx, 'pitch-shift-processor', {
+          processorOptions: { wasmModule }
+        });
         worklet.connect(masterGain);
         pitchWorkletNodeRef.current = worklet;
         console.log('[WASM-AUDIO] AudioWorklet Signalsmith Stretch SIMD inicializado com sucesso.');

@@ -367,7 +367,7 @@ Module.initWasmEngine = async function() {
 };
 
 class PitchShiftProcessor extends AudioWorkletProcessor {
-  constructor() {
+  constructor(options) {
     super();
     this.wasmInstance = null;
     this.stretchHandle = null;
@@ -393,14 +393,21 @@ class PitchShiftProcessor extends AudioWorkletProcessor {
       }
     };
 
-    this.initWasm();
+    const wasmModule = options?.processorOptions?.wasmModule;
+    if (wasmModule) {
+      this.initWasm(wasmModule);
+    }
   }
 
-  async initWasm() {
+  async initWasm(wasmModule) {
     try {
-      if (typeof Module !== 'undefined' && Module.initWasmEngine) {
-        await Module.initWasmEngine();
-      }
+      const info = getWasmImports();
+      const instance = await WebAssembly.instantiate(wasmModule, info);
+      wasmExports = instance.exports;
+      assignWasmExports(wasmExports);
+      updateMemoryViews();
+      run();
+
       this.wasmInstance = Module;
       
       // Cria instância do Signalsmith Stretch C++ (44.1/48kHz, 2 canais stereo)
@@ -416,7 +423,7 @@ class PitchShiftProcessor extends AudioWorkletProcessor {
 
       this.isInitialized = true;
       this.port.postMessage({ type: 'STATUS', status: 'READY' });
-      console.log('[AudioWorklet] WASM Signalsmith Stretch inicializado com sucesso!');
+      console.log('[AudioWorklet] WASM Signalsmith Stretch inicializado com sucesso via WebAssembly.Module!');
     } catch (err) {
       console.error('[AudioWorklet] Falha ao inicializar WASM Signalsmith Stretch:', err);
     }

@@ -37,8 +37,8 @@ Implementação de um motor de áudio DSP avançado de alta fidelidade em **WebA
 
 ### 2. AudioWorklet Processor em Tempo Real (`pitch-shift-processor.js`)
 * **`public/wasm/pitch-shift-processor.js`**: Processor estendendo `AudioWorkletProcessor` que roda na thread dedicada de áudio do navegador.
-* **Compatibilidade com AudioWorkletGlobalScope**: Embutido o cabeçalho de inicialização da Emscripten ajustando a detecção de ambiente (`ENVIRONMENT_IS_WORKER = true`, `ENVIRONMENT_IS_WEB = false`) e removendo dependências incompatíveis como `importScripts()`, `self.location` (que é `undefined` no AudioWorklet) e `XMLHttpRequest`.
-* **Inicialização WASM Deferida & Registrador Seguro**: Ajustada a função `initWasmEngine()` para postergar a chamada `createWasm()` para o momento da instanciação do nó, garantindo que `registerProcessor('pitch-shift-processor', PitchShiftProcessor)` seja executado imediatamente na avaliação inicial do script sem falhas.
+* **Pre-compilação na Thread Principal & Transferência de Módulo**: O arquivo binário `.wasm` é baixado e pré-compilado na thread principal (`Window`) via `WebAssembly.compile()`, onde `fetch()` é 100% suportado. O módulo `WebAssembly.Module` compilado é então transferido diretamente para o `AudioWorkletNode` através das `processorOptions`.
+* **Zero Requisições na Thread de Áudio**: Ao receber o `wasmModule` pronto no construtor do `AudioWorkletProcessor`, a instanciação ocorre de forma imediata (`WebAssembly.instantiate(wasmModule)`), garantindo compatibilidade universal em todos os navegadores desktop e mobile sem depender de `fetch()` no `AudioWorkletGlobalScope`.
 * **Acesso Direto ao Heap float32**: Implementado o helper `getHeapF32()` para ler e manipular o buffer de memória float32 do WASM sem exceções de `undefined`.
 * **Bypass do Metrônomo**: Roteia a stem do metrônomo diretamente para o `masterGainNode`, impedindo que o clique sofra transposição de tom.
 
