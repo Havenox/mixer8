@@ -38,6 +38,8 @@ interface IPlaylistTrack {
   UploadedByUserName?: string;
   DeletionPending?: boolean;
   DeletionReason?: string;
+  Bpm?: number | null;
+  Key?: string | null;
 }
 
 interface IPlaylistCollaborator {
@@ -399,6 +401,8 @@ export const PlaylistDetail: React.FC = () => {
       CoverUrl: t.CoverUrl,
       ExtractionStatus: 'Pronto',
       CreatedAt: t.AddedAt,
+      Bpm: t.Bpm,
+      Key: t.Key,
       Stems: t.Stems.map(s => ({
         StemId: s.StemId,
         TrackId: s.TrackId,
@@ -414,6 +418,8 @@ export const PlaylistDetail: React.FC = () => {
       CoverUrl: x.CoverUrl,
       ExtractionStatus: 'Pronto',
       CreatedAt: x.AddedAt,
+      Bpm: x.Bpm,
+      Key: x.Key,
       Stems: x.Stems.map(s => ({
         StemId: s.StemId,
         TrackId: s.TrackId,
@@ -1118,6 +1124,8 @@ export const PlaylistDetail: React.FC = () => {
                                       CoverUrl: t.CoverUrl,
                                       ExtractionStatus: 'Pronto',
                                       CreatedAt: t.AddedAt,
+                                      Bpm: t.Bpm,
+                                      Key: t.Key,
                                       Stems: t.Stems.map(s => ({
                                         StemId: s.StemId,
                                         TrackId: s.TrackId,
@@ -1132,6 +1140,8 @@ export const PlaylistDetail: React.FC = () => {
                                       CoverUrl: x.CoverUrl,
                                       ExtractionStatus: 'Pronto',
                                       CreatedAt: x.AddedAt,
+                                      Bpm: x.Bpm,
+                                      Key: x.Key,
                                       Stems: x.Stems.map(s => ({
                                         StemId: s.StemId,
                                         TrackId: s.TrackId,
