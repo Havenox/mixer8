@@ -1,6 +1,8 @@
 import lameCode from 'lamejs/lame.all.js?raw';
 import { transposeChord } from '../hooks/useLyricsChords';
 import type { ITrack } from '../context/PlayerContext';
+import { SERVER_URL } from '../config';
+import { addID3v2Tags } from './id3Writer';
 
 export interface IMixExportOptions {
   currentTrack: ITrack;
@@ -232,8 +234,38 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
     mp3DataChunks.push(new Uint8Array(finalBuf));
   }
 
+  // 7. Anexa Metadados ID3v2 (Título, Artista, Álbum e Capa cover.webp)
+  onProgress(98, 'Anexando capa e metadados ID3v2 ao MP3...');
+
+  let coverImageBuffer: ArrayBuffer | null = null;
+  let coverMimeType = 'image/webp';
+
+  if (currentTrack.CoverUrl) {
+    try {
+      const fullCoverUrl = currentTrack.CoverUrl.startsWith('http')
+        ? currentTrack.CoverUrl
+        : `${SERVER_URL}${currentTrack.CoverUrl}`;
+      const coverRes = await fetch(fullCoverUrl);
+      if (coverRes.ok) {
+        coverImageBuffer = await coverRes.arrayBuffer();
+        if (currentTrack.CoverUrl.endsWith('.png')) coverMimeType = 'image/png';
+        else if (currentTrack.CoverUrl.endsWith('.jpg') || currentTrack.CoverUrl.endsWith('.jpeg')) coverMimeType = 'image/jpeg';
+      }
+    } catch (err) {
+      console.warn('[EXPORT] Não foi possível carregar a capa para a tag ID3v2:', err);
+    }
+  }
+
+  const rawBlob = new Blob(mp3DataChunks as BlobPart[], { type: 'audio/mp3' });
+  const taggedBlob = await addID3v2Tags(rawBlob, {
+    title: currentTrack.TrackTitle,
+    artist: currentTrack.ArtistName,
+    album: 'Mixer8 DAW',
+    coverImageBuffer,
+    mimeType: coverMimeType
+  });
+
   onProgress(100, 'Codificação finalizada com sucesso!');
 
-  const blob = new Blob(mp3DataChunks as BlobPart[], { type: 'audio/mp3' });
-  return { fileName, blob };
+  return { fileName, blob: taggedBlob };
 };

@@ -1,9 +1,52 @@
 import React from 'react';
 import { usePlayer } from '../context/PlayerContext';
-import { CheckCircle2, AlertTriangle, X, Loader2 } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, X, Disc } from 'lucide-react';
+import { SERVER_URL } from '../config';
+
+interface IVinylRecordProps {
+  coverUrl?: string;
+  isSpinning: boolean;
+}
+
+export const VinylRecord: React.FC<IVinylRecordProps> = ({ coverUrl, isSpinning }) => {
+  const fullCoverUrl = coverUrl
+    ? (coverUrl.startsWith('http') ? coverUrl : `${SERVER_URL}${coverUrl}`)
+    : null;
+
+  return (
+    <div
+      className={`relative w-10 h-10 rounded-full bg-[#111111] border border-white/20 shadow-md flex items-center justify-center shrink-0 overflow-hidden ${
+        isSpinning ? 'animate-[spin_3s_linear_infinite]' : ''
+      }`}
+      title="Disco de Vinil (Exportação da Mix)"
+    >
+      {/* Vinyl Groove Rings */}
+      <div className="absolute inset-0 rounded-full border border-white/10 opacity-60 pointer-events-none" />
+      <div className="absolute inset-[3px] rounded-full border border-white/5 opacity-50 pointer-events-none" />
+      <div className="absolute inset-[6px] rounded-full border border-white/10 opacity-60 pointer-events-none" />
+      
+      {/* Vinyl Center Cover Label */}
+      {fullCoverUrl ? (
+        <img
+          src={fullCoverUrl}
+          alt="Capa do Vinil"
+          className="w-5 h-5 rounded-full object-cover border border-black/80 shadow-inner"
+        />
+      ) : (
+        <div className="w-5 h-5 rounded-full bg-brand-green/20 border border-brand-green/40 flex items-center justify-center text-brand-green">
+          <Disc className="w-3 h-3" />
+        </div>
+      )}
+
+      {/* Center Spindle Hole */}
+      <div className="absolute w-1.5 h-1.5 rounded-full bg-[#111111] border border-white/40 shadow-sm" />
+    </div>
+  );
+};
 
 export const ExportToast: React.FC = () => {
   const {
+    currentTrack,
     isExporting,
     exportProgress,
     exportStatusMessage,
@@ -22,20 +65,24 @@ export const ExportToast: React.FC = () => {
       
       {/* Dynamic Header */}
       <div className="flex items-start justify-between gap-3 mb-2.5">
-        <div className="flex items-center gap-2.5 min-w-0">
-          {isExporting && (
-            <div className="w-8 h-8 rounded-lg bg-brand-green/10 border border-brand-green/30 flex items-center justify-center text-brand-green shrink-0">
-              <Loader2 className="w-4 h-4 animate-spin" />
+        <div className="flex items-center gap-3 min-w-0">
+          
+          {/* Vinyl Record Icon for exporting / success */}
+          {!exportError ? (
+            <div className="relative shrink-0">
+              <VinylRecord
+                coverUrl={currentTrack?.CoverUrl}
+                isSpinning={isExporting}
+              />
+              {exportSuccess && (
+                <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 text-black flex items-center justify-center shadow-md animate-in zoom-in duration-200">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                </div>
+              )}
             </div>
-          )}
-          {exportSuccess && (
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
-          )}
-          {exportError && (
-            <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 shrink-0">
-              <AlertTriangle className="w-4 h-4" />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 shrink-0">
+              <AlertTriangle className="w-5 h-5" />
             </div>
           )}
 
@@ -80,7 +127,7 @@ export const ExportToast: React.FC = () => {
       {/* Success Message */}
       {exportSuccess && (
         <p className="text-[11px] text-emerald-400 font-medium mt-1">
-          O download do arquivo foi iniciado automaticamente pelo seu navegador.
+          O MP3 com capa e metadados ID3v2 foi baixado automaticamente.
         </p>
       )}
 
