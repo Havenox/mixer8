@@ -64,6 +64,7 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
   const [error, setError] = useState<string | null>(null);
   
   const lineRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // 1. Carrega os arquivos de metadados
   useEffect(() => {
@@ -125,12 +126,21 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
     );
   }, [processedLines, CurrentTime]);
 
-  // 4. Auto-Scroll suave para manter a linha ativa centralizada na tela
+  // 4. Auto-Scroll suave localizado para manter a linha ativa centralizada na tela
   useEffect(() => {
-    if (activeLineIndex !== -1) {
-      lineRefs.current[activeLineIndex]?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center'
+    const activeEl = lineRefs.current[activeLineIndex];
+    const containerEl = containerRef.current;
+    
+    if (activeEl && containerEl) {
+      const containerHeight = containerEl.clientHeight;
+      const elementTop = activeEl.offsetTop;
+      const elementHeight = activeEl.clientHeight;
+      
+      const targetScrollTop = elementTop - (containerHeight / 2) + (elementHeight / 2);
+      
+      containerEl.scrollTo({
+        top: Math.max(0, targetScrollTop),
+        behavior: 'smooth'
       });
     }
   }, [activeLineIndex]);
@@ -150,7 +160,10 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
       </div>
 
       {/* Área Central: Exibição */}
-      <div className="flex-1 overflow-y-auto px-6 md:px-12 pt-6 pb-24 flex flex-col gap-8 scroll-smooth">
+      <div 
+        ref={containerRef}
+        className="relative flex-1 overflow-y-auto px-6 md:px-12 pt-6 pb-24 flex flex-col gap-8 scroll-smooth"
+      >
         {loading ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 text-brand-gray">
             <div className="w-6 h-6 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
