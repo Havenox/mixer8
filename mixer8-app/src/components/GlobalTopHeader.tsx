@@ -103,10 +103,10 @@ export const GlobalTopHeader: React.FC = () => {
   if (!currentTrack) return null;
 
   return (
-    <header className="w-full bg-[#0d0d0d]/95 backdrop-blur-md border-b border-brand-hover/80 px-4 md:px-6 h-[72px] flex items-center justify-between gap-4 shrink-0 select-none z-30 transition-all">
+    <header className="w-full bg-[#0d0d0d]/95 backdrop-blur-md border-b border-brand-hover/80 px-2 md:px-6 h-[56px] md:h-[72px] flex items-center justify-between gap-2 md:gap-4 shrink-0 select-none z-30 transition-all">
       
-      {/* Grupo da Esquerda: Info da Faixa */}
-      <div className="flex items-center gap-6 min-w-0 shrink-0">
+      {/* Grupo da Esquerda: Info da Faixa (oculto no mobile para liberar espaço) */}
+      <div className="hidden md:flex items-center gap-6 min-w-0 shrink-0">
         {/* Capa, Título e Artista */}
         <div className="flex items-center gap-3 min-w-0 shrink-0">
           {currentTrack.CoverUrl ? (
@@ -131,63 +131,63 @@ export const GlobalTopHeader: React.FC = () => {
         </div>
       </div>
 
-      {/* Grupo da Direita (Alinhado no canto direito): Zoom (se DAW), Acorde, Tom, BPM, Fechar */}
-      <div className="flex items-center gap-3 shrink-0 ml-auto py-0.5">
+      {/* Grupo da Direita: Controles (em mobile ocupa largura total e distribui os boxes uniformemente) */}
+      <div className="flex items-center justify-between md:justify-end gap-1.5 md:gap-3 w-full md:w-auto py-0.5">
         
-        {/* Controles de Zoom (Apenas se a DAW estiver aberta, inseridos à esquerda dos botões existentes) */}
+        {/* Controles de Zoom (Apenas se a DAW estiver aberta) */}
         {activeOverlay === 'daw' && (
-          <div className="h-[46px] w-[150px] bg-[#181818] border border-white/5 rounded-md flex items-center overflow-hidden shrink-0 select-none shadow-lg transition-all duration-200 hover:bg-[#222222] animate-in fade-in duration-200">
+          <div className="h-[36px] md:h-[46px] w-[100px] md:w-[150px] bg-[#181818] border border-white/5 rounded-md flex items-center overflow-hidden shrink-0 select-none shadow-lg transition-all duration-200 hover:bg-[#222222] animate-in fade-in duration-200">
             <button
               onClick={triggerZoomOut}
               disabled={activeZoom === 1.0}
-              className="h-full w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-r border-white/5 transition-colors cursor-pointer disabled:text-white/10 disabled:pointer-events-none"
+              className="h-full w-6 md:w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-r border-white/5 transition-colors cursor-pointer disabled:text-white/10 disabled:pointer-events-none"
               title="Afastar Zoom (Zoom Out)"
             >
-              <ZoomOut className="w-3.5 h-3.5" />
+              <ZoomOut className="w-3 md:w-3.5 h-3 md:h-3.5" />
             </button>
             <div className="flex flex-col items-center justify-center leading-none flex-1">
-              <span className="text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-1">Zoom</span>
-              <span className="text-xs font-black text-white font-mono">{activeZoom.toFixed(1)}x</span>
+              <span className="text-[7px] md:text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-0.5 md:mb-1">Zoom</span>
+              <span className="text-[10px] md:text-xs font-black text-white font-mono">{activeZoom.toFixed(1)}x</span>
             </div>
             <button
               onClick={triggerZoomIn}
               disabled={activeZoom === 16.0}
-              className="h-full w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-l border-r border-white/5 transition-colors cursor-pointer disabled:text-white/10 disabled:pointer-events-none"
+              className="h-full w-6 md:w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-l border-r border-white/5 transition-colors cursor-pointer disabled:text-white/10 disabled:pointer-events-none"
               title="Aproximar Zoom (Zoom In)"
             >
-              <ZoomIn className="w-3.5 h-3.5" />
+              <ZoomIn className="w-3 md:w-3.5 h-3 md:h-3.5" />
             </button>
             <button
               onClick={triggerZoomReset}
               disabled={activeZoom === 1.0}
-              className={`h-full w-9 flex items-center justify-center transition-colors ${
+              className={`h-full w-6 md:w-9 flex items-center justify-center transition-colors ${
                 activeZoom === 1.0
                   ? 'text-white/20 cursor-not-allowed pointer-events-none'
                   : 'text-brand-green hover:text-brand-green/85 hover:bg-brand-green/5 cursor-pointer active:scale-95'
               }`}
               title="Redefinir Zoom"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
+              <RotateCcw className="w-3 md:w-3.5 h-3 md:h-3.5" />
             </button>
           </div>
         )}
 
-        {/* Controle de Cifra ON/OFF (Apenas se Letras estiver ativa, inserido à esquerda dos botões existentes) */}
+        {/* Controle de Cifra ON/OFF (Apenas se Letras estiver ativa) */}
         {activeOverlay === 'lyrics' && (
           <button
             onClick={() => setShowChords(prev => !prev)}
-            className="h-[46px] w-[90px] bg-[#181818] border border-white/5 rounded-md flex flex-col items-center justify-center shrink-0 shadow-lg cursor-pointer select-none transition-all duration-200 hover:bg-[#222222] active:scale-95 animate-in fade-in duration-200"
+            className="h-[36px] md:h-[46px] w-[60px] md:w-[90px] bg-[#181818] border border-white/5 rounded-md flex flex-col items-center justify-center shrink-0 shadow-lg cursor-pointer select-none transition-all duration-200 hover:bg-[#222222] active:scale-95 animate-in fade-in duration-200"
             title="Alternar Exibição de Cifras"
           >
-            <span className="text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-1">
+            <span className="text-[7px] md:text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-0.5 md:mb-1">
               Cifra
             </span>
             {showChords ? (
-              <span className="text-xs font-black text-brand-green uppercase tracking-widest leading-none drop-shadow-[0_0_6px_rgba(34,197,94,0.35)]">
+              <span className="text-[10px] md:text-xs font-black text-brand-green uppercase tracking-widest leading-none drop-shadow-[0_0_6px_rgba(34,197,94,0.35)]">
                 ON
               </span>
             ) : (
-              <span className="text-xs font-black text-brand-gray/40 uppercase tracking-widest leading-none">
+              <span className="text-[10px] md:text-xs font-black text-brand-gray/40 uppercase tracking-widest leading-none">
                 OFF
               </span>
             )}
@@ -195,106 +195,112 @@ export const GlobalTopHeader: React.FC = () => {
         )}
 
         {/* Acorde Atual (Spotify style) */}
-        <div className="h-[46px] w-24 bg-[#181818] border border-white/5 rounded-md flex flex-col items-center justify-center shrink-0 shadow-lg transition-all duration-200 hover:bg-[#222222]">
-          <span className="text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-1">
+        <div className="h-[36px] md:h-[46px] w-16 md:w-24 bg-[#181818] border border-white/5 rounded-md flex flex-col items-center justify-center shrink-0 shadow-lg transition-all duration-200 hover:bg-[#222222]">
+          <span className="text-[7px] md:text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-0.5 md:mb-1">
             Acorde
           </span>
-          <span className="text-xs md:text-sm font-black text-brand-green tracking-wider font-mono leading-none min-w-[28px] text-center drop-shadow-[0_0_6px_rgba(34,197,94,0.35)]">
+          <span className="text-[10px] md:text-xs lg:text-sm font-black text-brand-green tracking-wider font-mono leading-none min-w-[28px] text-center drop-shadow-[0_0_6px_rgba(34,197,94,0.35)]">
             {currentChord || '--'}
           </span>
         </div>
 
         {/* Controle de Tom (Transpose) */}
-        <div className="h-[46px] w-[160px] bg-[#181818] border border-white/5 rounded-md flex items-center overflow-hidden shrink-0 shadow-lg transition-all duration-200 hover:bg-[#222222]">
+        <div className="h-[36px] md:h-[46px] w-[100px] md:w-[160px] bg-[#181818] border border-white/5 rounded-md flex items-center overflow-hidden shrink-0 shadow-lg transition-all duration-200 hover:bg-[#222222]">
           <button
             onClick={() => setTranspose(t => Math.max(-6, t - 1))}
-            className="h-full w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-r border-white/5 transition-colors cursor-pointer active:scale-95"
+            className="h-full w-6 md:w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-r border-white/5 transition-colors cursor-pointer active:scale-95"
             title="Diminuir Meio Tom"
           >
-            <Minus className="w-3.5 h-3.5" />
+            <Minus className="w-3 md:w-3.5 h-3 md:h-3.5" />
           </button>
           
           <div className="flex flex-col items-center justify-center leading-none flex-1">
-            <span className="text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-1">
+            <span className="text-[7px] md:text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-0.5 md:mb-1">
               Tom
             </span>
-            <span className="text-xs font-black text-white">
-              {displayKey || '--'} <span className="text-brand-gray/40 font-semibold">({transpose >= 0 ? `+${transpose}` : transpose})</span>
+            <span className="text-[10px] md:text-xs font-black text-white whitespace-nowrap">
+              {displayKey || '--'}{' '}
+              <span className="text-brand-gray/40 font-semibold text-[8px] md:text-[10px]">
+                ({transpose >= 0 ? `+${transpose}` : transpose})
+              </span>
             </span>
           </div>
 
           <button
             onClick={() => setTranspose(t => Math.min(6, t + 1))}
-            className="h-full w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-l border-r border-white/5 transition-colors cursor-pointer active:scale-95"
+            className="h-full w-6 md:w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-l border-r border-white/5 transition-colors cursor-pointer active:scale-95"
             title="Aumentar Meio Tom"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-3 md:w-3.5 h-3 md:h-3.5" />
           </button>
 
           <button
             onClick={() => setTranspose(0)}
             disabled={transpose === 0}
-            className={`h-full w-9 flex items-center justify-center transition-colors active:scale-95 ${
+            className={`h-full w-6 md:w-9 flex items-center justify-center transition-colors active:scale-95 ${
               transpose === 0
                 ? 'text-white/20 cursor-not-allowed pointer-events-none'
                 : 'text-brand-green hover:text-brand-green/85 hover:bg-brand-green/5 cursor-pointer'
             }`}
             title="Redefinir Tom Original"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
+            <RotateCcw className="w-3 md:w-3.5 h-3 md:h-3.5" />
           </button>
         </div>
 
         {/* Controle de BPM */}
-        <div className="h-[46px] w-[170px] bg-[#181818] border border-white/5 rounded-md flex items-center overflow-hidden shrink-0 shadow-lg transition-all duration-200 hover:bg-[#222222]">
+        <div className="h-[36px] md:h-[46px] w-[105px] md:w-[170px] bg-[#181818] border border-white/5 rounded-md flex items-center overflow-hidden shrink-0 shadow-lg transition-all duration-200 hover:bg-[#222222]">
           <button
             onClick={() => setBpmDelta(b => b - 1)}
-            className="h-full w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-r border-white/5 transition-colors cursor-pointer active:scale-95"
+            className="h-full w-6 md:w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-r border-white/5 transition-colors cursor-pointer active:scale-95"
             title="Diminuir 1 BPM"
           >
-            <Minus className="w-3.5 h-3.5" />
+            <Minus className="w-3 md:w-3.5 h-3 md:h-3.5" />
           </button>
           
           <div className="flex flex-col items-center justify-center leading-none flex-1">
-            <span className="text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-1">
+            <span className="text-[7px] md:text-[8px] font-extrabold text-brand-gray/50 uppercase tracking-widest leading-none mb-0.5 md:mb-1">
               BPM
             </span>
-            <span className="text-xs font-black text-white">
-              {calculatedBpm} <span className="text-brand-gray/40 font-semibold">({bpmDelta >= 0 ? `+${bpmDelta}` : bpmDelta})</span>
+            <span className="text-[10px] md:text-xs font-black text-white whitespace-nowrap">
+              {calculatedBpm}{' '}
+              <span className="text-brand-gray/40 font-semibold text-[8px] md:text-[10px]">
+                ({bpmDelta >= 0 ? `+${bpmDelta}` : bpmDelta})
+              </span>
             </span>
           </div>
 
           <button
             onClick={() => setBpmDelta(b => b + 1)}
-            className="h-full w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-l border-r border-white/5 transition-colors cursor-pointer active:scale-95"
+            className="h-full w-6 md:w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-l border-r border-white/5 transition-colors cursor-pointer active:scale-95"
             title="Aumentar 1 BPM"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-3 md:w-3.5 h-3 md:h-3.5" />
           </button>
 
           <button
             onClick={() => setBpmDelta(0)}
             disabled={bpmDelta === 0}
-            className={`h-full w-9 flex items-center justify-center transition-colors active:scale-95 ${
+            className={`h-full w-6 md:w-9 flex items-center justify-center transition-colors active:scale-95 ${
               bpmDelta === 0
                 ? 'text-white/20 cursor-not-allowed pointer-events-none'
                 : 'text-brand-green hover:text-brand-green/85 hover:bg-brand-green/5 cursor-pointer'
             }`}
             title="Redefinir BPM Original"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
+            <RotateCcw className="w-3 md:w-3.5 h-3 md:h-3.5" />
           </button>
         </div>
 
         {/* Botão de Fechar X (Sempre ocupa espaço no DOM para evitar que os outros botões mudem de posição horizontal) */}
-        <div className="w-10 h-[46px] flex items-center justify-center shrink-0">
+        <div className="w-8 md:w-10 h-[36px] md:h-[46px] flex items-center justify-center shrink-0">
           {activeOverlay !== 'none' && (
             <button
               onClick={() => setActiveOverlay('none')}
-              className="w-10 h-10 rounded-full bg-[#181818] border border-white/10 text-brand-gray hover:text-white hover:border-brand-green/30 hover:bg-[#282828] transition-all flex items-center justify-center shadow-lg cursor-pointer hover:scale-105 active:scale-95 animate-in fade-in duration-200"
+              className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#181818] border border-white/10 text-brand-gray hover:text-white hover:border-brand-green/30 hover:bg-[#282828] transition-all flex items-center justify-center shadow-lg cursor-pointer hover:scale-105 active:scale-95 animate-in fade-in duration-200"
               title="Fechar Painel"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4 md:w-5 md:h-5" />
             </button>
           )}
         </div>
