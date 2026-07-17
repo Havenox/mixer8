@@ -289,25 +289,28 @@ const Explore: React.FC = () => {
     <div className="flex flex-col gap-8 animate-in fade-in duration-300">
       
       {/* Banner de Boas-vindas Premium */}
-      <div className="bg-gradient-to-r from-brand-hover to-black border border-brand-hover px-6 py-5 rounded-lg shadow-xl relative overflow-hidden flex items-center gap-3 flex-wrap">
-        <h1 className="text-xl md:text-2xl font-black tracking-tight text-white leading-none m-0 flex items-center gap-3 flex-wrap">
+      <div className="bg-gradient-to-r from-brand-hover to-black border border-brand-hover px-5 py-3.5 rounded-lg shadow-xl relative overflow-hidden flex flex-col gap-1.5 justify-center">
+        <div className="text-xs font-bold text-white flex items-baseline gap-1.5 flex-wrap">
           <span>
             {IsAuthenticated && CurrentUser ? (
               CurrentUser.FirstName?.trim() ? (
-                `Olá ${CurrentUser.FirstName.trim()}! Seja bem Vindo ao`
+                <>Olá <span className="text-brand-green">{CurrentUser.FirstName.trim()}</span>! Seja bem Vindo ao</>
               ) : (
-                `Olá ${CurrentUser.UserName}! Seja bem Vindo ao`
+                <>Olá <span className="text-brand-green">{CurrentUser.UserName}</span>! Seja bem Vindo ao</>
               )
             ) : (
-              "Olá! Seja bem Vindo ao"
+              <>Olá! Seja bem Vindo ao</>
             )}
           </span>
           <img 
             src="/mixer8-logo.webp" 
             alt="Mixer8 Logo" 
-            className="h-6 md:h-7.5 w-auto object-contain select-none" 
+            className="h-3.5 w-auto object-contain select-none align-baseline translate-y-[2px]" 
           />
-        </h1>
+        </div>
+        <p className="text-[10px] md:text-[11px] text-brand-gray m-0 leading-relaxed max-w-[700px]">
+          Isole a voz, remova a bateria, aumente a guitarra e crie mixagens únicas. Aqui cada música é uma fusão ao vivo de stems separadas por inteligência artificial.
+        </p>
       </div>
 
       {/* Seletor de layout global para as estantes do Explorar */}
