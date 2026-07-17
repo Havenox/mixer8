@@ -120,9 +120,11 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
   // 3. Encontra o índice da linha ativa atual
   const activeLineIndex = useMemo(() => {
     if (!processedLines || processedLines.length === 0) return -1;
-    return processedLines.findIndex(
-      line => CurrentTime >= line.start && CurrentTime <= line.end
-    );
+    return processedLines.findIndex((line, idx) => {
+      const lineStart = idx === 0 ? 0 : line.start;
+      const nextLineStart = idx < processedLines.length - 1 ? processedLines[idx + 1].start : Infinity;
+      return CurrentTime >= lineStart && CurrentTime < nextLineStart;
+    });
   }, [processedLines, CurrentTime]);
  
 
