@@ -59,8 +59,6 @@ interface IPlayerContext {
   setTranspose: React.Dispatch<React.SetStateAction<number>>;
   bpmDelta: number;
   setBpmDelta: React.Dispatch<React.SetStateAction<number>>;
-  isLyricsOpen: boolean;
-  setIsLyricsOpen: React.Dispatch<React.SetStateAction<boolean>>;
   audioEngineMode: 'Power' | 'Lite';
   setAudioEngineMode: (mode: 'Power' | 'Lite') => void;
 }
@@ -181,7 +179,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [currentPlaylistId, setCurrentPlaylistId] = useState<string | null>(null);
   const [transpose, setTranspose] = useState<number>(0);
   const [bpmDelta, setBpmDelta] = useState<number>(0);
-  const [isLyricsOpen, setIsLyricsOpen] = useState<boolean>(false);
   const [currentAlbumId, setCurrentAlbumId] = useState<string | null>(null);
   const [currentQueue, setCurrentQueue] = useState<ITrack[]>([]);
   const currentQueueRef = useRef<ITrack[]>([]);
@@ -1353,8 +1350,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setTranspose,
         bpmDelta,
         setBpmDelta,
-        isLyricsOpen,
-        setIsLyricsOpen,
         audioEngineMode,
         setAudioEngineMode
       }}

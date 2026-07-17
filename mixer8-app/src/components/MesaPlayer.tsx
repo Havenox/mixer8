@@ -33,9 +33,7 @@ export const MesaPlayer: React.FC = () => {
     repeatMode,
     toggleShuffle,
     toggleRepeatMode,
-    transpose,
-    isLyricsOpen,
-    setIsLyricsOpen
+    transpose
   } = usePlayer();
 
   const navigate = useNavigate();
@@ -178,7 +176,13 @@ export const MesaPlayer: React.FC = () => {
         {/* Esquerda: Info da Música Real */}
         <div className="flex items-center gap-2.5 md:gap-4 flex-1 md:flex-none min-w-0 md:w-1/4 md:min-w-[200px]">
           <div 
-            onClick={() => setIsLyricsOpen(!isLyricsOpen)}
+            onClick={() => {
+              if (location.pathname === '/lyrics') {
+                navigate(-1);
+              } else {
+                navigate('/lyrics');
+              }
+            }}
             className="w-10 h-10 md:w-14 md:h-14 bg-brand-card border border-brand-hover rounded flex items-center justify-center relative overflow-hidden group shadow-lg shrink-0 cursor-pointer"
             title="Abrir Letras & Cifras"
           >
@@ -346,9 +350,15 @@ export const MesaPlayer: React.FC = () => {
 
           {/* Botão de Letras / Cifras */}
           <button 
-            onClick={() => setIsLyricsOpen(!isLyricsOpen)}
+            onClick={() => {
+              if (location.pathname === '/lyrics') {
+                navigate(-1);
+              } else {
+                navigate('/lyrics');
+              }
+            }}
             className={`flex items-center justify-center p-2 rounded-full border transition-all cursor-pointer shrink-0 ${
-              isLyricsOpen
+              location.pathname === '/lyrics'
                 ? 'bg-brand-green/10 border-brand-green text-brand-green shadow-md font-bold'
                 : 'border-brand-hover text-brand-gray hover:text-white hover:border-white'
             }`}
@@ -668,7 +678,10 @@ export const MesaPlayer: React.FC = () => {
           {/* Capa Gigante */}
           <div className="flex-1 flex items-center justify-center my-4 max-h-[340px] shrink-0">
             <div 
-              onClick={() => { setIsLyricsOpen(true); setIsExpandedMobile(false); }}
+              onClick={() => { 
+                navigate('/lyrics'); 
+                setIsExpandedMobile(false); 
+              }}
               className="w-full aspect-square max-w-[260px] xs:max-w-[300px] rounded-lg overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.8)] border border-white/5 bg-brand-card flex items-center justify-center cursor-pointer"
               title="Abrir Letras & Cifras"
             >
@@ -823,7 +836,10 @@ export const MesaPlayer: React.FC = () => {
                 </button>
               )}
               <button 
-                onClick={() => { setIsLyricsOpen(true); setIsExpandedMobile(false); }}
+                onClick={() => { 
+                  navigate('/lyrics'); 
+                  setIsExpandedMobile(false); 
+                }}
                 className="flex items-center gap-2 py-2 px-4 rounded-full border border-brand-hover text-brand-gray hover:text-white transition-all cursor-pointer"
                 title="Letras e Cifras"
               >
