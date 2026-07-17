@@ -15,8 +15,6 @@ import { PublicProfile } from './pages/PublicProfile';
 import { WeeklyTrends } from './pages/WeeklyTrends';
 import { PopularPlaylists } from './pages/PopularPlaylists';
 import { ExploreShelf } from './components/ExploreShelf';
-import { DawView } from './pages/DawView';
-import { LyricsView } from './pages/LyricsView';
 import { Sparkles, Flame, Music, Loader2, Plus, Trash2, AlertTriangle, X, Settings, RefreshCw, ListMusic, Image, ShieldAlert, LayoutGrid, List } from 'lucide-react';
 
 import { API_URL, SERVER_URL } from './config';
@@ -1007,8 +1005,6 @@ export const App: React.FC = () => {
                 <Route path="/weekly-trends" element={<ProtectedRoute><WeeklyTrends /></ProtectedRoute>} />
                 <Route path="/popular-playlists" element={<ProtectedRoute><PopularPlaylists /></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-                <Route path="/daw" element={<ProtectedRoute><DawView /></ProtectedRoute>} />
-                <Route path="/lyrics" element={<ProtectedRoute><LyricsView /></ProtectedRoute>} />
                 <Route path="/playlist/:id" element={<PlaylistRedirect />} />
                 
                 {/* Perfil Público (ex: /@paiduser) */}

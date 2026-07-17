@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+
 import { usePlayer } from '../context/PlayerContext';
 import { RotaryKnob } from '../components/RotaryKnob';
 import { 
@@ -12,7 +12,7 @@ import { API_URL } from '../config';
 const ZOOM_STEPS = [1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0, 16.0];
 
 export const DawView: React.FC = () => {
-  const navigate = useNavigate();
+
   const {
     currentTrack,
     isPlaying,
@@ -26,7 +26,8 @@ export const DawView: React.FC = () => {
     setStemVolume,
     toggleStemMute,
     toggleStemSolo,
-    setStemPan
+    setStemPan,
+    setActiveOverlay
   } = usePlayer();
 
   const [waveforms, setWaveforms] = useState<Record<string, number[]>>({});
@@ -453,7 +454,7 @@ export const DawView: React.FC = () => {
           </p>
         </div>
         <button 
-          onClick={() => navigate('/dashboard')}
+          onClick={() => setActiveOverlay('none')}
           className="py-2 px-5 bg-brand-hover hover:bg-brand-hover/80 text-white rounded font-bold text-xs transition-all border border-brand-hover cursor-pointer"
         >
           Voltar para a Biblioteca
@@ -474,7 +475,7 @@ export const DawView: React.FC = () => {
           </p>
         </div>
         <button 
-          onClick={() => navigate('/dashboard')}
+          onClick={() => setActiveOverlay('none')}
           className="py-2 px-5 bg-brand-green text-black rounded font-black text-xs hover:scale-105 active:scale-95 transition-all cursor-pointer"
         >
           Escolher uma Música
@@ -550,7 +551,7 @@ export const DawView: React.FC = () => {
           {/* Header de Canto (Alinhado com a largura do painel esquerdo) */}
           <div className="w-[240px] border-r border-brand-hover shrink-0 flex items-center gap-2 pr-4 text-[9px] font-black text-brand-gray tracking-wider uppercase">
             <button 
-              onClick={() => navigate(-1)}
+              onClick={() => setActiveOverlay('none')}
               className="p-1 rounded-full border border-brand-hover text-brand-gray hover:text-white hover:border-white transition-all cursor-pointer shrink-0"
               title="Voltar"
             >

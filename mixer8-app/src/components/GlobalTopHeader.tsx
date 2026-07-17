@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useLocation } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
 import { transposeChord } from '../hooks/useLyricsChords';
 import type { IChordBeat } from '../hooks/useLyricsChords';
 import { SERVER_URL } from '../config';
-import { ZoomIn, ZoomOut, Music4, RotateCcw, Plus, Minus } from 'lucide-react';
+import { ZoomIn, ZoomOut, Music4, RotateCcw, Plus, Minus, X } from 'lucide-react';
 
 export const GlobalTopHeader: React.FC = () => {
   const {
@@ -13,11 +12,10 @@ export const GlobalTopHeader: React.FC = () => {
     transpose,
     setTranspose,
     bpmDelta,
-    setBpmDelta
+    setBpmDelta,
+    activeOverlay,
+    setActiveOverlay
   } = usePlayer();
-
-  const location = useLocation();
-  const isDawRoute = location.pathname === '/daw';
 
   const [chords, setChords] = useState<IChordBeat[] | null>(null);
   const [activeZoom, setActiveZoom] = useState(1.0);
@@ -102,7 +100,7 @@ export const GlobalTopHeader: React.FC = () => {
   return (
     <header className="w-full bg-[#0d0d0d]/95 backdrop-blur-md border-b border-brand-hover/80 px-4 md:px-6 h-[72px] flex items-center justify-between gap-4 shrink-0 select-none z-30 transition-all">
       
-      {/* Grupo da Esquerda: Info da Faixa + Zoom (se na rota DAW) */}
+      {/* Grupo da Esquerda: Info da Faixa */}
       <div className="flex items-center gap-6 min-w-0 shrink-0">
         {/* Capa, Título e Artista */}
         <div className="flex items-center gap-3 min-w-0 shrink-0">
@@ -126,10 +124,14 @@ export const GlobalTopHeader: React.FC = () => {
             </span>
           </div>
         </div>
+      </div>
 
-        {/* Controles de Zoom (Apenas na rota DAW, ao lado das infos da música) */}
-        {isDawRoute && (
-          <div className="h-[46px] w-[170px] bg-[#181818] border border-white/5 rounded-md flex items-center overflow-hidden shrink-0 select-none shadow-lg transition-all duration-200 hover:bg-[#222222]">
+      {/* Grupo da Direita (Alinhado no canto direito): Zoom (se DAW), Acorde, Tom, BPM, Fechar */}
+      <div className="flex items-center gap-3 shrink-0 ml-auto py-0.5">
+        
+        {/* Controles de Zoom (Apenas se a DAW estiver aberta, inseridos à esquerda dos botões existentes) */}
+        {activeOverlay === 'daw' && (
+          <div className="h-[46px] w-[170px] bg-[#181818] border border-white/5 rounded-md flex items-center overflow-hidden shrink-0 select-none shadow-lg transition-all duration-200 hover:bg-[#222222] animate-in fade-in duration-200">
             <button
               onClick={triggerZoomOut}
               disabled={activeZoom === 1.0}
@@ -164,11 +166,7 @@ export const GlobalTopHeader: React.FC = () => {
             </button>
           </div>
         )}
-      </div>
 
-      {/* Grupo da Direita (Alinhado no canto direito): Acorde, Tom, BPM */}
-      <div className="flex items-center gap-3 shrink-0 ml-auto py-0.5">
-        
         {/* Acorde Atual (Spotify style) */}
         <div className="h-[46px] w-24 bg-[#181818] border border-white/5 rounded-md flex flex-col items-center justify-center shrink-0 shadow-lg transition-all duration-200 hover:bg-[#222222]">
           <span className="text-[9px] font-bold text-brand-gray/60 uppercase tracking-widest leading-none mb-0.5">
@@ -259,6 +257,19 @@ export const GlobalTopHeader: React.FC = () => {
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
+        </div>
+
+        {/* Botão de Fechar X (Sempre ocupa espaço no DOM para evitar que os outros botões mudem de posição horizontal) */}
+        <div className="w-10 h-[46px] flex items-center justify-center shrink-0">
+          {activeOverlay !== 'none' && (
+            <button
+              onClick={() => setActiveOverlay('none')}
+              className="w-10 h-10 rounded-full bg-[#181818] border border-white/10 text-brand-gray hover:text-white hover:border-brand-green/30 hover:bg-[#282828] transition-all flex items-center justify-center shadow-lg cursor-pointer hover:scale-105 active:scale-95 animate-in fade-in duration-200"
+              title="Fechar Painel"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
       </div>

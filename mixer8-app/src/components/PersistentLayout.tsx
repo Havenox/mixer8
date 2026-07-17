@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { usePlayer } from '../context/PlayerContext';
 import { MesaPlayer } from './MesaPlayer';
 import { GlobalTopHeader } from './GlobalTopHeader';
+import { LyricsChordsViewer } from './LyricsChordsViewer';
+import { DawView } from '../pages/DawView';
 import { 
   Home, Library, PlusCircle, Shield, 
   LogOut, User, Layers, ListMusic,
@@ -15,7 +17,7 @@ import { SERVER_URL, API_URL } from '../config';
 
 export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { IsAuthenticated, CurrentUser, Logout, openLoginModal, Token } = useAuth();
-  const { currentTrack } = usePlayer();
+  const { currentTrack, currentTime, activeOverlay, setActiveOverlay } = usePlayer();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -506,16 +508,31 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
         {/* Cabeçalho Fixo Global (Aparece em todas as páginas se houver música na agulha) */}
         {currentTrack && <GlobalTopHeader />}
 
-        {/* Scroll Container para as Páginas (Condicionado para DAW ou Visão de Letras em tela cheia) */}
-        {location.pathname === '/daw' || location.pathname === '/lyrics' ? (
-          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        {/* Wrapper de overlays relativos para preservar o scroll da biblioteca no fundo */}
+        <div className="flex-1 flex flex-col min-h-0 relative overflow-hidden">
+          {/* 1. Conteúdo de Rotas Tradicionais (Dashboard, Explora, Settings, etc.) */}
+          <div className={`flex-1 overflow-y-auto px-4 md:px-8 pt-4 pb-24 md:pb-28 ${activeOverlay !== 'none' ? 'hidden' : 'block'}`}>
             {children}
           </div>
-        ) : (
-          <div className="flex-1 overflow-y-auto px-4 md:px-8 pt-4 pb-24 md:pb-28">
-            {children}
-          </div>
-        )}
+
+          {/* 2. Overlay de Estúdio DAW */}
+          {activeOverlay === 'daw' && currentTrack && (
+            <div className="absolute inset-0 flex flex-col bg-brand-dark overflow-hidden animate-in fade-in duration-200">
+              <DawView />
+            </div>
+          )}
+
+          {/* 3. Overlay de Letras & Cifras */}
+          {activeOverlay === 'lyrics' && currentTrack && (
+            <div className="absolute inset-0 flex flex-col bg-brand-dark overflow-hidden animate-in fade-in duration-200">
+              <LyricsChordsViewer 
+                TrackId={currentTrack.TrackId} 
+                CurrentTime={currentTime} 
+                OnClose={() => setActiveOverlay('none')} 
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 3. PERSISTENT AUDIO PLAYER */}
