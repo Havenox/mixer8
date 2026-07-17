@@ -5,7 +5,7 @@ import { SERVER_URL } from '../config';
 import { addID3v2Tags } from './id3Writer';
 
 export interface IMixExportOptions {
-  currentTrack: ITrack;
+  currentTrack: ITrack | null;
   stemsVolume: Record<string, number>;
   stemsMute: Record<string, boolean>;
   stemsSolo: Record<string, boolean>;
@@ -17,6 +17,7 @@ export interface IMixExportOptions {
   getCachedOrFetchAudioUrl: (url: string, isPremiumUser: boolean) => Promise<string>;
   onProgress: (progress: number, statusMessage: string) => void;
   signal?: AbortSignal;
+  checkPause?: () => Promise<void>;
 }
 
 export interface IMixExportResult {
@@ -186,6 +187,7 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
   const totalStems = currentTrack.Stems.length;
 
   for (let i = 0; i < totalStems; i++) {
+    if (options.checkPause) await options.checkPause();
     if (options.signal?.aborted) throw new Error('Aborted');
     const stem = currentTrack.Stems[i];
     const progressPercent = 5 + Math.round(((i + 1) / totalStems) * 25);
@@ -216,6 +218,7 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
     throw new Error('Falha ao decodificar as pistas de áudio da música.');
   }
  
+  if (options.checkPause) await options.checkPause();
   if (options.signal?.aborted) throw new Error('Aborted');
 
   // 3. Processa tempo e afinação offline via Signalsmith Stretch (WASM) na thread principal
@@ -259,6 +262,7 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
   const tempoRatio = calculatedBpm / baseBpm;
  
   for (let i = 0; i < stemBuffers.length; i++) {
+    if (options.checkPause) await options.checkPause();
     if (options.signal?.aborted) throw new Error('Aborted');
     const { stemType, buffer } = stemBuffers[i];
     const progressPercent = 30 + Math.round(((i + 1) / stemBuffers.length) * 25);
@@ -340,6 +344,7 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
   const mp3DataChunks: Uint8Array[] = [];
 
   for (let i = 0; i < totalSamples; i += sampleBlockSize) {
+    if (options.checkPause) await options.checkPause();
     if (options.signal?.aborted) throw new Error('Aborted');
     const end = Math.min(i + sampleBlockSize, totalSamples);
     const leftChunk = floatToInt16(leftChannelFloat.subarray(i, end));

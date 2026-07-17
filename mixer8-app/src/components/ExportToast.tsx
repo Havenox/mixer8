@@ -55,7 +55,9 @@ export const ExportToast: React.FC = () => {
     exportError,
     exportSuccess,
     closeExportToast,
-    abortExport
+    abortExport,
+    pauseExport,
+    resumeExport
   } = usePlayer();
 
   const [countdown, setCountdown] = useState(10);
@@ -97,10 +99,16 @@ export const ExportToast: React.FC = () => {
 
   const handleCloseClick = () => {
     if (isExporting) {
+      pauseExport();
       setShowConfirmModal(true);
     } else {
       closeExportToast();
     }
+  };
+
+  const handleDismissModal = () => {
+    setShowConfirmModal(false);
+    resumeExport();
   };
 
   const handleConfirmCancel = () => {
@@ -207,7 +215,7 @@ export const ExportToast: React.FC = () => {
             </div>
             <div className="flex items-center gap-2 pt-2">
               <button
-                onClick={() => setShowConfirmModal(false)}
+                onClick={handleDismissModal}
                 className="flex-1 py-2 px-3 text-xs font-bold text-white bg-white/10 hover:bg-white/15 border border-white/15 rounded-lg transition-colors cursor-pointer"
               >
                 Não, continuar

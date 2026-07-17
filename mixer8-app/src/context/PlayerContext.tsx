@@ -83,6 +83,8 @@ interface IPlayerContext {
   exportMix: () => Promise<void>;
   closeExportToast: () => void;
   abortExport: () => void;
+  pauseExport: () => void;
+  resumeExport: () => void;
 }
 
 export type ActiveOverlayType = 'none' | 'daw' | 'lyrics' | 'mixer' | 'player';
@@ -1480,13 +1482,36 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [isExporting]);
 
   const exportAbortControllerRef = useRef<AbortController | null>(null);
+  const isExportPausedRef = useRef<boolean>(false);
+  const exportPauseResolverRef = useRef<(() => void) | null>(null);
+
+  const pauseExport = useCallback(() => {
+    isExportPausedRef.current = true;
+  }, []);
+
+  const resumeExport = useCallback(() => {
+    isExportPausedRef.current = false;
+    if (exportPauseResolverRef.current) {
+      exportPauseResolverRef.current();
+      exportPauseResolverRef.current = null;
+    }
+  }, []);
+
+  const checkPause = useCallback(async () => {
+    if (isExportPausedRef.current) {
+      await new Promise<void>((resolve) => {
+        exportPauseResolverRef.current = resolve;
+      });
+    }
+  }, []);
 
   const abortExport = useCallback(() => {
     exportAbortControllerRef.current?.abort();
+    resumeExport();
     setIsExporting(false);
     setExportSuccess(false);
     setExportError(null);
-  }, []);
+  }, [resumeExport]);
 
   const exportMix = async () => {
     if (isExporting) return;
@@ -1501,6 +1526,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setExportProgress(0);
     setExportStatusMessage('Iniciando exportação assíncrona...');
     setExportCoverUrl(currentTrackRef.current?.CoverUrl);
+    isExportPausedRef.current = false;
+    exportPauseResolverRef.current = null;
 
     const controller = new AbortController();
     exportAbortControllerRef.current = controller;
@@ -1521,7 +1548,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           setExportProgress(progress);
           setExportStatusMessage(status);
         },
-        signal: controller.signal
+        signal: controller.signal,
+        checkPause
       });
 
       setExportFileName(result.fileName);
@@ -1545,6 +1573,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       console.error('[EXPORT] Erro ao exportar mixagem:', err);
       setExportError(err?.message || 'Ocorreu um erro inesperado ao exportar a mixagem.');
     } finally {
+      resumeExport();
       setIsExporting(false);
     }
   };
@@ -1600,7 +1629,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         exportSuccess,
         exportMix,
         closeExportToast,
-        abortExport
+        abortExport,
+        pauseExport,
+        resumeExport
       }}
     >
       {children}
