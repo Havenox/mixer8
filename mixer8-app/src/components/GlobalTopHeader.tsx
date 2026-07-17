@@ -226,9 +226,9 @@ export const GlobalTopHeader: React.FC = () => {
         {/* Controle de Tom (Transpose) */}
         <div className="h-[32px] md:h-[46px] w-[80px] sm:w-[110px] md:w-[160px] bg-[#181818] border border-white/10 rounded-md md:rounded-lg flex items-center overflow-hidden shrink-0 shadow-md transition-all duration-200 hover:bg-[#222222]">
           <button
-            onClick={() => setTranspose(t => Math.max(-6, t - 1))}
+            onClick={() => setTranspose(t => Math.max(-12, t - 1))}
             className="h-full w-5 md:w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-r border-white/10 transition-colors cursor-pointer active:scale-95 shrink-0"
-            title="Diminuir Meio Tom"
+            title="Diminuir Meio Tom (-1 Semitom)"
           >
             <Minus className="w-2.5 md:w-3.5 h-2.5 md:h-3.5" />
           </button>
@@ -250,9 +250,9 @@ export const GlobalTopHeader: React.FC = () => {
           </div>
 
           <button
-            onClick={() => setTranspose(t => Math.min(6, t + 1))}
+            onClick={() => setTranspose(t => Math.min(12, t + 1))}
             className="h-full w-5 md:w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-l border-white/10 transition-colors cursor-pointer active:scale-95 shrink-0"
-            title="Aumentar Meio Tom"
+            title="Aumentar Meio Tom (+1 Semitom)"
           >
             <Plus className="w-2.5 md:w-3.5 h-2.5 md:h-3.5" />
           </button>
@@ -274,7 +274,7 @@ export const GlobalTopHeader: React.FC = () => {
         {/* Controle de BPM */}
         <div className="h-[32px] md:h-[46px] w-[84px] sm:w-[115px] md:w-[170px] bg-[#181818] border border-white/10 rounded-md md:rounded-lg flex items-center overflow-hidden shrink-0 shadow-md transition-all duration-200 hover:bg-[#222222]">
           <button
-            onClick={() => setBpmDelta(b => b - 1)}
+            onClick={() => setBpmDelta(b => Math.max(-50, b - 1))}
             className="h-full w-5 md:w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-r border-white/10 transition-colors cursor-pointer active:scale-95 shrink-0"
             title="Diminuir 1 BPM"
           >
@@ -298,7 +298,7 @@ export const GlobalTopHeader: React.FC = () => {
           </div>
 
           <button
-            onClick={() => setBpmDelta(b => b + 1)}
+            onClick={() => setBpmDelta(b => Math.min(50, b + 1))}
             className="h-full w-5 md:w-9 flex items-center justify-center text-brand-gray hover:text-white hover:bg-white/5 border-l border-white/10 transition-colors cursor-pointer active:scale-95 shrink-0"
             title="Aumentar 1 BPM"
           >

@@ -403,19 +403,38 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [CurrentUser]);
 
-  // Atualização em tempo real da transposição de tom no WASM AudioWorklet ou no modo Lite
+  // Atualização em tempo real da transposição de tom (Pitch Shift em WASM/Lite) e velocidade/BPM (Time Stretch)
   useEffect(() => {
-    if (audioEngineMode === 'Power' && pitchWorkletNodeRef.current) {
-      pitchWorkletNodeRef.current.port.postMessage({ type: 'SET_PITCH', semitones: transpose });
-    } else if (audioEngineMode === 'Lite') {
+    const baseBpm = currentTrack?.Bpm || 120;
+    const targetBpm = Math.max(30, baseBpm + bpmDelta);
+    const speedRatio = targetBpm / baseBpm;
+
+    if (audioEngineMode === 'Power') {
+      // 1. Modo Power: WASM SIMD (Signalsmith Stretch) na thread de AudioWorklet cuida da afinação/tom
+      if (pitchWorkletNodeRef.current) {
+        pitchWorkletNodeRef.current.port.postMessage({ type: 'SET_PITCH', semitones: transpose });
+      }
+
+      // Altera o playbackRate dos elementos HTMLAudioElement para ajustar a velocidade (BPM) sem alterar o tom WASM
       activeStemsRef.current.forEach(item => {
-        if (item.type !== 'Metrônomo') {
+        if (item.audio) {
           (item.audio as any).preservesPitch = false;
-          item.audio.playbackRate = Math.pow(2, transpose / 12);
+          item.audio.playbackRate = speedRatio;
+        }
+      });
+    } else if (audioEngineMode === 'Lite') {
+      // 2. Modo Lite: Web Audio API Nativo do navegador
+      const pitchRatio = Math.pow(2, transpose / 12);
+      const combinedRate = pitchRatio * speedRatio;
+
+      activeStemsRef.current.forEach(item => {
+        if (item.audio) {
+          (item.audio as any).preservesPitch = false;
+          item.audio.playbackRate = combinedRate;
         }
       });
     }
-  }, [transpose, audioEngineMode]);
+  }, [transpose, bpmDelta, audioEngineMode, currentTrack?.Bpm]);
   
   // Referências para gerenciar elementos de áudio e nós do Web Audio API sem causar re-renders indesejados
   const activeStemsRef = useRef<{
