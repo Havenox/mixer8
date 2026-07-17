@@ -101,6 +101,13 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [showLogin, IsAuthenticated]);
 
+  // Fecha o overlay automaticamente quando a rota/caminho muda
+  useEffect(() => {
+    setActiveOverlay('none');
+  }, [location.pathname, setActiveOverlay]);
+
+
+
   const handleLogout = () => {
     Logout();
     setIsMenuOpen(false);
