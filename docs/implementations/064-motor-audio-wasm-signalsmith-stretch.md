@@ -37,8 +37,9 @@ Implementação de um motor de áudio DSP avançado de alta fidelidade em **WebA
 
 ### 2. AudioWorklet Processor em Tempo Real (`pitch-shift-processor.js`)
 * **`public/wasm/pitch-shift-processor.js`**: Processor estendendo `AudioWorkletProcessor` que roda na thread dedicada de áudio do navegador.
-* **Inicialização WASM Assíncrona Fix**: Ajustada a função `initWasm()` para aguardar o runtime Emscripten (`Module.onRuntimeInitialized` e `Module._stretch_create`), garantindo que `isInitialized` seja definido como `true` e ative o processamento C++ Signalsmith Stretch SIMD.
-* Transfere áudio do heap WASM para os canais stereo sem causar bloqueio no evento principal da interface.
+* **Compatibilidade com AudioWorkletGlobalScope**: Embutido o cabeçalho de inicialização da Emscripten ajustando a detecção de ambiente (`ENVIRONMENT_IS_WORKER = true`, `ENVIRONMENT_IS_WEB = false`) e removendo dependências incompatíveis como `importScripts()`, `self.location` (que é `undefined` no AudioWorklet) e `XMLHttpRequest`.
+* **Inicialização WASM Deferida & Registrador Seguro**: Ajustada a função `initWasmEngine()` para postergar a chamada `createWasm()` para o momento da instanciação do nó, garantindo que `registerProcessor('pitch-shift-processor', PitchShiftProcessor)` seja executado imediatamente na avaliação inicial do script sem falhas.
+* **Acesso Direto ao Heap float32**: Implementado o helper `getHeapF32()` para ler e manipular o buffer de memória float32 do WASM sem exceções de `undefined`.
 * **Bypass do Metrônomo**: Roteia a stem do metrônomo diretamente para o `masterGainNode`, impedindo que o clique sofra transposição de tom.
 
 ### 3. Persistência de Perfil & Backend (`UserProfile.cs` & API)
