@@ -56,7 +56,7 @@ export const MobileMixerOverlay: React.FC = () => {
       <div className="h-8 border-b border-brand-hover/80 bg-[#141414] px-3.5 flex items-center justify-between shrink-0 select-none">
         <div className="flex items-center gap-2">
           <Sliders className="w-3.5 h-3.5 text-brand-green" />
-          <span className="text-[11px] font-black uppercase tracking-wider text-white">Mixer de Som</span>
+          <span className="text-[11px] font-bold tracking-wider text-white">Mixer de Som</span>
         </div>
         <button
           onClick={() => setActiveOverlay('none')}

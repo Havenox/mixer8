@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
 import { 
   Play, Pause, SkipBack, SkipForward, Volume2, 
-  Sliders, RefreshCw, Disc, Layers, Music, ChevronDown,
-  Shuffle, Repeat, Repeat1, Clock, Activity
+  Sliders, RefreshCw, Disc, Music, ChevronDown,
+  Shuffle, Repeat, Repeat1, Clock, Activity, X
 } from 'lucide-react';
 
 import { SERVER_URL } from '../config';
@@ -43,6 +43,21 @@ export const MesaPlayer: React.FC = () => {
   const navigate = useNavigate();
 
   const [chords, setChords] = useState<IChordBeat[] | null>(null);
+  const [showMixer, setShowMixer] = useState(false);
+  const mixerRef = useRef<HTMLDivElement>(null);
+
+  // Fecha o popup do mixer ao clicar fora dele
+  useEffect(() => {
+    if (!showMixer) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (mixerRef.current && !mixerRef.current.contains(target) && !target.closest('.mixer-trigger-btn')) {
+        setShowMixer(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showMixer]);
 
   // Carrega as cifras (chords.json) quando a faixa atual for alterada
   useEffect(() => {
@@ -86,7 +101,6 @@ export const MesaPlayer: React.FC = () => {
     return rawChord ? transposeChord(rawChord, transpose) : '';
   }, [chords, currentTime, transpose]);
 
-  const [showMixer, setShowMixer] = useState(false);
   const [sliderValue, setSliderValue] = useState<number | null>(null);
 
   const displayTime = sliderValue ?? currentTime;
@@ -348,12 +362,12 @@ export const MesaPlayer: React.FC = () => {
           {(hasMultipleStems || isProcessingOrSingleStem) && (
             <button 
               onClick={() => setShowMixer(!showMixer)}
-              className={`flex items-center justify-center p-2 rounded-full border transition-all cursor-pointer shrink-0 ${
+              className={`mixer-trigger-btn flex items-center justify-center p-2 rounded-full border transition-all cursor-pointer shrink-0 ${
                 showMixer 
                   ? 'bg-brand-green/10 border-brand-green text-brand-green shadow-md' 
                   : 'border-brand-hover text-brand-gray hover:text-white hover:border-white'
               }`}
-              title="Mesa Mixer de Stems"
+              title="Mixer de Som"
             >
               <Sliders className="w-4 h-4 shrink-0" />
             </button>
@@ -391,15 +405,27 @@ export const MesaPlayer: React.FC = () => {
 
           {/* PAINEL FLUTUANTE DA DAW (Mesa de Mixagem Dinâmica para até 10 stems) */}
           {showMixer && (hasMultipleStems || isProcessingOrSingleStem) && (
-            <div className="absolute right-0 bottom-28 w-80 bg-brand-card border border-brand-hover p-5 rounded-lg shadow-2xl flex flex-col gap-4 animate-in slide-in-from-bottom-2 duration-200">
+            <div 
+              ref={mixerRef}
+              className="absolute right-0 bottom-28 w-80 bg-brand-card border border-brand-hover p-5 rounded-lg shadow-2xl flex flex-col gap-4 animate-in slide-in-from-bottom-2 duration-200 z-50 select-none"
+            >
               <div className="flex items-center justify-between border-b border-brand-hover pb-3">
                 <div className="flex items-center gap-2 text-white">
-                  <Layers className="w-5 h-5 text-brand-green" />
-                  <span className="font-bold text-sm">Mesa de Som (Stems)</span>
+                  <Sliders className="w-4 h-4 text-brand-green" />
+                  <span className="font-bold text-sm text-white">Mixer de Som</span>
+                  {isProcessingOrSingleStem && (
+                    <span className="text-[9px] bg-brand-hover text-amber-400 font-bold px-1.5 py-0.5 rounded ml-1">
+                      Prévia
+                    </span>
+                  )}
                 </div>
-                <span className="text-[10px] bg-brand-hover text-brand-green font-bold px-1.5 py-0.5 rounded">
-                  {isProcessingOrSingleStem ? 'PREVIA' : 'REALTIME'}
-                </span>
+                <button
+                  onClick={() => setShowMixer(false)}
+                  className="p-1 rounded text-brand-gray hover:text-white hover:bg-brand-hover/50 transition-colors cursor-pointer"
+                  title="Fechar Mixer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
               {isProcessingOrSingleStem ? (
