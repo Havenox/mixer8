@@ -415,21 +415,25 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         pitchWorkletNodeRef.current.port.postMessage({ type: 'SET_PITCH', semitones: transpose });
       }
 
-      // Altera o playbackRate dos elementos HTMLAudioElement para ajustar a velocidade (BPM) sem alterar o tom WASM
+      // Altera o playbackRate dos elementos HTMLAudioElement mantendo preservesPitch = true (time stretch sem alterar tom nativo)
       activeStemsRef.current.forEach(item => {
         if (item.audio) {
-          (item.audio as any).preservesPitch = false;
+          (item.audio as any).preservesPitch = true;
+          (item.audio as any).webkitPreservesPitch = true;
+          (item.audio as any).mozPreservesPitch = true;
           item.audio.playbackRate = speedRatio;
         }
       });
     } else if (audioEngineMode === 'Lite') {
-      // 2. Modo Lite: Web Audio API Nativo do navegador
+      // 2. Modo Lite: Web Audio API Nativo do navegador (desativa preservesPitch para permitir variacao de tom por velocidade)
       const pitchRatio = Math.pow(2, transpose / 12);
       const combinedRate = pitchRatio * speedRatio;
 
       activeStemsRef.current.forEach(item => {
         if (item.audio) {
           (item.audio as any).preservesPitch = false;
+          (item.audio as any).webkitPreservesPitch = false;
+          (item.audio as any).mozPreservesPitch = false;
           item.audio.playbackRate = combinedRate;
         }
       });

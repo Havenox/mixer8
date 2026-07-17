@@ -35,24 +35,33 @@ class PitchShiftProcessor extends AudioWorkletProcessor {
 
   async initWasm() {
     try {
-      if (typeof Module !== 'undefined') {
-        const moduleInstance = await Module();
-        this.wasmInstance = moduleInstance;
-        
-        // Cria instância do Signalsmith Stretch C++ (44.1/48kHz, 2 canais stereo)
-        this.stretchHandle = moduleInstance._stretch_create(this.sampleRateVal, 2);
-        moduleInstance._stretch_set_transpose_semitones(this.stretchHandle, this.pitchSemitones);
+      const waitForModule = () => new Promise((resolve) => {
+        if (typeof Module !== 'undefined' && Module._stretch_create) {
+          resolve(Module);
+        } else if (typeof Module !== 'undefined') {
+          Module.onRuntimeInitialized = () => resolve(Module);
+        } else {
+          setTimeout(() => waitForModule().then(resolve), 50);
+        }
+      });
 
-        // Aloca buffers de memória float32 no WASM heap
-        const bytesPerBlock = this.bufferSize * 4;
-        this.inPtr0 = moduleInstance._malloc(bytesPerBlock);
-        this.inPtr1 = moduleInstance._malloc(bytesPerBlock);
-        this.outPtr0 = moduleInstance._malloc(bytesPerBlock);
-        this.outPtr1 = moduleInstance._malloc(bytesPerBlock);
+      const moduleInstance = await waitForModule();
+      this.wasmInstance = moduleInstance;
+      
+      // Cria instância do Signalsmith Stretch C++ (44.1/48kHz, 2 canais stereo)
+      this.stretchHandle = moduleInstance._stretch_create(this.sampleRateVal, 2);
+      moduleInstance._stretch_set_transpose_semitones(this.stretchHandle, this.pitchSemitones);
 
-        this.isInitialized = true;
-        this.port.postMessage({ type: 'STATUS', status: 'READY' });
-      }
+      // Aloca buffers de memória float32 no WASM heap
+      const bytesPerBlock = this.bufferSize * 4;
+      this.inPtr0 = moduleInstance._malloc(bytesPerBlock);
+      this.inPtr1 = moduleInstance._malloc(bytesPerBlock);
+      this.outPtr0 = moduleInstance._malloc(bytesPerBlock);
+      this.outPtr1 = moduleInstance._malloc(bytesPerBlock);
+
+      this.isInitialized = true;
+      this.port.postMessage({ type: 'STATUS', status: 'READY' });
+      console.log('[AudioWorklet] WASM Signalsmith Stretch inicializado com sucesso!');
     } catch (err) {
       console.error('[AudioWorklet] Falha ao inicializar WASM Signalsmith Stretch:', err);
     }
