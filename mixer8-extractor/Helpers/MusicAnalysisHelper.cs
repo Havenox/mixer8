@@ -20,7 +20,9 @@ public class ChordBeatItem
 
 public static class MusicAnalysisHelper
 {
-    private static readonly string[] RootNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    // Escala temperada normalizada com a convenção do músico:
+    // Sustenidos em C# e F# | Bemóis em Eb, Ab, Bb
+    private static readonly string[] DisplayRootNames = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
 
     public static (int? Bpm, string? Key) AnalyzeChordsJson(string jsonContent)
     {
@@ -108,14 +110,14 @@ public static class MusicAnalysisHelper
             if (majorScore > maxScore)
             {
                 maxScore = majorScore;
-                bestKey = RootNames[rootIdx];
+                bestKey = DisplayRootNames[rootIdx];
             }
 
             double minorScore = EvaluateKeyCandidate(rootIdx, isMinorKey: true, parsedBeats, chordTransitions, totalBeats);
             if (minorScore > maxScore)
             {
                 maxScore = minorScore;
-                bestKey = $"{RootNames[rootIdx]}m";
+                bestKey = $"{DisplayRootNames[rootIdx]}m";
             }
         }
 
