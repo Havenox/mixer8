@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { usePlayer } from '../context/PlayerContext';
 import { CheckCircle2, AlertTriangle, X, Disc } from 'lucide-react';
 import { SERVER_URL } from '../config';
@@ -58,8 +58,13 @@ export const ExportToast: React.FC = () => {
   } = usePlayer();
 
   const [countdown, setCountdown] = useState(10);
+  const closeExportToastRef = useRef(closeExportToast);
 
-  // Contador regressivo de 10 segundos para fechar o Toast automaticamente após o sucesso
+  useEffect(() => {
+    closeExportToastRef.current = closeExportToast;
+  }, [closeExportToast]);
+
+  // Contador regressivo de 10 segundos totalmente desacoplado da reprodução de áudio e re-renders
   useEffect(() => {
     if (!exportSuccess) {
       setCountdown(10);
@@ -71,7 +76,7 @@ export const ExportToast: React.FC = () => {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          closeExportToast();
+          closeExportToastRef.current();
           return 0;
         }
         return prev - 1;
@@ -79,7 +84,7 @@ export const ExportToast: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [exportSuccess, closeExportToast]);
+  }, [exportSuccess]);
 
   if (!isExporting && !exportSuccess && !exportError) {
     return null;

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { exportMixToMp3 } from '../utils/mixExporter';
 
 export interface IStem {
@@ -1448,7 +1448,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportSuccess, setExportSuccess] = useState(false);
 
-  const closeExportToast = () => {
+  const closeExportToast = useCallback(() => {
     if (isExporting) return;
     setExportSuccess(false);
     setExportError(null);
@@ -1456,7 +1456,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setExportStatusMessage('');
     setExportFileName('');
     setExportCoverUrl(undefined);
-  };
+  }, [isExporting]);
 
   const exportMix = async () => {
     if (isExporting) return;
