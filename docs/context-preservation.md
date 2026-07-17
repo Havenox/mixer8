@@ -248,7 +248,7 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
     * **Letras Integradas sem Colisão**: Modal de letras descontinuado por exibição integrada de tela cheia. O botão voltar foi isolado em uma barra superior transparente de 56px (`h-14`), impedindo que o texto da cifra se choque com o botão durante o scroll vertical.
 30. **Filtros de Visibilidade Avançados, Persistência Local e Padronização da Barra Lateral**:
     * **Mapeamento da API**: O endpoint `/api/Tracks` (`GetAll`) foi estendido para aceitar o parâmetro `[FromQuery] string? visibility = null` filtrando os resultados do banco de forma paginada e eficiente.
-    * **Chips de Visibilidade e localStorage**: Substituídos os alternadores binários simples por chips contendo 4 estados (Públicas, Todas, Privadas, Não-Listadas) persistidos em `localStorage` para Dashboard e Playlists.
+    * **Chips de Visibilidade e localStorage**: Substituídos os alternadores binários simples por chips contendo 4 estados (Públicas, Todas, Privadas, Não-Listadas) persistidos de forma individualizada no `localStorage` para cada tipo de listagem (ex: `mixer8_visibility_filter_library` para a biblioteca, e `mixer8_visibility_filter_playlists` para as playlists).
     * **Layout e Sidebar PC/Mobile**: Padronizado todo o texto da sidebar no PC para `text-sm font-semibold`. Introduzido divisor vertical físico no menu superior mobile e configurado o menu de abas do Admin para exibir apenas ícones em telas pequenas (`hidden sm:inline` nos textos).
 
 ---
