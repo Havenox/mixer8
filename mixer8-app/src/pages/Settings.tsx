@@ -1,17 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { usePlayer } from '../context/PlayerContext';
 import { 
   User, Mail, Lock, Phone, FileText, 
   Image, Save, AlertTriangle, CheckCircle,
-  Upload, Loader2, Cpu, Zap
+  Upload, Loader2
 } from 'lucide-react';
 
 import { API_URL, SERVER_URL } from '../config';
 
 export const Settings: React.FC = () => {
   const { CurrentUser, Token, UpdateCurrentUser } = useAuth();
-  const { audioEngineMode, setAudioEngineMode } = usePlayer();
 
   // Estados dos Campos
   const [email, setEmail] = useState(CurrentUser?.Email || '');
@@ -185,7 +183,7 @@ export const Settings: React.FC = () => {
           Phone: phone || null,
           Bio: bio || null,
           AvatarUrl: avatarUrl || null,
-          AudioEngineMode: audioEngineMode
+          AudioEngineMode: 'Power'
         })
       });
 
@@ -545,70 +543,6 @@ export const Settings: React.FC = () => {
                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gray" />
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Bloco 4: Motor de Áudio (Transposição de Tom & BPM) */}
-        <div className="bg-brand-card border border-brand-hover p-6 rounded-md flex flex-col gap-4">
-          <h2 className="text-sm font-bold text-white uppercase tracking-wider border-b border-brand-hover pb-2 flex items-center gap-2">
-            <Cpu className="w-4 h-4 text-brand-green" />
-            Motor de Áudio do Player (DSP Transposição)
-          </h2>
-          
-          <p className="text-xs text-brand-gray">
-            Escolha o mecanismo utilizado pelo seu navegador para realizar a alteração de tom (Pitch) e velocidade das faixas em tempo real.
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-1">
-            <button
-              type="button"
-              onClick={() => setAudioEngineMode('Power')}
-              className={`p-4 rounded-md border text-left flex flex-col gap-2 transition-all cursor-pointer ${
-                audioEngineMode === 'Power'
-                  ? 'bg-brand-green/10 border-brand-green text-white'
-                  : 'bg-brand-black border-brand-hover text-brand-gray hover:border-brand-gray'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-bold flex items-center gap-1.5 text-white">
-                  <Zap className="w-4 h-4 text-brand-green fill-brand-green" />
-                  Modo Power (Recomendado)
-                </span>
-                {audioEngineMode === 'Power' && (
-                  <span className="text-[10px] bg-brand-green text-black font-extrabold px-2 py-0.5 rounded-full uppercase">
-                    Ativo
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-brand-gray leading-relaxed">
-                Utiliza motor <b>Signalsmith Stretch em WebAssembly SIMD (128-bit)</b> em thread dedicada. Oferece alta fidelidade de estúdio, preservação de transientes e zero artefatos metálicos.
-              </p>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setAudioEngineMode('Lite')}
-              className={`p-4 rounded-md border text-left flex flex-col gap-2 transition-all cursor-pointer ${
-                audioEngineMode === 'Lite'
-                  ? 'bg-brand-green/10 border-brand-green text-white'
-                  : 'bg-brand-black border-brand-hover text-brand-gray hover:border-brand-gray'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-bold flex items-center gap-1.5 text-white">
-                  <Cpu className="w-4 h-4 text-amber-400" />
-                  Modo Lite (Aceleração Nativa)
-                </span>
-                {audioEngineMode === 'Lite' && (
-                  <span className="text-[10px] bg-brand-green text-black font-extrabold px-2 py-0.5 rounded-full uppercase">
-                    Ativo
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-brand-gray leading-relaxed">
-                Utiliza a <b>Web Audio API Nativa</b> do dispositivo. Recomendado para celulares ou dispositivos mais antigos que apresentem lentidão no processamento WASM.
-              </p>
-            </button>
           </div>
         </div>
 

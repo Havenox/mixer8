@@ -75,6 +75,77 @@ const floatToInt16 = (float32Array: Float32Array): Int16Array => {
   return int16Array;
 };
 
+async function processAudioBufferOffline(
+  buffer: AudioBuffer,
+  tempoRatio: number,
+  transpose: number,
+  wasmExports: any
+): Promise<AudioBuffer> {
+  const sampleRate = buffer.sampleRate;
+  const channels = buffer.numberOfChannels;
+  const inputSamples = buffer.length;
+  const outputSamples = Math.round(inputSamples / tempoRatio);
+
+  const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+  const tempCtx = new AudioCtxClass();
+  const outputBuffer = tempCtx.createBuffer(channels, outputSamples, sampleRate);
+  try {
+    tempCtx.close();
+  } catch (e) {}
+
+  const stretch_create = wasmExports.g;
+  const stretch_set_transpose_semitones = wasmExports.h;
+  const stretch_process = wasmExports.i;
+  const stretch_destroy = wasmExports.j;
+  const malloc = wasmExports.k;
+  const free = wasmExports.l;
+  const memory = wasmExports.e as WebAssembly.Memory;
+
+  const handle = stretch_create(sampleRate, channels);
+  stretch_set_transpose_semitones(handle, transpose);
+
+  const inBytes = inputSamples * 4;
+  const outBytes = outputSamples * 4;
+
+  const inPtr0 = malloc(inBytes);
+  const inPtr1 = malloc(inBytes);
+  const outPtr0 = malloc(outBytes);
+  const outPtr1 = malloc(outBytes);
+
+  try {
+    const heapF32 = new Float32Array(memory.buffer);
+
+    const inData0 = buffer.getChannelData(0);
+    heapF32.set(inData0, inPtr0 / 4);
+
+    if (channels > 1) {
+      const inData1 = buffer.getChannelData(1);
+      heapF32.set(inData1, inPtr1 / 4);
+    } else {
+      heapF32.set(inData0, inPtr1 / 4);
+    }
+
+    stretch_process(handle, inPtr0, inPtr1, inputSamples, outPtr0, outPtr1, outputSamples);
+
+    const outHeapF32 = new Float32Array(memory.buffer);
+    const outData0 = outputBuffer.getChannelData(0);
+    outData0.set(outHeapF32.subarray(outPtr0 / 4, (outPtr0 / 4) + outputSamples));
+
+    if (channels > 1) {
+      const outData1 = outputBuffer.getChannelData(1);
+      outData1.set(outHeapF32.subarray(outPtr1 / 4, (outPtr1 / 4) + outputSamples));
+    }
+  } finally {
+    free(inPtr0);
+    free(inPtr1);
+    free(outPtr0);
+    free(outPtr1);
+    stretch_destroy(handle);
+  }
+
+  return outputBuffer;
+}
+
 export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixExportResult> => {
   const {
     currentTrack,
@@ -141,51 +212,74 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
     throw new Error('Falha ao decodificar as pistas de áudio da música.');
   }
 
-  // 3. Calcula a duração máxima em segundos considerando a taxa de velocidade (BPM/Transpose)
-  const tempoRatio = calculatedBpm / baseBpm;
-  const musicalSpeedRatio = tempoRatio * Math.pow(2, transpose / 12);
+  // 3. Processa tempo e afinação offline via Signalsmith Stretch (WASM) na thread principal
+  onProgress(30, 'Processando tempo e afinação offline via Signalsmith Stretch (WASM)...');
 
-  // Calcula a transposição induzida pela velocidade e os desvios necessários para o processador WASM
-  const transposeFromSpeed = 12 * Math.log2(tempoRatio);
-  const musicWorkletTranspose = transpose - transposeFromSpeed;
-  const metronomeWorkletTranspose = -transposeFromSpeed;
+  const wasmRes = await fetch('/wasm/signalsmith-stretch.wasm');
+  if (!wasmRes.ok) throw new Error('HTTP ' + wasmRes.status + ' buscando signalsmith-stretch.wasm');
+  const wasmBuffer = await wasmRes.arrayBuffer();
+  const wasmModule = await WebAssembly.compile(wasmBuffer);
 
-  // Determina se usaremos o Pitch Shifter WASM (Signalsmith Stretch) offline
-  let useWasmPitchShift = false;
-  let wasmModule: WebAssembly.Module | null = null;
-  if (transpose !== 0 || Math.abs(transposeFromSpeed) > 0.01) {
-    try {
-      const wasmRes = await fetch('/wasm/signalsmith-stretch.wasm');
-      if (wasmRes.ok) {
-        const wasmBuffer = await wasmRes.arrayBuffer();
-        wasmModule = await WebAssembly.compile(wasmBuffer);
-        useWasmPitchShift = true;
+  let wasmInstance: WebAssembly.Instance;
+  const imports = {
+    a: {
+      a: () => { throw new Error('C++ Exception'); },
+      c: () => { throw new Error('Abort'); },
+      d: (requestedSize: number) => {
+        try {
+          const heap = wasmInstance.exports.e as WebAssembly.Memory;
+          const oldSize = heap.buffer.byteLength;
+          const pages = Math.ceil((requestedSize - oldSize) / 65536);
+          if (pages > 0) heap.grow(pages);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      b: (buffer: number, size: number) => {
+        const heap = new Uint8Array((wasmInstance.exports.e as WebAssembly.Memory).buffer);
+        for (let i = 0; i < size; i++) {
+          heap[buffer + i] = Math.floor(Math.random() * 256);
+        }
+        return 0;
       }
-    } catch (err) {
-      console.warn('[EXPORT-WASM] Falha ao compilar WASM para exportação. Usando fallback de resample.', err);
+    }
+  };
+  
+  wasmInstance = await WebAssembly.instantiate(wasmModule, imports);
+  const wasmExports = wasmInstance.exports;
+
+  const processedBuffers: { stemType: string; buffer: AudioBuffer }[] = [];
+  const tempoRatio = calculatedBpm / baseBpm;
+
+  for (let i = 0; i < stemBuffers.length; i++) {
+    const { stemType, buffer } = stemBuffers[i];
+    const progressPercent = 30 + Math.round(((i + 1) / stemBuffers.length) * 25);
+    onProgress(progressPercent, `Processando áudio da stem ${stemType} (${i + 1}/${stemBuffers.length})...`);
+
+    const isMetronome = isMetronomeStem(stemType);
+    const targetTranspose = isMetronome ? 0 : transpose;
+
+    if (tempoRatio === 1.0 && targetTranspose === 0) {
+      processedBuffers.push({ stemType, buffer });
+    } else {
+      const processed = await processAudioBufferOffline(buffer, tempoRatio, targetTranspose, wasmExports);
+      processedBuffers.push({ stemType, buffer: processed });
     }
   }
 
   let maxDuration = 0;
-  for (const { stemType, buffer } of stemBuffers) {
-    const isMetronome = isMetronomeStem(stemType);
-    // Se estiver usando o Pitch Shift via WASM, a velocidade harmônica não é acelerada pelo tom
-    const effectiveSpeedRatio = (isMetronome || useWasmPitchShift) ? tempoRatio : musicalSpeedRatio;
-    const adjustedDuration = buffer.duration / effectiveSpeedRatio;
-    if (adjustedDuration > maxDuration) {
-      maxDuration = adjustedDuration;
+  for (const { buffer } of processedBuffers) {
+    if (buffer.duration > maxDuration) {
+      maxDuration = buffer.duration;
     }
-  }
-
-  if (useWasmPitchShift) {
-    maxDuration += 0.12; // Compensação de latência do processador (120ms)
   }
 
   // 4. Cria a OfflineAudioContext (2 canais, 48000 Hz)
   const sampleRate = 48000;
   const totalSamples = Math.ceil(maxDuration * sampleRate);
   
-  onProgress(35, 'Reconstruindo mesa de mixagem na OfflineAudioContext...');
+  onProgress(55, 'Reconstruindo mesa de mixagem na OfflineAudioContext...');
   const offlineCtx = new OfflineAudioContext(2, totalSamples, sampleRate);
 
   // Nó Master
@@ -196,38 +290,7 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
   // Lógica de Mute / Solo
   const hasAnySolo = Object.values(stemsSolo).some(v => v);
 
-  // Configuração dos nós AudioWorklet de Pitch Shifter
-  let pitchWorkletNode: AudioWorkletNode | null = null;
-  let metronomePitchNode: AudioWorkletNode | null = null;
-
-  if (useWasmPitchShift && wasmModule) {
-    try {
-      await offlineCtx.audioWorklet.addModule('/wasm/pitch-shift-processor.js?v=' + Date.now());
-      
-      // Cria o nó de afinação para as pistas musicais
-      pitchWorkletNode = new AudioWorkletNode(offlineCtx, 'pitch-shift-processor', {
-        processorOptions: { wasmModule, transpose: musicWorkletTranspose, forceProcess: true },
-        outputChannelCount: [2]
-      });
-      pitchWorkletNode.connect(masterGain);
-
-      // Cria o nó de afinação para o metrônomo para anular a alteração de tom do resample
-      if (Math.abs(metronomeWorkletTranspose) > 0.01) {
-        metronomePitchNode = new AudioWorkletNode(offlineCtx, 'pitch-shift-processor', {
-          processorOptions: { wasmModule, transpose: metronomeWorkletTranspose, forceProcess: true },
-          outputChannelCount: [2]
-        });
-        metronomePitchNode.connect(masterGain);
-      }
-    } catch (err) {
-      console.error('[EXPORT-WASM] Falha ao registrar AudioWorklet WASM na OfflineCtx. Usando fallback de resample.', err);
-      useWasmPitchShift = false;
-      pitchWorkletNode = null;
-      metronomePitchNode = null;
-    }
-  }
-
-  for (const { stemType, buffer } of stemBuffers) {
+  for (const { stemType, buffer } of processedBuffers) {
     const vol = stemsVolume[stemType] ?? 1.0;
     const muted = stemsMute[stemType] ?? false;
     const solo = stemsSolo[stemType] ?? false;
@@ -236,12 +299,9 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
     const effectiveGain = (muted || (hasAnySolo && !solo)) ? 0.0 : vol;
     if (effectiveGain <= 0) continue; // Pista silenciada
 
-    const isMetronome = isMetronomeStem(stemType);
-    const effectiveSpeedRatio = (isMetronome || useWasmPitchShift) ? tempoRatio : musicalSpeedRatio;
-
     const source = offlineCtx.createBufferSource();
     source.buffer = buffer;
-    source.playbackRate.value = effectiveSpeedRatio;
+    source.playbackRate.value = 1.0; // Pistas pré-processadas tocam em velocidade 1.0 nativa!
 
     const gainNode = offlineCtx.createGain();
     gainNode.gain.value = effectiveGain;
@@ -251,39 +311,17 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
 
     source.connect(gainNode);
     gainNode.connect(pannerNode);
-
-    if (isMetronome) {
-      if (useWasmPitchShift) {
-        if (metronomePitchNode) {
-          // Se o metrônomo possui seu próprio processador de tom (que já possui a latência de 120ms)
-          pannerNode.connect(metronomePitchNode);
-        } else {
-          // Se não há processador de tom no metrônomo (não necessitou transposição de velocidade), atrasamos em 120ms para sincronizar
-          const delayNode = offlineCtx.createDelay(1.0);
-          delayNode.delayTime.value = 0.12;
-          pannerNode.connect(delayNode);
-          delayNode.connect(masterGain);
-        }
-      } else {
-        pannerNode.connect(masterGain);
-      }
-    } else {
-      if (useWasmPitchShift && pitchWorkletNode) {
-        pannerNode.connect(pitchWorkletNode);
-      } else {
-        pannerNode.connect(masterGain);
-      }
-    }
+    pannerNode.connect(masterGain);
 
     source.start(0);
   }
 
   // 5. Renderiza a mixagem offline
-  onProgress(45, 'Renderizando mixagem offline em 48kHz...');
+  onProgress(60, 'Renderizando mixagem offline em 48kHz...');
   const renderedAudioBuffer = await offlineCtx.startRendering();
 
   // 6. Codificação PCM Float32 -> MP3 192 kbps 48 kHz usando lamejs
-  onProgress(55, 'Codificando MP3 192kbps 48kHz...');
+  onProgress(70, 'Codificando MP3 192kbps 48kHz...');
 
   const Mp3Encoder = getMp3EncoderClass();
   const mp3encoder = new Mp3Encoder(2, sampleRate, 192);
@@ -304,8 +342,8 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
       mp3DataChunks.push(new Uint8Array(mp3buf));
     }
 
-    // Atualiza progresso de 55% a 95%
-    const encodingProgress = 55 + Math.round((i / totalSamples) * 40);
+    // Atualiza progresso de 70% a 95%
+    const encodingProgress = 70 + Math.round((i / totalSamples) * 25);
     onProgress(encodingProgress, `Codificando MP3 192kbps 48kHz (${encodingProgress}%)...`);
 
     // Permite que o navegador renderize a barra de progresso do Toast sem travar a thread da UI
