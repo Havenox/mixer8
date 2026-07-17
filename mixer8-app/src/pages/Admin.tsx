@@ -598,7 +598,7 @@ export const Admin: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-hover pb-5">
         <div className="flex flex-col gap-1">
           <h1 className="text-3xl font-black tracking-tight m-0 text-white flex items-center gap-2">
-            <Shield className="w-8 h-8 text-brand-green" /> Painel de Controle CRM
+            <Shield className="w-8 h-8 text-brand-green" /> Painel de Controle
           </h1>
           <p className="text-sm text-brand-gray">Gerencie usuários, configurações e consulte logs de auditoria do sistema Mixer8.</p>
         </div>

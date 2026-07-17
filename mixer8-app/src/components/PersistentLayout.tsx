@@ -8,10 +8,10 @@ import { LyricsChordsViewer } from './LyricsChordsViewer';
 import { DawView } from '../pages/DawView';
 import { MobileMixerOverlay } from './MobileMixerOverlay';
 import { 
-  Home, Library, PlusCircle, Shield, 
-  LogOut, User, Layers, ListMusic,
+  Home, Library, Shield, 
+  LogOut, User, ListMusic,
   Settings, HelpCircle, CreditCard, Lock,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, UploadCloud
 } from 'lucide-react';
 
 import { SERVER_URL, API_URL } from '../config';
@@ -132,18 +132,28 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
         <div className="flex items-center gap-5">
           {/* Navegação Rápida no Mobile */}
           <div className="flex items-center gap-4.5">
-            <Link to="/" className={`text-brand-gray hover:text-white ${location.pathname === '/' ? 'text-brand-green' : ''}`} onClick={() => setIsMobileMenuOpen(false)}>
+            <Link to="/" className={`hover:text-brand-green ${location.pathname === '/' ? 'text-brand-green' : 'text-white'}`} onClick={() => setIsMobileMenuOpen(false)} title="Explorar">
               <Home className="w-5 h-5" />
             </Link>
             {IsAuthenticated && (
               <>
-                <Link to="/dashboard" className={`text-brand-gray hover:text-white ${location.pathname === '/dashboard' ? 'text-brand-green' : ''}`} onClick={() => setIsMobileMenuOpen(false)}>
+                <Link to="/dashboard" className={`hover:text-brand-green ${location.pathname === '/dashboard' && !location.search.includes('action=upload') ? 'text-brand-green' : 'text-white'}`} onClick={() => setIsMobileMenuOpen(false)} title="Biblioteca">
                   <Library className="w-5 h-5" />
                 </Link>
-                <Link to="/playlists" className={`text-brand-gray hover:text-white ${location.pathname.startsWith('/playlists') ? 'text-brand-green' : ''}`} onClick={() => setIsMobileMenuOpen(false)}>
-                  <ListMusic className="w-5 h-5 text-brand-green shrink-0" />
+                <Link to="/playlists" className={`hover:text-brand-green ${location.pathname.startsWith('/playlists') ? 'text-brand-green' : 'text-white'}`} onClick={() => setIsMobileMenuOpen(false)} title="Playlists">
+                  <ListMusic className="w-5 h-5 shrink-0" />
                 </Link>
               </>
+            )}
+            {IsAuthenticated && CurrentUser && (CurrentUser.UserRole === 'PaidUser' || CurrentUser.UserRole === 'Admin') && (
+              <Link to="/dashboard?action=upload" className={`hover:text-brand-green ${location.search.includes('action=upload') ? 'text-brand-green' : 'text-white'}`} onClick={() => setIsMobileMenuOpen(false)} title="Adicionar nova música">
+                <UploadCloud className="w-5 h-5 shrink-0" />
+              </Link>
+            )}
+            {IsAuthenticated && CurrentUser && (CurrentUser.UserRole === 'Admin' || CurrentUser.UserRole === 'Moderator') && (
+              <Link to="/admin" className={`hover:text-brand-green ${location.pathname === '/admin' ? 'text-brand-green' : 'text-white'}`} onClick={() => setIsMobileMenuOpen(false)} title="Painel de Controle">
+                <Shield className="w-5 h-5 shrink-0" />
+              </Link>
             )}
           </div>
 
@@ -165,7 +175,20 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
               
               {/* Menu Dropdown Suspenso no Mobile */}
               {isMobileMenuOpen && (
-                <div className="absolute right-0 mt-2 bg-brand-card border border-brand-hover rounded-md shadow-2xl p-2 z-50 flex flex-col gap-1 w-48 animate-in slide-in-from-top-2 duration-200">
+                <div className="absolute right-0 mt-2 bg-brand-card border border-brand-hover rounded-md shadow-2xl p-2 z-50 flex flex-col gap-1 w-52 animate-in slide-in-from-top-2 duration-200">
+                  {IsAuthenticated && CurrentUser && (CurrentUser.UserRole === 'PaidUser' || CurrentUser.UserRole === 'Admin') && (
+                    <button onClick={() => { navigate('/dashboard?action=upload'); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded text-white hover:bg-brand-hover hover:text-brand-green w-full text-left cursor-pointer">
+                      <UploadCloud className="w-4 h-4 text-brand-green" />
+                      <span>Adicionar nova música</span>
+                    </button>
+                  )}
+                  {IsAuthenticated && CurrentUser && (CurrentUser.UserRole === 'Admin' || CurrentUser.UserRole === 'Moderator') && (
+                    <button onClick={() => { navigate('/admin'); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded text-white hover:bg-brand-hover hover:text-brand-green w-full text-left cursor-pointer">
+                      <Shield className="w-4 h-4 text-brand-green" />
+                      <span>Painel de Controle</span>
+                    </button>
+                  )}
+                  {(CurrentUser.UserRole === 'PaidUser' || CurrentUser.UserRole === 'Admin' || CurrentUser.UserRole === 'Moderator') && <div className="h-[1px] bg-brand-hover my-1" />}
                   <button onClick={() => { navigate('/settings'); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded text-white hover:bg-brand-hover hover:text-brand-green w-full text-left cursor-pointer">
                     <Settings className="w-4 h-4 text-brand-green" />
                     <span>Configurações</span>
@@ -221,69 +244,84 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
           </div>
 
           {/* Menus principais */}
-          <nav className="flex flex-col gap-3 font-semibold text-sm text-brand-gray w-full">
-            <Link 
-              to="/" 
-              className={`flex items-center rounded-md hover:text-white transition-colors ${
-                isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'gap-4 py-2 px-3 w-full'
-              } ${location.pathname === '/' ? 'text-white bg-brand-hover' : ''}`}
-              title={isSidebarCollapsed ? "Explorar" : undefined}
-            >
-              <Home className="w-5 h-5 shrink-0" />
-              {!isSidebarCollapsed && <span>Explorar</span>}
-            </Link>
+          <nav className="flex flex-col gap-3 font-semibold text-sm w-full">
+            {(() => {
+              const isExplorarActive = location.pathname === '/';
+              return (
+                <Link 
+                  to="/" 
+                  className={`flex items-center rounded-md transition-all ${
+                    isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'gap-4 py-2 px-3 w-full'
+                  } ${isExplorarActive ? 'bg-[#242424] text-white font-bold' : 'text-white font-semibold hover:bg-brand-hover/50'}`}
+                  title={isSidebarCollapsed ? "Explorar" : undefined}
+                >
+                  <Home className={`w-5 h-5 shrink-0 ${isExplorarActive ? 'text-brand-green' : 'text-white'}`} />
+                  {!isSidebarCollapsed && <span>Explorar</span>}
+                </Link>
+              );
+            })()}
             
             {IsAuthenticated ? (
-              <Link 
-                to="/dashboard" 
-                className={`flex items-center rounded-md hover:text-white transition-colors ${
-                  isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'gap-4 py-2 px-3 w-full'
-                } ${location.pathname === '/dashboard' ? 'text-white bg-brand-hover' : ''}`}
-                title={isSidebarCollapsed ? "Biblioteca" : undefined}
-              >
-                <Library className="w-5 h-5 shrink-0" />
-                {!isSidebarCollapsed && <span>Biblioteca</span>}
-              </Link>
+              (() => {
+                const isLibraryActive = location.pathname === '/dashboard' && !location.search.includes('action=upload');
+                return (
+                  <Link 
+                    to="/dashboard" 
+                    className={`flex items-center rounded-md transition-all ${
+                      isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'gap-4 py-2 px-3 w-full'
+                    } ${isLibraryActive ? 'bg-[#242424] text-white font-bold' : 'text-white font-semibold hover:bg-brand-hover/50'}`}
+                    title={isSidebarCollapsed ? "Biblioteca" : undefined}
+                  >
+                    <Library className={`w-5 h-5 shrink-0 ${isLibraryActive ? 'text-brand-green' : 'text-white'}`} />
+                    {!isSidebarCollapsed && <span>Biblioteca</span>}
+                  </Link>
+                );
+              })()
             ) : (
               <div 
                 onClick={openLoginModal}
-                className={`flex items-center justify-between rounded-md font-semibold text-sm text-brand-gray/40 cursor-pointer hover:text-white/80 transition-all group ${
+                className={`flex items-center justify-between rounded-md font-semibold text-sm text-white/50 cursor-pointer hover:text-white transition-all group ${
                   isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'py-2 px-3 w-full'
                 }`}
                 title={isSidebarCollapsed ? "Biblioteca (Requer Login)" : undefined}
               >
                 <div className="flex items-center gap-4 min-w-0">
-                  <Library className="w-5 h-5 shrink-0" />
+                  <Library className="w-5 h-5 shrink-0 text-white" />
                   {!isSidebarCollapsed && <span className="truncate">Biblioteca</span>}
                 </div>
-                {!isSidebarCollapsed && <Lock className="w-3.5 h-3.5 text-brand-gray/40 group-hover:text-brand-green shrink-0" />}
+                {!isSidebarCollapsed && <Lock className="w-3.5 h-3.5 text-white/40 group-hover:text-brand-green shrink-0" />}
               </div>
             )}
 
             {IsAuthenticated ? (
-              <Link 
-                to="/playlists" 
-                className={`flex items-center rounded-md hover:text-white transition-colors ${
-                  isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'gap-4 py-2 px-3 w-full'
-                } ${location.pathname.startsWith('/playlists') ? 'text-white bg-brand-hover' : ''}`}
-                title={isSidebarCollapsed ? "Playlists" : undefined}
-              >
-                <ListMusic className="w-5 h-5 text-brand-green shrink-0" />
-                {!isSidebarCollapsed && <span>Playlists</span>}
-              </Link>
+              (() => {
+                const isPlaylistsActive = location.pathname.startsWith('/playlists');
+                return (
+                  <Link 
+                    to="/playlists" 
+                    className={`flex items-center rounded-md transition-all ${
+                      isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'gap-4 py-2 px-3 w-full'
+                    } ${isPlaylistsActive ? 'bg-[#242424] text-white font-bold' : 'text-white font-semibold hover:bg-brand-hover/50'}`}
+                    title={isSidebarCollapsed ? "Playlists" : undefined}
+                  >
+                    <ListMusic className={`w-5 h-5 shrink-0 ${isPlaylistsActive ? 'text-brand-green' : 'text-white'}`} />
+                    {!isSidebarCollapsed && <span>Playlists</span>}
+                  </Link>
+                );
+              })()
             ) : (
               <div 
                 onClick={openLoginModal}
-                className={`flex items-center justify-between rounded-md font-semibold text-sm text-brand-gray/40 cursor-pointer hover:text-white/80 transition-all group ${
+                className={`flex items-center justify-between rounded-md font-semibold text-sm text-white/50 cursor-pointer hover:text-white transition-all group ${
                   isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'py-2 px-3 w-full'
                 }`}
                 title={isSidebarCollapsed ? "Playlists (Requer Login)" : undefined}
               >
                 <div className="flex items-center gap-4 min-w-0">
-                  <ListMusic className="w-5 h-5 text-brand-green shrink-0" />
+                  <ListMusic className="w-5 h-5 text-white shrink-0" />
                   {!isSidebarCollapsed && <span className="truncate">Playlists</span>}
                 </div>
-                {!isSidebarCollapsed && <Lock className="w-3.5 h-3.5 text-brand-gray/40 group-hover:text-brand-green shrink-0" />}
+                {!isSidebarCollapsed && <Lock className="w-3.5 h-3.5 text-white/40 group-hover:text-brand-green shrink-0" />}
               </div>
             )}
           </nav>
@@ -300,93 +338,53 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
             
             {IsAuthenticated && CurrentUser ? (
               (CurrentUser.UserRole === 'PaidUser' || CurrentUser.UserRole === 'Admin') ? (
-                <>
-                  <Link 
-                    to="/dashboard?action=upload" 
-                    className={`flex items-center rounded-md font-semibold text-sm text-brand-gray hover:text-white hover:bg-brand-hover transition-all ${
-                      isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'gap-4 py-2 px-3 w-full'
-                    }`}
-                    title={isSidebarCollapsed ? "Upload e Separar" : undefined}
-                  >
-                    <PlusCircle className="w-5 h-5 text-brand-green shrink-0" />
-                    {!isSidebarCollapsed && <span>Upload e Separar</span>}
-                  </Link>
-                  <Link 
-                    to="/upload-direto" 
-                    className={`flex items-center rounded-md font-semibold text-sm text-brand-gray hover:text-white hover:bg-brand-hover transition-all ${
-                      isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'gap-4 py-2 px-3 w-full'
-                    } ${location.pathname === '/upload-direto' ? 'text-white bg-brand-hover' : ''}`}
-                    title={isSidebarCollapsed ? "Upload Direto (Mesa)" : undefined}
-                  >
-                    <Layers className="w-5 h-5 text-brand-green shrink-0" />
-                    {!isSidebarCollapsed && <span>Upload Direto (Mesa)</span>}
-                  </Link>
-                </>
+                (() => {
+                  const isUploadActive = location.search.includes('action=upload');
+                  return (
+                    <Link 
+                      to="/dashboard?action=upload" 
+                      className={`flex items-center rounded-md transition-all ${
+                        isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'gap-4 py-2 px-3 w-full'
+                      } ${isUploadActive ? 'bg-[#242424] text-white font-bold' : 'text-white font-semibold hover:bg-brand-hover/50'}`}
+                      title={isSidebarCollapsed ? "Adicionar nova música" : undefined}
+                    >
+                      <UploadCloud className={`w-5 h-5 shrink-0 ${isUploadActive ? 'text-brand-green' : 'text-white'}`} />
+                      {!isSidebarCollapsed && <span>Adicionar nova música</span>}
+                    </Link>
+                  );
+                })()
               ) : (
-                <>
-                  <div 
-                    className={`flex items-center justify-between rounded-md font-semibold text-sm text-brand-gray/40 cursor-not-allowed select-none group relative ${
-                      isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'py-2 px-3 w-full'
-                    }`}
-                    title={isSidebarCollapsed ? "Upload e Separar (Premium)" : undefined}
-                  >
-                    <div className="flex items-center gap-4 min-w-0">
-                      <PlusCircle className="w-5 h-5 text-brand-gray/40 shrink-0" />
-                      {!isSidebarCollapsed && <span className="truncate">Upload e Separar</span>}
-                    </div>
-                    {!isSidebarCollapsed && (
-                      <span className="text-[9px] bg-brand-hover text-brand-green border border-brand-green/20 px-1 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                        PRO
-                      </span>
-                    )}
+                <div 
+                  className={`flex items-center justify-between rounded-md font-semibold text-sm text-white/40 cursor-not-allowed select-none group relative ${
+                    isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'py-2 px-3 w-full'
+                  }`}
+                  title={isSidebarCollapsed ? "Adicionar nova música (Premium)" : undefined}
+                >
+                  <div className="flex items-center gap-4 min-w-0">
+                    <UploadCloud className="w-5 h-5 text-white/40 shrink-0" />
+                    {!isSidebarCollapsed && <span className="truncate">Adicionar nova música</span>}
                   </div>
-                  <div 
-                    className={`flex items-center justify-between rounded-md font-semibold text-sm text-brand-gray/40 cursor-not-allowed select-none group relative ${
-                      isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'py-2 px-3 w-full'
-                    }`}
-                    title={isSidebarCollapsed ? "Upload Direto (Premium)" : undefined}
-                  >
-                    <div className="flex items-center gap-4 min-w-0">
-                      <Layers className="w-5 h-5 text-brand-gray/40 shrink-0" />
-                      {!isSidebarCollapsed && <span className="truncate">Upload Direto</span>}
-                    </div>
-                    {!isSidebarCollapsed && (
-                      <span className="text-[9px] bg-brand-hover text-brand-green border border-brand-green/20 px-1 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                        PRO
-                      </span>
-                    )}
-                  </div>
-                </>
+                  {!isSidebarCollapsed && (
+                    <span className="text-[9px] bg-brand-hover text-brand-green border border-brand-green/20 px-1 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                      PRO
+                    </span>
+                  )}
+                </div>
               )
             ) : (
-              <>
-                <div 
-                  onClick={openLoginModal}
-                  className={`flex items-center justify-between rounded-md font-semibold text-sm text-brand-gray/40 cursor-pointer hover:text-white/80 transition-all group ${
-                    isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'py-2 px-3 w-full'
-                  }`}
-                  title={isSidebarCollapsed ? "Upload e Separar (Requer Login)" : undefined}
-                >
-                  <div className="flex items-center gap-4 min-w-0">
-                    <PlusCircle className="w-5 h-5 text-brand-gray/40 shrink-0" />
-                    {!isSidebarCollapsed && <span className="truncate">Upload e Separar</span>}
-                  </div>
-                  {!isSidebarCollapsed && <Lock className="w-3.5 h-3.5 text-brand-gray/40 group-hover:text-brand-green shrink-0" />}
+              <div 
+                onClick={openLoginModal}
+                className={`flex items-center justify-between rounded-md font-semibold text-sm text-white/50 cursor-pointer hover:text-white transition-all group ${
+                  isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'py-2 px-3 w-full'
+                }`}
+                title={isSidebarCollapsed ? "Adicionar nova música (Requer Login)" : undefined}
+              >
+                <div className="flex items-center gap-4 min-w-0">
+                  <UploadCloud className="w-5 h-5 text-white/50 shrink-0" />
+                  {!isSidebarCollapsed && <span className="truncate">Adicionar nova música</span>}
                 </div>
-                <div 
-                  onClick={openLoginModal}
-                  className={`flex items-center justify-between rounded-md font-semibold text-sm text-brand-gray/40 cursor-pointer hover:text-white/80 transition-all group ${
-                    isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'py-2 px-3 w-full'
-                  }`}
-                  title={isSidebarCollapsed ? "Upload Direto (Requer Login)" : undefined}
-                >
-                  <div className="flex items-center gap-4 min-w-0">
-                    <Layers className="w-5 h-5 text-brand-gray/40 shrink-0" />
-                    {!isSidebarCollapsed && <span className="truncate">Upload Direto</span>}
-                  </div>
-                  {!isSidebarCollapsed && <Lock className="w-3.5 h-3.5 text-brand-gray/40 group-hover:text-brand-green shrink-0" />}
-                </div>
-              </>
+                {!isSidebarCollapsed && <Lock className="w-3.5 h-3.5 text-white/40 group-hover:text-brand-green shrink-0" />}
+              </div>
             )}
           </div>
 
@@ -398,16 +396,21 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
                   Administração
                 </span>
               )}
-              <Link 
-                to="/admin" 
-                className={`flex items-center rounded-md font-semibold text-sm text-brand-gray hover:text-white hover:bg-brand-hover transition-all ${
-                  isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'gap-4 py-2 px-3 w-full'
-                } ${location.pathname === '/admin' ? 'text-white bg-brand-hover' : ''}`}
-                title={isSidebarCollapsed ? "Painel Admin (CRM)" : undefined}
-              >
-                <Shield className="w-5 h-5 text-brand-green shrink-0" />
-                {!isSidebarCollapsed && <span>Painel Admin (CRM)</span>}
-              </Link>
+              {(() => {
+                const isAdminActive = location.pathname === '/admin';
+                return (
+                  <Link 
+                    to="/admin" 
+                    className={`flex items-center rounded-md transition-all ${
+                      isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'gap-4 py-2 px-3 w-full'
+                    } ${isAdminActive ? 'bg-[#242424] text-white font-bold' : 'text-white font-semibold hover:bg-brand-hover/50'}`}
+                    title={isSidebarCollapsed ? "Painel de Controle" : undefined}
+                  >
+                    <Shield className={`w-5 h-5 shrink-0 ${isAdminActive ? 'text-brand-green' : 'text-white'}`} />
+                    {!isSidebarCollapsed && <span>Painel de Controle</span>}
+                  </Link>
+                );
+              })()}
             </div>
           )}
         </div>

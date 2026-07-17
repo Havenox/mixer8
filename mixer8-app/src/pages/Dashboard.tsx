@@ -615,7 +615,7 @@ export const Dashboard: React.FC = () => {
               className="flex items-center gap-2 px-5 py-2.5 bg-brand-green text-black font-bold text-sm rounded-full hover:scale-105 active:scale-95 transition-all shadow-md cursor-pointer shrink-0"
             >
               <UploadCloud className="w-5 h-5" />
-              Nova Extração de Stems
+              Adicionar Nova Música
             </button>
           )}
         </div>
