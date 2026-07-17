@@ -175,7 +175,7 @@ export const GlobalTopHeader: React.FC = () => {
               <Download className="w-3 md:w-4 h-3 md:h-4 text-brand-green" />
             )}
             <span className="text-[9px] sm:text-xs md:text-sm font-bold text-white whitespace-nowrap">
-              Exportar mix
+              Exportar
             </span>
           </button>
         )}
