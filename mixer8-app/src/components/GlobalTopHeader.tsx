@@ -14,7 +14,9 @@ export const GlobalTopHeader: React.FC = () => {
     bpmDelta,
     setBpmDelta,
     activeOverlay,
-    setActiveOverlay
+    setActiveOverlay,
+    showChords,
+    setShowChords
   } = usePlayer();
 
   const [chords, setChords] = useState<IChordBeat[] | null>(null);
@@ -165,6 +167,28 @@ export const GlobalTopHeader: React.FC = () => {
               <RotateCcw className="w-3.5 h-3.5" />
             </button>
           </div>
+        )}
+
+        {/* Controle de Cifra ON/OFF (Apenas se Letras estiver ativa, inserido à esquerda dos botões existentes) */}
+        {activeOverlay === 'lyrics' && (
+          <button
+            onClick={() => setShowChords(prev => !prev)}
+            className="h-[46px] w-[90px] bg-[#181818] border border-white/5 rounded-md flex flex-col items-center justify-center shrink-0 shadow-lg cursor-pointer select-none transition-all duration-200 hover:bg-[#222222] active:scale-95 animate-in fade-in duration-200"
+            title="Alternar Exibição de Cifras"
+          >
+            <span className="text-[9px] font-bold text-brand-gray/60 uppercase tracking-widest leading-none mb-1">
+              Cifra
+            </span>
+            {showChords ? (
+              <span className="text-xs font-black text-brand-green uppercase tracking-widest leading-none drop-shadow-[0_0_6px_rgba(34,197,94,0.35)]">
+                ON
+              </span>
+            ) : (
+              <span className="text-xs font-black text-brand-gray/40 uppercase tracking-widest leading-none">
+                OFF
+              </span>
+            )}
+          </button>
         )}
 
         {/* Acorde Atual (Spotify style) */}

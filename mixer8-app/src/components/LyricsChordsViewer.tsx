@@ -57,7 +57,7 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
   CurrentTime,
   OnClose
 }) => {
-  const { seek, isPlaying, togglePlay, transpose } = usePlayer();
+  const { seek, isPlaying, togglePlay, transpose, showChords } = usePlayer();
   const [lyrics, setLyrics] = useState<ILyricsLine[] | null>(null);
   const [chords, setChords] = useState<IChordBeat[] | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -191,9 +191,33 @@ export const LyricsChordsViewer: React.FC<ILyricsChordsViewerProps> = ({
                   isActive ? 'opacity-100 scale-[1.02]' : 'opacity-25 hover:opacity-40'
                 }`}
               >
-                <div className="flex flex-wrap gap-x-2 gap-y-3">
+                <div className="flex flex-wrap gap-x-2 gap-y-3 items-end">
                   {line.Words.map((word, wIdx) => {
                     const isWordActive = CurrentTime >= word.start && CurrentTime <= word.end;
+
+                    if (showChords) {
+                      return (
+                        <div 
+                          key={wIdx}
+                          onClick={() => {
+                            seek(word.start);
+                            if (!isPlaying) togglePlay();
+                          }}
+                          className="inline-flex flex-col items-start cursor-pointer group"
+                        >
+                          {/* Cifra flutuando sobre a palavra (sempre ocupa espaço para manter baseline paralelo) */}
+                          <span className="text-[11px] md:text-sm font-black text-brand-green font-mono select-none h-5 leading-none transition-colors duration-150 group-hover:text-white">
+                            {word.Chord || '\u00A0'}
+                          </span>
+                          {/* Palavra cantada */}
+                          <span className={`text-lg md:text-2xl font-semibold transition-all hover:text-brand-green active:scale-95 duration-150 select-none ${
+                            isWordActive ? 'text-brand-green' : 'text-neutral-100'
+                          }`}>
+                            {word.word}
+                          </span>
+                        </div>
+                      );
+                    }
 
                     return (
                       <span 

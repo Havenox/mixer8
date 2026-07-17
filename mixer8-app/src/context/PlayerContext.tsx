@@ -63,6 +63,8 @@ interface IPlayerContext {
   setAudioEngineMode: (mode: 'Power' | 'Lite') => void;
   activeOverlay: ActiveOverlayType;
   setActiveOverlay: React.Dispatch<React.SetStateAction<ActiveOverlayType>>;
+  showChords: boolean;
+  setShowChords: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export type ActiveOverlayType = 'none' | 'daw' | 'lyrics';
@@ -184,6 +186,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [transpose, setTranspose] = useState<number>(0);
   const [bpmDelta, setBpmDelta] = useState<number>(0);
   const [activeOverlay, setActiveOverlay] = useState<ActiveOverlayType>('none');
+  const [showChords, setShowChords] = useState<boolean>(false);
   const [currentAlbumId, setCurrentAlbumId] = useState<string | null>(null);
 
   // Fecha qualquer overlay ativo quando nenhuma música estiver carregada
@@ -1365,7 +1368,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         audioEngineMode,
         setAudioEngineMode,
         activeOverlay,
-        setActiveOverlay
+        setActiveOverlay,
+        showChords,
+        setShowChords
       }}
     >
       {children}
