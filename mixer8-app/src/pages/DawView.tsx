@@ -141,44 +141,65 @@ export const DawView: React.FC = () => {
     });
   };
 
-  // Acompanhamento automático de página durante a reprodução com Zoom
-  useEffect(() => {
-    if (!isPlaying || zoomLevel <= 1.0 || !rulerScrollRef.current) return;
-    
+  // Função auxiliar para rolar a timeline e faixas para a posição atual da agulha
+  const scrollToPlayhead = (force = false) => {
+    if (!rulerScrollRef.current || !duration || duration <= 0 || zoomLevel <= 1.0) return;
+
     const container = rulerScrollRef.current;
     const viewportWidth = container.clientWidth;
     const totalWidth = container.scrollWidth;
+
     if (viewportWidth <= 0 || totalWidth <= 0) return;
 
     // Posição da agulha em pixels
     const playheadX = (currentTime / duration) * totalWidth;
-    
-    // Página atual visível (baseado no scrollLeft atual)
     const currentScroll = container.scrollLeft;
-    
-    // Se a agulha passou do limite do viewport visível (página seguinte)
-    // ou se voltou antes da página visível (por loop/seek)
-    if (playheadX > currentScroll + viewportWidth || playheadX < currentScroll) {
+
+    // Se for 'force' (ao abrir a DAW, trocar de faixa ou zoom)
+    // ou se a agulha estiver fora do viewport visível (página anterior ou posterior)
+    if (force || playheadX >= currentScroll + viewportWidth || playheadX < currentScroll) {
       const pageIndex = Math.floor(playheadX / viewportWidth);
-      const targetScroll = pageIndex * viewportWidth;
-      
+      const targetScroll = Math.max(0, pageIndex * viewportWidth);
+
       isSyncingScroll.current = true;
-      
+
       container.scrollLeft = targetScroll;
-      
+
       if (playheadScrollRef.current) {
         playheadScrollRef.current.scrollLeft = targetScroll;
       }
-      
+
       trackScrollRefs.current.forEach((ref) => {
         if (ref) ref.scrollLeft = targetScroll;
       });
 
-      // Libera trava
       requestAnimationFrame(() => {
         isSyncingScroll.current = false;
       });
     }
+  };
+
+  // 1. Ao carregar/abrir a DAW ou alterar faixa/zoom, força o scroll para a posição atual da agulha
+  useEffect(() => {
+    scrollToPlayhead(true);
+
+    const rafId = requestAnimationFrame(() => {
+      scrollToPlayhead(true);
+    });
+
+    const timerId = setTimeout(() => {
+      scrollToPlayhead(true);
+    }, 80);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      clearTimeout(timerId);
+    };
+  }, [currentTrack?.TrackId, zoomLevel, isSidebarCollapsed]);
+
+  // 2. Acompanhamento automático de página durante a reprodução com Zoom
+  useEffect(() => {
+    scrollToPlayhead(false);
   }, [currentTime, isPlaying, zoomLevel, duration]);
 
   const lastTimeRef = useRef(currentTime);
