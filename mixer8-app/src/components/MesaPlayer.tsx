@@ -600,7 +600,7 @@ export const MesaPlayer: React.FC = () => {
               <Disc className={`w-5 h-5 ${isPlaying ? 'animate-spin' : ''}`} style={{ animationDuration: '4s' }} />
             </div>
           )}
-          <div className="flex flex-col min-w-0">
+          <div className="flex flex-col min-w-0 max-w-[125px] xs:max-w-[165px]">
             <span className="text-xs font-semibold text-white truncate leading-tight">
               {currentTrack.TrackTitle}
             </span>
@@ -609,7 +609,7 @@ export const MesaPlayer: React.FC = () => {
                 {currentTrack.ArtistName}
               </span>
               {currentChord && (
-                <span className="px-1.5 py-0.5 bg-brand-green/10 text-[8px] text-brand-green font-bold rounded tracking-wider border border-brand-green/30 select-none shrink-0 leading-none">
+                <span className="px-1 py-0.2 bg-brand-green/10 text-[8px] text-brand-green font-bold rounded tracking-wider border border-brand-green/30 select-none shrink-0 leading-none">
                   {currentChord}
                 </span>
               )}
@@ -617,21 +617,53 @@ export const MesaPlayer: React.FC = () => {
           </div>
         </div>
 
-        {/* Controles de Mídia Compactos */}
-        <div className="flex items-center gap-3 shrink-0">
+        {/* Controles de Mídia e Atalhos de Overlays Compactos */}
+        <div className="flex items-center gap-0.5 shrink-0">
+          {/* Atalho DAW */}
+          <button 
+            onClick={(e) => { e.stopPropagation(); setActiveOverlay('daw'); }}
+            className={`p-1.5 transition-colors cursor-pointer rounded-full ${
+              activeOverlay === 'daw' 
+                ? 'text-brand-green bg-brand-green/15' 
+                : 'text-brand-gray/80 hover:text-white'
+            }`}
+            title="Estúdio DAW"
+          >
+            <Activity className="w-4 h-4" />
+          </button>
+
+          {/* Atalho Mixer */}
           {(hasMultipleStems || isProcessingOrSingleStem) && (
             <button 
               onClick={(e) => { e.stopPropagation(); setActiveOverlay('mixer'); }}
-              className="text-brand-gray hover:text-white p-2 cursor-pointer transition-colors"
+              className={`p-1.5 transition-colors cursor-pointer rounded-full ${
+                activeOverlay === 'mixer' 
+                  ? 'text-brand-green bg-brand-green/15' 
+                  : 'text-brand-gray/80 hover:text-white'
+              }`}
               title="Mixer de Som"
             >
-              <Sliders className="w-5 h-5" />
+              <Sliders className="w-4 h-4" />
             </button>
           )}
 
+          {/* Atalho Letras & Cifras */}
+          <button 
+            onClick={(e) => { e.stopPropagation(); setActiveOverlay('lyrics'); }}
+            className={`p-1.5 transition-colors cursor-pointer rounded-full ${
+              activeOverlay === 'lyrics' 
+                ? 'text-brand-green bg-brand-green/15' 
+                : 'text-brand-gray/80 hover:text-white'
+            }`}
+            title="Letras & Cifras"
+          >
+            <Music className="w-4 h-4" />
+          </button>
+
+          {/* Botão Play / Pause */}
           <button 
             onClick={(e) => { e.stopPropagation(); togglePlay(); }}
-            className="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-transform cursor-pointer shadow shrink-0"
+            className="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-transform cursor-pointer shadow shrink-0 ml-1"
           >
             {isPlaying ? (
               <Pause className="w-4 h-4 fill-current text-black" />
