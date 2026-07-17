@@ -5,7 +5,7 @@ import { RotaryKnob } from '../components/RotaryKnob';
 import { 
   ChevronLeft, Loader2, 
   ShieldAlert, Volume2, 
-  Disc
+  Disc, PanelLeftClose, PanelLeftOpen
 } from 'lucide-react';
 import { API_URL } from '../config';
 
@@ -33,6 +33,7 @@ export const DawView: React.FC = () => {
   const [waveforms, setWaveforms] = useState<Record<string, number[]>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => window.innerWidth < 768);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const tracksTimelineRef = useRef<HTMLDivElement>(null);
@@ -46,9 +47,6 @@ export const DawView: React.FC = () => {
     const cached = localStorage.getItem('mixer8:daw-zoom-level');
     return cached ? parseFloat(cached) : 1.0;
   });
-
-  // Monitora largura da tela para responsividade síncrona
-  const [isDesktopOrTablet, setIsDesktopOrTablet] = useState(window.innerWidth >= 768);
 
   // Limpa refs quando mudar track ou stems
   useEffect(() => {
@@ -236,14 +234,6 @@ export const DawView: React.FC = () => {
     };
   }, [isPlaying, duration]);
 
-  useEffect(() => {
-    const handleResize = () => {
-      setIsDesktopOrTablet(window.innerWidth >= 768);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
   // Busca as waveforms da faixa atual
   useEffect(() => {
     if (!currentTrack) return;
@@ -279,6 +269,20 @@ export const DawView: React.FC = () => {
     return type === 'voz' || type === 'vocal' || type === 'vocais' || type === 'baixo' || type === 'metrônomo';
   };
 
+  // Abreviação do nome do canal para sidebar colapsada
+  const getStemAbbreviation = (name: string) => {
+    const n = name.toLowerCase();
+    if (n.includes('voz') || n.includes('vocal')) return 'VOZ';
+    if (n.includes('bateria')) return 'BAT';
+    if (n.includes('baixo')) return 'BAI';
+    if (n.includes('guitarra')) return 'GUI';
+    if (n.includes('teclado') || n.includes('piano')) return 'TEC';
+    if (n.includes('metrônomo') || n.includes('metronomo')) return 'MET';
+    if (n.includes('sopro')) return 'SOP';
+    if (n.includes('cordas')) return 'COR';
+    return name.slice(0, 3).toUpperCase();
+  };
+
   // Lógica de Renderização das Waveforms nos Canvas (Estática e Responsiva)
   useEffect(() => {
     if (loading || Object.keys(waveforms).length === 0 || !currentTrack) return;
@@ -298,69 +302,38 @@ export const DawView: React.FC = () => {
           const ctx = canvas.getContext('2d');
           if (!ctx) return;
 
-          const points = waveforms[stem.StemType] || [];
-          const width = canvas.offsetWidth;
-          const height = canvas.offsetHeight;
-          if (width === 0 || height === 0) return;
-
-          // Ajusta pixel ratio do canvas para alta resolução
           const dpr = window.devicePixelRatio || 1;
-          canvas.width = width * dpr;
-          canvas.height = height * dpr;
+          const rect = canvas.getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) return;
+
+          canvas.width = rect.width * dpr;
+          canvas.height = rect.height * dpr;
           ctx.scale(dpr, dpr);
 
-          // Fundo transparente
+          const width = rect.width;
+          const height = rect.height;
+
           ctx.clearRect(0, 0, width, height);
 
-          if (points.length === 0) {
-            // Linha central preta se não houver dados
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.moveTo(0, height / 2);
-            ctx.lineTo(width, height / 2);
-            ctx.stroke();
-            return;
-          }
+          const peaks = waveforms[stem.StemType] || [];
+          if (peaks.length === 0) return;
 
-          // Desenha a forma de onda contínua sólida usando todos os pontos do banco
+          const middle = height / 2;
+          const step = width / peaks.length;
+
           ctx.beginPath();
-          
-          // Caminho do envelope superior (da esquerda para a direita)
-          for (let i = 0; i < points.length; i++) {
-            const x = (i / (points.length - 1 || 1)) * width;
-            const rawVal = points[i] || 0;
-            const absVal = Math.min(100, Math.abs(rawVal));
-            const amplitude = (absVal / 100.0) * (height * 0.42); // Máximo de 84% da altura
-            const y = height / 2 - amplitude;
-            
-            if (i === 0) {
-              ctx.moveTo(x, y);
-            } else {
-              ctx.lineTo(x, y);
-            }
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = 1.2;
+
+          for (let i = 0; i < peaks.length; i++) {
+            const val = peaks[i];
+            const amplitude = val * (middle - 4);
+            const x = i * step;
+
+            ctx.moveTo(x, middle - amplitude);
+            ctx.lineTo(x, middle + amplitude);
           }
 
-          // Caminho do envelope inferior (da direita para a esquerda)
-          for (let i = points.length - 1; i >= 0; i--) {
-            const x = (i / (points.length - 1 || 1)) * width;
-            const rawVal = points[i] || 0;
-            const absVal = Math.min(100, Math.abs(rawVal));
-            const amplitude = (absVal / 100.0) * (height * 0.42);
-            const y = height / 2 + amplitude;
-            ctx.lineTo(x, y);
-          }
-
-          ctx.closePath();
-          ctx.fillStyle = '#000000';
-          ctx.fill();
-
-          // Linha central preta fina cortando o meio da waveform
-          ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(0, height / 2);
-          ctx.lineTo(width, height / 2);
           ctx.stroke();
         });
       });
@@ -368,16 +341,12 @@ export const DawView: React.FC = () => {
 
     renderAllCanvas();
 
-    // Redesenha no redimensionamento da janela
-    const handleResize = () => {
-      renderAllCanvas();
-    };
-    window.addEventListener('resize', handleResize);
+    window.addEventListener('resize', renderAllCanvas);
     return () => {
-      window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(frameId);
+      window.removeEventListener('resize', renderAllCanvas);
     };
-  }, [waveforms, loading, currentTrack, zoomLevel]);
+  }, [waveforms, loading, currentTrack, zoomLevel, isSidebarCollapsed]);
 
   // Lógica de Seek ao clicar/arrastar na timeline
   const handleTimelineInteraction = (clientX: number) => {
@@ -444,29 +413,6 @@ export const DawView: React.FC = () => {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  // 1. Verificação de Tela Grande (Habilitado apenas para Desktop/Tablet)
-  if (!isDesktopOrTablet) {
-    return (
-      <div className="flex flex-col items-center justify-center text-center p-8 min-h-[70vh] gap-6 bg-brand-dark rounded-xl border border-brand-hover select-none animate-in fade-in duration-300">
-        <div className="p-4 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-full">
-          <ShieldAlert className="w-12 h-12" />
-        </div>
-        <div className="flex flex-col gap-2 max-w-[420px]">
-          <h2 className="text-xl font-black text-white uppercase tracking-wider">Modo DAW Indisponível</h2>
-          <p className="text-xs text-brand-gray leading-relaxed">
-            O Estúdio DAW exige uma resolução horizontal maior (PC ou Tablet) para renderizar todas as pistas de áudio e waveforms de forma útil.
-          </p>
-        </div>
-        <button 
-          onClick={() => setActiveOverlay('none')}
-          className="py-2 px-5 bg-brand-hover hover:bg-brand-hover/80 text-white rounded font-bold text-xs transition-all border border-brand-hover cursor-pointer"
-        >
-          Voltar para a Biblioteca
-        </button>
-      </div>
-    );
-  }
-
   // 2. Estado Sem Música Carregada
   if (!currentTrack) {
     return (
@@ -521,7 +467,7 @@ export const DawView: React.FC = () => {
           <div 
             ref={playheadScrollRef}
             onScroll={handleHorizontalScroll}
-            className="absolute left-[264px] right-6 top-0 bottom-0 pointer-events-none z-30 overflow-x-auto overflow-y-hidden scrollbar-none"
+            className={`absolute ${isSidebarCollapsed ? 'left-[72px]' : 'left-[264px]'} right-4 md:right-6 top-0 bottom-0 pointer-events-none z-30 overflow-x-auto overflow-y-hidden scrollbar-none transition-all duration-200`}
           >
             <div 
               style={{ width: `${zoomLevel * 100}%` }}
@@ -551,17 +497,33 @@ export const DawView: React.FC = () => {
         )}
 
         {/* Linha do Tempo (Ruler de Compasso superior) */}
-        <div className="h-9 border-b border-brand-hover flex relative select-none shrink-0 px-6" style={{ background: '#141414' }}>
+        <div className="h-9 border-b border-brand-hover flex relative select-none shrink-0 px-4 md:px-6" style={{ background: '#141414' }}>
           {/* Header de Canto (Alinhado com a largura do painel esquerdo) */}
-          <div className="w-[240px] border-r border-brand-hover shrink-0 flex items-center gap-2 pr-4 text-[9px] font-black text-brand-gray tracking-wider uppercase">
-            <button 
-              onClick={() => setActiveOverlay('none')}
-              className="p-1 rounded-full border border-brand-hover text-brand-gray hover:text-white hover:border-white transition-all cursor-pointer shrink-0"
-              title="Voltar"
+          <div className={`${isSidebarCollapsed ? 'w-12 pr-1' : 'w-[240px] pr-4'} border-r border-brand-hover shrink-0 flex items-center justify-between transition-all duration-200 gap-1 text-[9px] font-black text-brand-gray tracking-wider uppercase`}>
+            <div className="flex items-center gap-1 min-w-0">
+              <button 
+                onClick={() => setActiveOverlay('none')}
+                className="p-1 rounded-full border border-brand-hover text-brand-gray hover:text-white hover:border-white transition-all cursor-pointer shrink-0"
+                title="Voltar"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              {!isSidebarCollapsed && (
+                <span className="truncate">Canais / Pistas</span>
+              )}
+            </div>
+
+            <button
+              onClick={() => setIsSidebarCollapsed(prev => !prev)}
+              className="p-1 rounded bg-brand-hover/60 hover:bg-brand-hover text-brand-gray hover:text-white transition-all cursor-pointer shrink-0"
+              title={isSidebarCollapsed ? 'Expandir Controles' : 'Colapsar Controles (Modo Waveform)'}
             >
-              <ChevronLeft className="w-3.5 h-3.5" />
+              {isSidebarCollapsed ? (
+                <PanelLeftOpen className="w-3.5 h-3.5 text-brand-green" />
+              ) : (
+                <PanelLeftClose className="w-3.5 h-3.5" />
+              )}
             </button>
-            <span>Canais / Pistas</span>
           </div>
           
           {/* Régua de Tempo (Scrollable Wrapper) */}
@@ -605,7 +567,7 @@ export const DawView: React.FC = () => {
           </div>
         </div>
         {/* Corpo Principal das Faixas (Scrollable) */}
-        <div className="flex-1 overflow-y-auto relative px-6">
+        <div className="flex-1 overflow-y-auto relative px-4 md:px-6">
 
           {/* Renderização de Linhas (Tracks) */}
           <div className="flex flex-col gap-2 py-3">
@@ -630,17 +592,18 @@ export const DawView: React.FC = () => {
                 >
                   
                   {/* PISTA ESQUERDA: Console de Controles (Faders e Panning) */}
-                  <div className="w-[240px] pr-4 flex items-center justify-between gap-4 shrink-0 select-none">
-                    {/* Coluna 1: M/S + Nome (Topo) e Slider Volume (Base) */}
-                    <div className="flex-1 flex flex-col gap-2 min-w-0">
-                      {/* Mute/Solo + Nome do Canal */}
-                      <div className="flex items-center gap-1.5 select-none">
+                  {isSidebarCollapsed ? (
+                    <div className="w-12 pr-2 border-r border-brand-hover/40 h-full flex flex-col items-center justify-center gap-1.5 shrink-0 select-none transition-all duration-200">
+                      <span className="text-[9px] font-black text-brand-green uppercase tracking-tighter text-center truncate w-full">
+                        {getStemAbbreviation(stemName)}
+                      </span>
+                      <div className="flex flex-col items-center gap-1">
                         <button
                           onClick={() => toggleStemMute(stemName)}
-                          className={`w-5 h-5 rounded-[3px] flex items-center justify-center text-[9px] font-black transition-all border cursor-pointer shrink-0 ${
+                          className={`w-4 h-4 rounded-[2px] flex items-center justify-center text-[8px] font-black transition-all border cursor-pointer ${
                             isMuted
                               ? 'bg-red-600 text-white border-red-600'
-                              : 'bg-[#222] hover:bg-red-600/70 hover:text-white hover:border-red-600/70 text-brand-gray border-transparent'
+                              : 'bg-[#222] hover:bg-red-600/70 hover:text-white text-brand-gray border-transparent'
                           }`}
                           title="Mute"
                         >
@@ -648,62 +611,93 @@ export const DawView: React.FC = () => {
                         </button>
                         <button
                           onClick={() => toggleStemSolo(stemName)}
-                          className={`w-5 h-5 rounded-[3px] flex items-center justify-center text-[9px] font-black transition-all border cursor-pointer shrink-0 ${
+                          className={`w-4 h-4 rounded-[2px] flex items-center justify-center text-[8px] font-black transition-all border cursor-pointer ${
                             isSoloed
                               ? 'bg-amber-400 text-black border-amber-400'
-                              : 'bg-[#222] hover:bg-amber-400/80 hover:text-black hover:border-amber-400/80 text-brand-gray border-transparent'
+                              : 'bg-[#222] hover:bg-amber-400/80 hover:text-black text-brand-gray border-transparent'
                           }`}
                           title="Solo"
                         >
                           S
                         </button>
-                        <span className="text-[11px] font-black tracking-wide text-white uppercase truncate ml-1">{stemName}</span>
-                      </div>
-
-                      {/* Fader de Volume */}
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <Volume2 className="w-3.5 h-3.5 text-brand-gray shrink-0" />
-                        <input
-                          type="range"
-                          min="0"
-                          max="1.5"
-                          step="0.05"
-                          value={volume}
-                          onChange={(e) => setStemVolume(stemName, parseFloat(e.target.value))}
-                          className="w-full fader-input appearance-none bg-transparent cursor-pointer"
-                          style={{ '--slider-progress': `${(volume / 1.5) * 100}%` } as React.CSSProperties}
-                        />
                       </div>
                     </div>
+                  ) : (
+                    <div className="w-[240px] pr-4 flex items-center justify-between gap-4 shrink-0 select-none transition-all duration-200">
+                      {/* Coluna 1: M/S + Nome (Topo) e Slider Volume (Base) */}
+                      <div className="flex-1 flex flex-col gap-2 min-w-0">
+                        {/* Mute/Solo + Nome do Canal */}
+                        <div className="flex items-center gap-1.5 select-none">
+                          <button
+                            onClick={() => toggleStemMute(stemName)}
+                            className={`w-5 h-5 rounded-[3px] flex items-center justify-center text-[9px] font-black transition-all border cursor-pointer shrink-0 ${
+                              isMuted
+                                ? 'bg-red-600 text-white border-red-600'
+                                : 'bg-[#222] hover:bg-red-600/70 hover:text-white hover:border-red-600/70 text-brand-gray border-transparent'
+                            }`}
+                            title="Mute"
+                          >
+                            M
+                          </button>
+                          <button
+                            onClick={() => toggleStemSolo(stemName)}
+                            className={`w-5 h-5 rounded-[3px] flex items-center justify-center text-[9px] font-black transition-all border cursor-pointer shrink-0 ${
+                              isSoloed
+                                ? 'bg-amber-400 text-black border-amber-400'
+                                : 'bg-[#222] hover:bg-amber-400/80 hover:text-black hover:border-amber-400/80 text-brand-gray border-transparent'
+                            }`}
+                            title="Solo"
+                          >
+                            S
+                          </button>
+                          <span className="text-[11px] font-black tracking-wide text-white uppercase truncate ml-1">{stemName}</span>
+                        </div>
 
-                    {/* Coluna 2: Panning Knob (L/R) ou MONO */}
-                    <div className="shrink-0 flex items-center justify-center min-w-[50px]">
-                      {!mono ? (
-                        <div className="flex flex-col items-center select-none shrink-0 relative">
-                          <RotaryKnob 
-                            value={pan}
-                            onChange={(val) => setStemPan(stemName, val)}
-                            size={36}
-                            hideLabels={true}
+                        {/* Fader de Volume */}
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Volume2 className="w-3.5 h-3.5 text-brand-gray shrink-0" />
+                          <input
+                            type="range"
+                            min="0"
+                            max="1.5"
+                            step="0.05"
+                            value={volume}
+                            onChange={(e) => setStemVolume(stemName, parseFloat(e.target.value))}
+                            className="w-full fader-input appearance-none bg-transparent cursor-pointer"
+                            style={{ '--slider-progress': `${(volume / 1.5) * 100}%` } as React.CSSProperties}
                           />
-                          <div className="flex justify-between w-[48px] text-[8px] font-black text-brand-gray/50 mt-0.5 leading-none">
-                            <span>L</span>
-                            <span>R</span>
+                        </div>
+                      </div>
+
+                      {/* Coluna 2: Panning Knob (L/R) ou MONO */}
+                      <div className="shrink-0 flex items-center justify-center min-w-[50px]">
+                        {!mono ? (
+                          <div className="flex flex-col items-center select-none shrink-0 relative">
+                            <RotaryKnob 
+                              value={pan}
+                              onChange={(val) => setStemPan(stemName, val)}
+                              size={36}
+                              hideLabels={true}
+                            />
+                            <div className="flex justify-between w-[48px] text-[8px] font-black text-brand-gray/50 mt-0.5 leading-none">
+                              <span>L</span>
+                              <span>R</span>
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center select-none" style={{ width: 50 }}>
-                          <span className="text-[8px] font-bold text-brand-gray/25 uppercase tracking-widest leading-none border border-dashed border-[#222] rounded p-1.5 px-2 text-center">MONO</span>
-                        </div>
-                      )}
+                        ) : (
+                          <div className="flex flex-col items-center select-none" style={{ width: 50 }}>
+                            <span className="text-[8px] font-bold text-brand-gray/25 uppercase tracking-widest leading-none border border-dashed border-[#222] rounded p-1.5 px-2 text-center">MONO</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* PISTA DIREITA: Canvas de Waveform com fundo fosco sólido em pílulas individuais (Scrollable) */}
                   <div 
                     ref={(el) => { trackScrollRefs.current[idx] = el; }}
                     onScroll={handleHorizontalScroll}
-                    className="flex-1 h-full overflow-x-auto overflow-y-hidden scrollbar-none rounded-[8px] bg-[#1db954] select-none shadow-[0_1px_3px_rgba(0,0,0,0.3)] border border-[#1aa34a]/10 relative"
+                    className="flex-1 h-full overflow-x-auto overflow-y-hidden scrollbar-none rounded-[8px] bg-[#1db954] select-none shadow-[0_1px_3px_rgba(0,0,0,0.3)] border border-[#1aa34a]/10 relative ml-2"
                   >
                     <div 
                       onClick={(e) => {
