@@ -446,6 +446,12 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
     * **Carregamento Sincronizado por Música (`loadTrack`):** Ao carregar uma música (manual ou automaticamente via fila/autoplay), o `PlayerContext` lê as chaves `mixer8:track:<TrackId>:transpose` e `mixer8:track:<TrackId>:bpm-delta` no `localStorage`. Atualiza as refs e dispara `applyPitchAndTempoSettings(targetTranspose, targetBpmDelta)` imediatamente após a criação dos nós de áudio, aplicando a transposição correta desde o primeiro milissegundo de reprodução.
     * **Setters Dedicados por Faixa (`setTransposeSynced` / `setBpmDeltaSynced`):** A alteração de Tom ou BPM via interface do usuário salva a nova configuração exclusivamente sob a chave `TrackId` ativa no `localStorage`. Mudar de música não afeta nem sobrescreve os valores das faixas subsequentes.
 
+40. **Arquitetura de Fila Dinâmica Agnóstica por Provedor (`IQueueProvider`)**:
+    * **Padrão Strategy Agnóstico:** Criado o contrato `IQueueProvider` (`fetchNextPage: (page, pageSize) => Promise<IQueueProviderResult>`), tornando o `PlayerContext` 100% isolado de APIs específicas.
+    * **Pré-busca em Segundo Plano (*Lazy Queue Pre-fetching*):** O player monitora o índice da faixa ativa em relação à fila. Quando restam 2 ou menos faixas na fila local (`remaining <= 2`), ele dispara `fetchNextQueueChunk()` silenciosamente, buscando a próxima página e anexando as faixas ao final da fila (`currentQueue`).
+    * **Experiência de Reprodução Contínua:** Permite a reprodução ininterrupta de milhares de músicas da Biblioteca Geral, pesquisas filtradas ou Playlists extensas sem requisições pesadas ou gargalos de memória RAM na SPA.
+    * **Fábrica de Provedores (`src/utils/queueProviders.ts`):** Implementados `createLibraryQueueProvider` e `createPlaylistQueueProvider` para integração imediata nos componentes `TrackListing` e `PlaylistDetail`.
+
 ---
 
 ## 🎯 Próximo Milestone: Ajustes de Fluxo e Segurança de Rede

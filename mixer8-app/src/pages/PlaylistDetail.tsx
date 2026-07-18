@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { usePlayer } from '../context/PlayerContext';
+import { usePlayer, type ITrack } from '../context/PlayerContext';
 import { usePlaylists } from '../context/PlaylistContext';
 import type { IPlaylist } from '../context/PlaylistContext';
 import { 
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 
 import { API_URL, SERVER_URL } from '../config';
+import { createPlaylistQueueProvider } from '../utils/queueProviders';
 
 interface IPlaylistStem {
   StemId: string;
@@ -389,18 +390,21 @@ export const PlaylistDetail: React.FC = () => {
     };
   }, [id, navigate]);
 
+  const playlistQueueProvider = useMemo(() => {
+    if (!playlist?.PlaylistId) return undefined;
+    return createPlaylistQueueProvider(API_URL, Token, playlist.PlaylistId);
+  }, [Token, playlist?.PlaylistId]);
+
   const handlePlayTrack = (t: IPlaylistTrack) => {
-    if (currentTrack && currentTrack.TrackId === t.TrackId) {
-      togglePlay();
-      return;
-    }
-    const trackToPlay = {
+    if (!playlist) return;
+
+    const trackToPlay: ITrack = {
       TrackId: t.TrackId,
       TrackTitle: t.TrackTitle,
       ArtistName: t.ArtistName,
-      CoverUrl: t.CoverUrl,
       ExtractionStatus: 'Pronto',
       CreatedAt: t.AddedAt,
+      CoverUrl: t.CoverUrl,
       Bpm: t.Bpm,
       Key: t.Key,
       Stems: t.Stems.map(s => ({
@@ -428,7 +432,7 @@ export const PlaylistDetail: React.FC = () => {
       }))
     })) : [];
 
-    loadTrack(trackToPlay, playlist?.PlaylistId, undefined, tracksQueue, playlist?.Name);
+    loadTrack(trackToPlay, playlist?.PlaylistId, undefined, tracksQueue, playlist?.Name, playlistQueueProvider);
   };
 
   const handleRemoveTrack = async (trackId: string) => {
@@ -663,7 +667,7 @@ export const PlaylistDetail: React.FC = () => {
         
         const startIndex = isShuffle ? Math.floor(Math.random() * tracksQueue.length) : 0;
         const firstTrack = tracksQueue[startIndex];
-        loadTrack(firstTrack, playlist.PlaylistId, undefined, tracksQueue, playlist.Name);
+        loadTrack(firstTrack, playlist.PlaylistId, undefined, tracksQueue, playlist.Name, playlistQueueProvider);
       }
     }
   };
@@ -1191,7 +1195,7 @@ export const PlaylistDetail: React.FC = () => {
                                         AudioUrl: s.AudioUrl
                                       }))
                                     })) : [];
-                                    await loadTrack(trackToPlay, playlist?.PlaylistId, undefined, tracksQueue, playlist?.Name);
+                                    await loadTrack(trackToPlay, playlist?.PlaylistId, undefined, tracksQueue, playlist?.Name, playlistQueueProvider);
                                     navigate('/daw');
                                   }}
                                   className={`font-bold truncate text-sm hover:underline cursor-pointer ${isCurrentTrack ? 'text-brand-green' : 'text-white'}`}
@@ -1398,7 +1402,7 @@ export const PlaylistDetail: React.FC = () => {
                                 AudioUrl: s.AudioUrl
                               }))
                             })) : [];
-                            await loadTrack(trackToPlay, playlist?.PlaylistId, undefined, tracksQueue, playlist?.Name);
+                            await loadTrack(trackToPlay, playlist?.PlaylistId, undefined, tracksQueue, playlist?.Name, playlistQueueProvider);
                             navigate('/daw');
                           }}
                           className={`font-bold text-sm truncate hover:underline cursor-pointer leading-tight ${

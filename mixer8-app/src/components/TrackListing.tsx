@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import { TrackStatusBadge } from './TrackStatusBadge';
-import type { ITrack } from '../context/PlayerContext';
+import type { IQueueProvider, ITrack } from '../context/PlayerContext';
 import { usePlaylists } from '../context/PlaylistContext';
 import { useAuth } from '../context/AuthContext';
 import { SERVER_URL } from '../config';
@@ -18,6 +18,7 @@ interface TrackListingProps {
   showUploaderInfo?: boolean;
   onTrackContextMenu: (e: React.MouseEvent, track: ITrack) => void;
   tracksQueue?: ITrack[];
+  queueProvider?: IQueueProvider;
 }
 
 export const TrackListing: React.FC<TrackListingProps> = ({
@@ -27,7 +28,8 @@ export const TrackListing: React.FC<TrackListingProps> = ({
   isFetchingMore = false,
   showUploaderInfo = false,
   onTrackContextMenu,
-  tracksQueue
+  tracksQueue,
+  queueProvider
 }) => {
   const { CurrentUser } = useAuth();
   const { loadTrack, currentTrack, isPlaying, togglePlay } = usePlayer();
@@ -39,7 +41,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
     if (isCurrentLoaded(track)) {
       togglePlay();
     } else {
-      loadTrack(track, undefined, undefined, tracksQueue || tracks);
+      loadTrack(track, undefined, undefined, tracksQueue || tracks, undefined, queueProvider);
     }
   };
 
@@ -137,7 +139,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
                           e.stopPropagation();
                           if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando')) return;
                           if (!isCurrentLoaded(track)) {
-                            await loadTrack(track, undefined, undefined, tracksQueue || tracks);
+                            await loadTrack(track, undefined, undefined, tracksQueue || tracks, undefined, queueProvider);
                           }
                           navigate('/daw');
                         }}
@@ -279,7 +281,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
                           e.stopPropagation();
                           if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando')) return;
                           if (!isCurrentLoaded(track)) {
-                            await loadTrack(track, undefined, undefined, tracksQueue || tracks);
+                            await loadTrack(track, undefined, undefined, tracksQueue || tracks, undefined, queueProvider);
                           }
                           navigate('/daw');
                         }}
@@ -408,7 +410,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
                     e.stopPropagation();
                     if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando')) return;
                     if (!isCurrentLoaded(track)) {
-                      await loadTrack(track, undefined, undefined, tracksQueue || tracks);
+                      await loadTrack(track, undefined, undefined, tracksQueue || tracks, undefined, queueProvider);
                     }
                     navigate('/daw');
                   }}

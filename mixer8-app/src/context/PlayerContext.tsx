@@ -33,6 +33,16 @@ export const isMetronomeStem = (type?: string): boolean => {
   return lower.includes('metronomo') || lower.includes('metrônomo') || lower.includes('metronome') || lower.includes('click');
 };
 
+export interface IQueueProviderResult {
+  tracks: ITrack[];
+  hasMore: boolean;
+}
+
+export interface IQueueProvider {
+  id: string;
+  fetchNextPage: (page: number, pageSize: number) => Promise<IQueueProviderResult>;
+}
+
 interface IPlayerContext {
   currentTrack: ITrack | null;
   currentPlaylistId: string | null;
@@ -47,7 +57,14 @@ interface IPlayerContext {
   stemsPan: Record<string, number>;
   masterVolume: number;
   currentQueue: ITrack[];
-  loadTrack: (track: ITrack | null, playlistId?: string, albumId?: string, tracksQueue?: ITrack[], playlistName?: string) => void;
+  loadTrack: (
+    track: ITrack | null,
+    playlistId?: string,
+    albumId?: string,
+    tracksQueue?: ITrack[],
+    playlistName?: string,
+    queueProvider?: IQueueProvider
+  ) => void;
   togglePlay: () => void;
   seek: (seconds: number) => void;
   setStemVolume: (type: string, volume: number) => void;
@@ -229,6 +246,46 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [showChords]);
   const [currentQueue, setCurrentQueue] = useState<ITrack[]>([]);
   const currentQueueRef = useRef<ITrack[]>([]);
+
+  // Controle de Fila Dinâmica Agnóstica (Lazy Queue Pre-fetching)
+  const queueProviderRef = useRef<IQueueProvider | null>(null);
+  const queuePageRef = useRef<number>(1);
+  const hasMoreQueuePagesRef = useRef<boolean>(false);
+  const isFetchingQueuePageRef = useRef<boolean>(false);
+
+  const fetchNextQueueChunk = useCallback(async () => {
+    if (!queueProviderRef.current || !hasMoreQueuePagesRef.current || isFetchingQueuePageRef.current) {
+      return;
+    }
+
+    isFetchingQueuePageRef.current = true;
+    const nextPage = queuePageRef.current + 1;
+    console.log(`[QUEUE-PROVIDER] Pre-fetching próxima página (${nextPage}) do provedor: ${queueProviderRef.current.id}`);
+
+    try {
+      const result = await queueProviderRef.current.fetchNextPage(nextPage, 20);
+      if (result.tracks && result.tracks.length > 0) {
+        const existingIds = new Set(currentQueueRef.current.map(t => t.TrackId));
+        const uniqueNewTracks = result.tracks.filter(t => !existingIds.has(t.TrackId));
+
+        if (uniqueNewTracks.length > 0) {
+          const updatedQueue = [...currentQueueRef.current, ...uniqueNewTracks];
+          setCurrentQueue(updatedQueue);
+          currentQueueRef.current = updatedQueue;
+          console.log(`[QUEUE-PROVIDER] ${uniqueNewTracks.length} novas faixas anexadas à fila. Total na fila: ${updatedQueue.length}`);
+        }
+        queuePageRef.current = nextPage;
+        hasMoreQueuePagesRef.current = result.hasMore;
+      } else {
+        hasMoreQueuePagesRef.current = false;
+        console.log('[QUEUE-PROVIDER] Fim da lista atingido no provedor.');
+      }
+    } catch (err) {
+      console.warn('[QUEUE-PROVIDER] Erro ao buscar próxima página da fila:', err);
+    } finally {
+      isFetchingQueuePageRef.current = false;
+    }
+  }, []);
 
   const currentTrackRef = useRef<ITrack | null>(null);
   const currentPlaylistIdRef = useRef<string | null>(null);
@@ -657,6 +714,14 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return;
     }
 
+    const currentIndex = queue.findIndex(t => t.TrackId === activeTrack.TrackId);
+    const remaining = currentIndex !== -1 ? queue.length - 1 - currentIndex : 0;
+
+    // Dispara a pré-busca silenciosa da próxima página no provedor agnóstico se restarem <= 2 faixas na fila
+    if (remaining <= 2 && hasMoreQueuePagesRef.current) {
+      fetchNextQueueChunk();
+    }
+
     // 1. Regra de Repeat One (Repetir 1): Se estiver ativado, repete a faixa atual independente de shuffle/queue
     if (repeatModeRef.current === 'one') {
       console.log('[AUTOPLAY] Modo Repeat One ativo. Reiniciando a faixa atual:', activeTrack.TrackTitle);
@@ -704,7 +769,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     // 3. Regra de Reprodução Sequencial (Shuffle desligado)
-    const currentIndex = queue.findIndex(t => t.TrackId === activeTrack.TrackId);
     if (currentIndex !== -1 && currentIndex < queue.length - 1) {
       const nextTrack = queue[currentIndex + 1];
       console.log('[AUTOPLAY] Pulando para a próxima faixa sequencial:', nextTrack.TrackTitle);
@@ -782,7 +846,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     playlistId?: string,
     albumId?: string,
     tracksQueue?: ITrack[],
-    playlistName?: string
+    playlistName?: string,
+    queueProvider?: IQueueProvider
   ) => {
     console.log(`[PLAYER-LIFECYCLE] Iniciando loadTrack para a faixa: ${track?.TrackTitle || 'null'}`);
     setIsPlayingSynced(false);
@@ -803,6 +868,18 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     transposeRef.current = targetTranspose;
     bpmDeltaRef.current = targetBpmDelta;
     
+    // Configura o Provedor Agnóstico de Fila se fornecido
+    if (queueProvider) {
+      queueProviderRef.current = queueProvider;
+      queuePageRef.current = 1;
+      hasMoreQueuePagesRef.current = true;
+      console.log(`[QUEUE-PROVIDER] Provedor de fila ativado: ${queueProvider.id}`);
+    } else if (tracksQueue) {
+      queueProviderRef.current = null;
+      queuePageRef.current = 1;
+      hasMoreQueuePagesRef.current = false;
+    }
+
     // Atualiza estados para renderização reativa
     setCurrentTrack(track);
     setCurrentPlaylistId(playlistId || null);
@@ -833,6 +910,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           playedTrackIdsRef.current.push(track.TrackId);
         }
       }
+    }
+
+    // Se a fila inicial fornecida for pequena (<= 2 faixas) e o provedor possuir mais páginas, solicita pré-busca imediata
+    if (queueProvider && currentQueueRef.current.length <= 2 && hasMoreQueuePagesRef.current) {
+      fetchNextQueueChunk();
     }
 
     listeningAccumulatorRef.current = 0;

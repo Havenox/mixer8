@@ -14,6 +14,7 @@ import { TrackListing } from '../components/TrackListing';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
 import { API_URL, SERVER_URL } from '../config';
+import { createLibraryQueueProvider } from '../utils/queueProviders';
 
 export const Dashboard: React.FC = () => {
   const { CurrentUser, Token } = useAuth();
@@ -569,6 +570,10 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  const libraryQueueProvider = useMemo(() => {
+    return createLibraryQueueProvider(API_URL, Token, debouncedSearch, visibilityFilter);
+  }, [Token, debouncedSearch, visibilityFilter]);
+
   const hasAccessToUpload = CurrentUser?.UserRole === 'PaidUser' || CurrentUser?.UserRole === 'Admin';
 
   return (
@@ -691,6 +696,7 @@ export const Dashboard: React.FC = () => {
             setContextMenu({ x: e.clientX, y: e.clientY, track });
           }}
           tracksQueue={tracks}
+          queueProvider={libraryQueueProvider}
         />
       )}
 
