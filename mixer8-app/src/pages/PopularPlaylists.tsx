@@ -54,7 +54,7 @@ export const PopularPlaylists: React.FC = () => {
       if (Token) {
         headers['Authorization'] = `Bearer ${Token}`;
       }
-      const res = await fetch(`${API_URL}/Playlists/Popular?page=${targetPage}&limit=10`, { headers });
+      const res = await fetch(`${API_URL}/Playlists/Popular?page=${targetPage}&limit=20`, { headers });
       if (res.ok) {
         const data = await res.json();
         if (resetPage) {
@@ -67,7 +67,7 @@ export const PopularPlaylists: React.FC = () => {
           });
         }
 
-        if (data.length < 10) {
+        if (data.length < 20) {
           setHasMore(false);
         } else {
           setPage(prev => (resetPage ? 2 : prev + 1));

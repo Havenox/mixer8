@@ -348,7 +348,7 @@ export const Dashboard: React.FC = () => {
       } else if (visibilityFilter === 'unlisted') {
         visibilityParam = '&visibility=Unlisted';
       }
-      const res = await fetch(`${API_URL}/Tracks?page=${targetPage}&limit=10${searchParam}${showAllParam}${visibilityParam}`, { headers });
+      const res = await fetch(`${API_URL}/Tracks?page=${targetPage}&limit=20${searchParam}${showAllParam}${visibilityParam}`, { headers });
       if (res.ok) {
         const data = await res.json();
         if (resetPage) {
@@ -361,7 +361,7 @@ export const Dashboard: React.FC = () => {
           });
         }
 
-        if (data.length < 10) {
+        if (data.length < 20) {
           setHasMore(false);
         } else {
           setPage(prev => (resetPage ? 2 : prev + 1));
