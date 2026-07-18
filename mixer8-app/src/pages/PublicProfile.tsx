@@ -7,6 +7,7 @@ import {
 import { usePlayer } from '../context/PlayerContext';
 
 import { API_URL, SERVER_URL } from '../config';
+import { createPlaylistQueueProvider } from '../utils/queueProviders';
 
 interface IPublicPlaylist {
   PlaylistId: string;
@@ -72,7 +73,8 @@ export const PublicProfile: React.FC = () => {
           }));
           const startIndex = isShuffle ? Math.floor(Math.random() * tracksQueue.length) : 0;
           const firstTrack = tracksQueue[startIndex];
-          loadTrack(firstTrack, playlist.PlaylistId, undefined, tracksQueue, playlist.Name);
+          const provider = createPlaylistQueueProvider(API_URL, Token, playlist.PlaylistId);
+          loadTrack(firstTrack, playlist.PlaylistId, undefined, tracksQueue, playlist.Name, provider);
         }
       }
     } catch (err) {

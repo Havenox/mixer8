@@ -451,7 +451,7 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
     * **Pré-busca em Segundo Plano (*Lazy Queue Pre-fetching*):** O player monitora o índice da faixa ativa em relação à fila. Quando restam 2 ou menos faixas na fila local (`remaining <= 2`), ele dispara `fetchNextQueueChunk()` silenciosamente, buscando a próxima página e anexando as faixas ao final da fila (`currentQueue`).
     * **Experiência de Reprodução Contínua:** Permite a reprodução ininterrupta de milhares de músicas da Biblioteca Geral, pesquisas filtradas ou Playlists extensas sem requisições pesadas ou gargalos de memória RAM na SPA.
     * **Padronização Global de Paginação (Tamanho 20):** Refatoradas as listagens e endpoints de scroll do frontend (`Dashboard.tsx`, `WeeklyTrends.tsx` e `PopularPlaylists.tsx`) para usar uniformemente `limit=20`. Isso elimina incongruências matemáticas de offset no banco de dados e alinha as páginas visuais com a velocidade do enfileiramento inteligente.
-    * **Fábrica de Provedores (`src/utils/queueProviders.ts`):** Implementados `createLibraryQueueProvider` e `createPlaylistQueueProvider` para integração imediata nos componentes `TrackListing` e `PlaylistDetail`.
+    * **Fábrica de Provedores (`src/utils/queueProviders.ts`):** Implementados `createLibraryQueueProvider`, `createPlaylistQueueProvider` e `createWeeklyTrendsQueueProvider` para integração imediata nos componentes e páginas do sistema (`TrackListing`, `Dashboard`, `WeeklyTrends`, `ExploreShelf`, `PlaylistListing` e `PublicProfile`).
 
 ---
 

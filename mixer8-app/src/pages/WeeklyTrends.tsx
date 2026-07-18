@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import type { ITrack } from '../context/PlayerContext';
@@ -9,6 +9,7 @@ import {
 import { TrackListing } from '../components/TrackListing';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { API_URL, SERVER_URL } from '../config';
+import { createWeeklyTrendsQueueProvider } from '../utils/queueProviders';
 
 export const WeeklyTrends: React.FC = () => {
   const { CurrentUser, Token } = useAuth();
@@ -208,6 +209,10 @@ export const WeeklyTrends: React.FC = () => {
     }
   };
 
+  const weeklyTrendsQueueProvider = useMemo(() => {
+    return createWeeklyTrendsQueueProvider(API_URL, Token);
+  }, [Token]);
+
   return (
     <div className="flex flex-col gap-6 select-none animate-in fade-in duration-300">
       
@@ -269,6 +274,8 @@ export const WeeklyTrends: React.FC = () => {
         onTrackContextMenu={(e, track) => {
           setContextMenu({ x: e.clientX, y: e.clientY, track });
         }}
+        tracksQueue={tracks}
+        queueProvider={weeklyTrendsQueueProvider}
       />
 
       {/* MENU DE CONTEXTO */}

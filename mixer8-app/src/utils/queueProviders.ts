@@ -87,3 +87,39 @@ export const createPlaylistQueueProvider = (
     }
   };
 };
+
+/**
+ * Cria um provedor agnóstico de fila para Tendências Semanais.
+ */
+export const createWeeklyTrendsQueueProvider = (
+  apiUrl: string,
+  token: string | null
+): IQueueProvider => {
+  return {
+    id: 'weekly-trends',
+    fetchNextPage: async (page: number, pageSize: number) => {
+      try {
+        const headers: Record<string, string> = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const res = await fetch(
+          `${apiUrl}/Tracks/WeeklyTrends?page=${page}&limit=${pageSize}`,
+          { headers }
+        );
+
+        if (!res.ok) {
+          return { tracks: [], hasMore: false };
+        }
+
+        const data: ITrack[] = await res.json();
+        return {
+          tracks: data,
+          hasMore: data.length >= pageSize
+        };
+      } catch (err) {
+        console.warn('[QUEUE-PROVIDER] Erro ao carregar página de tendências semanais:', err);
+        return { tracks: [], hasMore: false };
+      }
+    }
+  };
+};
