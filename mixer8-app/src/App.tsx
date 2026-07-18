@@ -5,7 +5,7 @@ import { PlayerProvider, usePlayer } from './context/PlayerContext';
 import { PlaylistProvider, usePlaylists } from './context/PlaylistContext';
 import type { ITrack } from './context/PlayerContext';
 import { PersistentLayout } from './components/PersistentLayout';
-import { Dashboard } from './pages/Dashboard';
+import { Library } from './pages/Library';
 import { Admin } from './pages/Admin';
 import { UploadDireto } from './pages/UploadDireto';
 import { PlaylistDetail } from './pages/PlaylistDetail';
@@ -1004,7 +1004,7 @@ export const App: React.FC = () => {
                 {/* Rotas Públicas */}
                 
                 <Route path="/" element={<Explore />} />
-                <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                <Route path="/library" element={<ProtectedRoute><Library /></ProtectedRoute>} />
                 <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
                 <Route path="/upload-direto" element={<ProtectedRoute><UploadDireto /></ProtectedRoute>} />
                 <Route path="/playlists/:id" element={<PlaylistDetail />} />

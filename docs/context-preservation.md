@@ -453,6 +453,10 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
     * **Padronização Global de Paginação (Tamanho 20):** Refatoradas as listagens e endpoints de scroll do frontend (`Dashboard.tsx`, `WeeklyTrends.tsx` e `PopularPlaylists.tsx`) para usar uniformemente `limit=20`. Isso elimina incongruências matemáticas de offset no banco de dados e alinha as páginas visuais com a velocidade do enfileiramento inteligente.
     * **Fábrica de Provedores (`src/utils/queueProviders.ts`):** Implementados `createLibraryQueueProvider`, `createPlaylistQueueProvider` e `createWeeklyTrendsQueueProvider` para integração imediata nos componentes e páginas do sistema (`TrackListing`, `Dashboard`, `WeeklyTrends`, `ExploreShelf`, `PlaylistListing` e `PublicProfile`).
 
+41. **Refatoração Semântica da Rota `/dashboard` para `/library`**:
+    * **Renomeação de Componente e Arquivo:** O arquivo `Dashboard.tsx` foi renomeado para `Library.tsx` e o componente interno renomeado para `Library`.
+    * **Ajuste de Navegação e Rotas:** Alteradas todas as ocorrências de redirecionamentos e links internos de `/dashboard` para `/library` na SPA (`App.tsx`, `PersistentLayout.tsx`, `UploadDireto.tsx` e `Library.tsx`).
+
 ---
 
 ## 🎯 Próximo Milestone: Ajustes de Fluxo e Segurança de Rede

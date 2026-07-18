@@ -325,7 +325,7 @@ export const UploadDireto: React.FC = () => {
       <div className="flex items-center justify-between border-b border-brand-hover pb-5">
         <div className="flex flex-col gap-1">
           <button 
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate('/library')}
             className="flex items-center gap-1.5 text-xs text-brand-gray hover:text-brand-green transition-colors mb-2 cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" /> Voltar para Biblioteca
@@ -352,7 +352,7 @@ export const UploadDireto: React.FC = () => {
               Enviar Outra
             </button>
             <button 
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate('/library')}
               className="py-2 px-4 bg-brand-green hover:scale-105 active:scale-95 text-black text-xs font-bold rounded cursor-pointer transition-all"
             >
               Ir para Minha Biblioteca

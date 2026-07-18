@@ -138,7 +138,7 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
             </Link>
             {IsAuthenticated && (
               <>
-                <Link to="/dashboard" className={`hover:text-brand-green ${location.pathname === '/dashboard' && !location.search.includes('action=upload') ? 'text-brand-green' : 'text-white'}`} onClick={() => setIsMobileMenuOpen(false)} title="Biblioteca">
+                <Link to="/library" className={`hover:text-brand-green ${location.pathname === '/library' && !location.search.includes('action=upload') ? 'text-brand-green' : 'text-white'}`} onClick={() => setIsMobileMenuOpen(false)} title="Biblioteca">
                   <Library className="w-5 h-5" />
                 </Link>
                 <Link to="/playlists" className={`hover:text-brand-green ${location.pathname.startsWith('/playlists') ? 'text-brand-green' : 'text-white'}`} onClick={() => setIsMobileMenuOpen(false)} title="Playlists">
@@ -153,7 +153,7 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
             )}
 
             {IsAuthenticated && CurrentUser && (CurrentUser.UserRole === 'PaidUser' || CurrentUser.UserRole === 'Admin') && (
-              <Link to="/dashboard?action=upload" className={`hover:text-brand-green ${location.search.includes('action=upload') ? 'text-brand-green' : 'text-white'}`} onClick={() => setIsMobileMenuOpen(false)} title="Adicionar nova música">
+              <Link to="/library?action=upload" className={`hover:text-brand-green ${location.search.includes('action=upload') ? 'text-brand-green' : 'text-white'}`} onClick={() => setIsMobileMenuOpen(false)} title="Adicionar nova música">
                 <UploadCloud className="w-5 h-5 shrink-0" />
               </Link>
             )}
@@ -184,7 +184,7 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
               {isMobileMenuOpen && (
                 <div className="absolute right-0 mt-2 bg-brand-card border border-brand-hover rounded-md shadow-2xl p-2 z-50 flex flex-col gap-1 w-52 animate-in slide-in-from-top-2 duration-200">
                   {IsAuthenticated && CurrentUser && (CurrentUser.UserRole === 'PaidUser' || CurrentUser.UserRole === 'Admin') && (
-                    <button onClick={() => { navigate('/dashboard?action=upload'); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded text-white hover:bg-brand-hover hover:text-brand-green w-full text-left cursor-pointer">
+                    <button onClick={() => { navigate('/library?action=upload'); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded text-white hover:bg-brand-hover hover:text-brand-green w-full text-left cursor-pointer">
                       <UploadCloud className="w-4 h-4 text-brand-green" />
                       <span>Adicionar nova música</span>
                     </button>
@@ -270,10 +270,10 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
             
             {IsAuthenticated ? (
               (() => {
-                const isLibraryActive = location.pathname === '/dashboard' && !location.search.includes('action=upload');
+                const isLibraryActive = location.pathname === '/library' && !location.search.includes('action=upload');
                 return (
                   <Link 
-                    to="/dashboard" 
+                    to="/library" 
                     className={`flex items-center rounded-md transition-all text-sm ${
                       isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'gap-4 py-2 px-3 w-full'
                     } ${isLibraryActive ? 'bg-[#242424] text-white font-bold' : 'text-white font-semibold hover:bg-brand-hover/50'}`}
@@ -349,7 +349,7 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
                   const isUploadActive = location.search.includes('action=upload');
                   return (
                     <Link 
-                      to="/dashboard?action=upload" 
+                      to="/library?action=upload" 
                       className={`flex items-center rounded-md transition-all text-sm ${
                         isSidebarCollapsed ? 'justify-center p-2.5 w-12 h-12 self-center' : 'gap-4 py-2 px-3 w-full'
                       } ${isUploadActive ? 'bg-[#242424] text-white font-bold' : 'text-white font-semibold hover:bg-brand-hover/50'}`}

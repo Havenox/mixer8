@@ -16,7 +16,7 @@ import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { API_URL, SERVER_URL } from '../config';
 import { createLibraryQueueProvider } from '../utils/queueProviders';
 
-export const Dashboard: React.FC = () => {
+export const Library: React.FC = () => {
   const { CurrentUser, Token } = useAuth();
   const { loadTrack, currentTrack } = usePlayer();
   const { openAddToPlaylist } = usePlaylists();
@@ -488,7 +488,7 @@ export const Dashboard: React.FC = () => {
         setArtistName('');
         setNewTrackId(null);
         setIsUploading(false);
-        navigate('/dashboard'); // Fecha o modal imediatamente
+        navigate('/library'); // Fecha o modal imediatamente
       } else {
         const errorData = await res.json();
         setToastType('error');
@@ -538,7 +538,7 @@ export const Dashboard: React.FC = () => {
         setSongName('');
         setArtistName('');
         setIsUploading(false);
-        navigate('/dashboard'); // Fecha o modal
+        navigate('/library'); // Fecha o modal
       } else {
         const errorData = await res.json();
         if (res.status === 409 || errorData.ErrorMessage === 'TRACK_ALREADY_EXISTS') {
@@ -551,7 +551,7 @@ export const Dashboard: React.FC = () => {
           setSongName('');
           setArtistName('');
           setIsUploading(false);
-          navigate('/dashboard'); // Fecha o modal de upload
+          navigate('/library'); // Fecha o modal de upload
 
           setSearchInput(downloadUrl.trim());
           setDebouncedSearch(downloadUrl.trim());
@@ -613,7 +613,7 @@ export const Dashboard: React.FC = () => {
 
           {hasAccessToUpload && (
             <button 
-              onClick={() => navigate('/dashboard?action=upload')}
+              onClick={() => navigate('/library?action=upload')}
               className="flex items-center gap-2 px-5 py-2.5 bg-brand-green text-black font-bold text-sm rounded-full hover:scale-105 active:scale-95 transition-all shadow-md cursor-pointer shrink-0"
             >
               <UploadCloud className="w-5 h-5" />
@@ -703,7 +703,7 @@ export const Dashboard: React.FC = () => {
       {/* MODAL DE UPLOAD */}
       {showUploadSection && (
         <div 
-          onClick={() => { if (!isUploading) navigate('/dashboard'); }}
+          onClick={() => { if (!isUploading) navigate('/library'); }}
           className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 select-none animate-in fade-in duration-200"
         >
           <div 
@@ -711,7 +711,7 @@ export const Dashboard: React.FC = () => {
             className="w-full max-w-[650px] bg-brand-card border border-brand-hover rounded-lg shadow-2xl p-6 md:p-8 flex flex-col gap-6 relative max-h-[90vh] overflow-y-auto"
           >
             <button 
-              onClick={() => { if (!isUploading) navigate('/dashboard'); }}
+              onClick={() => { if (!isUploading) navigate('/library'); }}
               className="absolute right-4 top-4 text-brand-gray hover:text-white transition-all cursor-pointer disabled:opacity-30 active:scale-95 flex items-center justify-center w-8 h-8 rounded-full hover:bg-brand-hover/40"
               disabled={isUploading}
               title="Fechar"
