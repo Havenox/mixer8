@@ -457,6 +457,11 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
     * **Renomeação de Componente e Arquivo:** O arquivo `Dashboard.tsx` foi renomeado para `Library.tsx` e o componente interno renomeado para `Library`.
     * **Ajuste de Navegação e Rotas:** Alteradas todas as ocorrências de redirecionamentos e links internos de `/dashboard` para `/library` na SPA (`App.tsx`, `PersistentLayout.tsx`, `UploadDireto.tsx` e `Library.tsx`).
 
+42. **Paginação Dinâmica e Queue para Playlists**:
+    * **Novas Rotas de API:** Adicionado o endpoint `GET /api/Playlists/{id}/Tracks` com suporte a paginação (`page` e `limit`). A rota de detalhes principal (`GET /api/Playlists/{id}`) foi otimizada para retornar apenas as primeiras 20 faixas (`.Take(20)`) e a contagem total no novo campo `TracksCount`.
+    * **Infinite Scroll na UI:** Integrado o hook `useInfiniteScroll` na página de detalhes da playlist (`PlaylistDetail.tsx`). Agora, as músicas são carregadas sob demanda, eliminando travamentos em playlists com milhares de músicas.
+    * **Queue Provider Dinâmico:** Atualizada a fábrica de enfileiramento `createPlaylistQueueProvider` em `queueProviders.ts` para formatar e mapear a resposta da API perfeitamente para a interface `ITrack`, mantendo a reprodução e carregamento assíncrono em segundo plano estável.
+
 ---
 
 ## 🎯 Próximo Milestone: Ajustes de Fluxo e Segurança de Rede

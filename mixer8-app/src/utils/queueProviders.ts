@@ -75,9 +75,26 @@ export const createPlaylistQueueProvider = (
           return { tracks: [], hasMore: false };
         }
 
-        const data: ITrack[] = await res.json();
+        const data: any[] = await res.json();
+        const mappedTracks: ITrack[] = data.map((t: any) => ({
+          TrackId: t.TrackId,
+          TrackTitle: t.TrackTitle,
+          ArtistName: t.ArtistName,
+          CoverUrl: t.CoverUrl,
+          ExtractionStatus: 'Pronto',
+          CreatedAt: t.AddedAt || new Date().toISOString(),
+          Bpm: t.Bpm,
+          Key: t.Key,
+          Stems: t.Stems ? t.Stems.map((s: any) => ({
+            StemId: s.StemId,
+            TrackId: s.TrackId,
+            StemType: s.StemType,
+            AudioUrl: s.AudioUrl
+          })) : []
+        }));
+
         return {
-          tracks: data,
+          tracks: mappedTracks,
           hasMore: data.length >= pageSize
         };
       } catch (err) {

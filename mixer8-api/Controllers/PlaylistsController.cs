@@ -234,6 +234,11 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
                 .ToDictionaryAsync(up => up.UserId, up => up.UserName);
         }
 
+        var visibleTracks = playlist.PlaylistTracks
+            .Where(pt => IsTrackVisible(pt.Track, playlist, userId, isAdmin))
+            .OrderBy(pt => pt.Order)
+            .ToList();
+
         var detailDto = new PlaylistDetailResponseDto
         {
             PlaylistId = playlist.PlaylistId,
@@ -251,9 +256,9 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             OwnerFirstName = ownerProfile?.FirstName,
             OwnerLastName = ownerProfile?.LastName,
             OwnerAvatarUrl = ownerProfile?.AvatarUrl,
-            Tracks = playlist.PlaylistTracks
-                .Where(pt => IsTrackVisible(pt.Track, playlist, userId, isAdmin))
-                .OrderBy(pt => pt.Order)
+            TracksCount = visibleTracks.Count,
+            Tracks = visibleTracks
+                .Take(20)
                 .Select(pt => new PlaylistTrackResponseDto
                 {
                     TrackId = pt.TrackId,
@@ -288,6 +293,102 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
         };
 
         return Ok(detailDto);
+    }
+
+    [HttpGet("{id}/Tracks")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetPlaylistTracks(Guid id, [FromQuery] int? page, [FromQuery] int? limit)
+    {
+        Guid? userId = null;
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userIdClaim != null && Guid.TryParse(userIdClaim, out var parsedUserId))
+        {
+            userId = parsedUserId;
+        }
+
+        var isAdmin = userId.HasValue && User.IsInRole("Admin");
+
+        var playlist = await dbContext.Playlists
+            .Include(p => p.PlaylistCollaborators)
+            .FirstOrDefaultAsync(p => p.PlaylistId == id);
+
+        if (playlist == null)
+            return NotFound(new { ErrorMessage = "PLAYLIST_NOT_FOUND" });
+
+        var isOwner = userId.HasValue && playlist.OwnerId == userId.Value;
+        var isCollaborator = userId.HasValue && playlist.PlaylistCollaborators.Any(pc => pc.UserId == userId.Value);
+
+        // Se for privada e não for dono/colaborador/admin, nega acesso
+        if (playlist.Visibility == "Private" && !isOwner && !isCollaborator && !isAdmin)
+        {
+            if (!userId.HasValue)
+                return Unauthorized(new { ErrorMessage = "AUTHENTICATION_REQUIRED" });
+            return Forbid();
+        }
+
+        var query = dbContext.PlaylistTracks
+            .Include(pt => pt.Track)
+                .ThenInclude(t => t.Stems)
+            .Include(pt => pt.AddedByUser)
+            .Where(pt => pt.PlaylistId == id)
+            .OrderBy(pt => pt.Order)
+            .AsQueryable();
+
+        // Paginação
+        int p = page ?? 1;
+        int l = limit ?? 20;
+        if (p < 1) p = 1;
+        if (l < 1) l = 20;
+
+        var playlistTracks = await query.Skip((p - 1) * l).Take(l).ToListAsync();
+
+        // Filtrar as visíveis
+        var visibleTracks = playlistTracks
+            .Where(pt => IsTrackVisible(pt.Track, playlist, userId, isAdmin))
+            .ToList();
+
+        // Uploader emails/usernames para admins
+        Dictionary<Guid, string> uploaderEmails = new();
+        Dictionary<Guid, string> uploaderUserNames = new();
+        if (isAdmin && visibleTracks.Any())
+        {
+            var uploaderIds = visibleTracks.Select(pt => pt.Track.UploadedBy).Distinct().ToList();
+            uploaderEmails = await dbContext.Users
+                .Where(u => uploaderIds.Contains(u.UserId))
+                .ToDictionaryAsync(u => u.UserId, u => u.Email);
+
+            uploaderUserNames = await dbContext.UserProfiles
+                .Where(up => uploaderIds.Contains(up.UserId))
+                .ToDictionaryAsync(up => up.UserId, up => up.UserName);
+        }
+
+        var result = visibleTracks.Select(pt => new PlaylistTrackResponseDto
+        {
+            TrackId = pt.TrackId,
+            TrackTitle = pt.Track.TrackTitle,
+            ArtistName = pt.Track.ArtistName,
+            CoverUrl = pt.Track.CoverUrl,
+            AddedById = pt.AddedById,
+            AddedByEmail = pt.AddedByUser != null ? pt.AddedByUser.Email : "",
+            AddedAt = pt.AddedAt,
+            Order = pt.Order,
+            Duration = pt.Track.Duration,
+            Visibility = pt.Track.Visibility,
+            UploadedBy = pt.Track.UploadedBy,
+            UploadedByEmail = uploaderEmails.GetValueOrDefault(pt.Track.UploadedBy),
+            UploadedByUserName = uploaderUserNames.GetValueOrDefault(pt.Track.UploadedBy),
+            Bpm = pt.Track.Bpm,
+            Key = pt.Track.Key,
+            Stems = pt.Track.Stems.Select(s => new PlaylistStemResponseDto
+            {
+                StemId = s.StemId,
+                TrackId = s.TrackId,
+                StemType = s.StemType,
+                AudioUrl = s.AudioUrl
+            }).ToList()
+        }).ToList();
+
+        return Ok(result);
     }
 
     [HttpPut("{id}")]
@@ -873,6 +974,7 @@ public class PlaylistDetailResponseDto
     public string? OwnerLastName { get; set; }
     public string? OwnerAvatarUrl { get; set; }
     public List<PlaylistTrackResponseDto> Tracks { get; set; } = new();
+    public int TracksCount { get; set; }
     public List<PlaylistCollaboratorResponseDto> Collaborators { get; set; } = new();
 }
 

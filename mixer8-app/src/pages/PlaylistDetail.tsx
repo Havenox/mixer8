@@ -14,6 +14,7 @@ import {
 
 import { API_URL, SERVER_URL } from '../config';
 import { createPlaylistQueueProvider } from '../utils/queueProviders';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
 interface IPlaylistStem {
   StemId: string;
@@ -62,6 +63,7 @@ interface IPlaylistDetail {
   IsCollaborator: boolean;
   IsSaved: boolean;
   Tracks: IPlaylistTrack[];
+  TracksCount: number;
   Collaborators: IPlaylistCollaborator[];
   OwnerUserName?: string;
   OwnerFirstName?: string;
@@ -90,6 +92,13 @@ export const PlaylistDetail: React.FC = () => {
   const [mobileTrackMenu, setMobileTrackMenu] = useState<IPlaylistTrack | null>(null);
   const [mobilePlaylistMenuOpen, setMobilePlaylistMenuOpen] = useState(false);
   const [showToast, setShowToast] = useState(false);
+
+  // Estados para paginação infinita de faixas
+  const [tracks, setTracks] = useState<IPlaylistTrack[]>([]);
+  const [tracksPage, setTracksPage] = useState(1);
+  const [hasMoreTracks, setHasMoreTracks] = useState(true);
+  const [isFetchingMoreTracks, setIsFetchingMoreTracks] = useState(false);
+  const [isLoadingTracks, setIsLoadingTracks] = useState(true);
 
   // Estados e lógicas para Colunas Redimensionáveis (Spotify-like)
   const [colWidths, setColWidths] = useState({
@@ -219,9 +228,9 @@ export const PlaylistDetail: React.FC = () => {
     const updateCachedTracks = async () => {
       if (!playlist || !isPremium) return;
       const dict: Record<string, boolean> = {};
-      let allDownloaded = playlist.Tracks.length > 0;
+      let allDownloaded = tracks.length > 0;
 
-      for (const t of playlist.Tracks) {
+      for (const t of tracks) {
         const trackToVerify = {
           TrackId: t.TrackId,
           Stems: t.Stems.map(s => ({
@@ -250,14 +259,14 @@ export const PlaylistDetail: React.FC = () => {
     return () => {
       window.removeEventListener('track-downloaded', handleCacheChanged);
     };
-  }, [playlist, isPremium, isTrackDownloaded]);
+  }, [playlist, tracks, isPremium, isTrackDownloaded]);
 
   const handlePlaylistDownloadClick = async () => {
     if (!playlist) return;
     if (playlistDownloadStatus === 'none') {
       setPlaylistDownloadStatus('loading');
       try {
-        for (const t of playlist.Tracks) {
+        for (const t of tracks) {
           const trackToDownload = {
             TrackId: t.TrackId,
             TrackTitle: t.TrackTitle,
@@ -285,7 +294,7 @@ export const PlaylistDetail: React.FC = () => {
   const handleRemovePlaylistDownloads = async () => {
     if (!playlist) return;
     try {
-      for (const t of playlist.Tracks) {
+      for (const t of tracks) {
         const trackToRemove = {
           TrackId: t.TrackId,
           TrackTitle: t.TrackTitle,
@@ -350,6 +359,10 @@ export const PlaylistDetail: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         setPlaylist(data);
+        setTracks(data.Tracks || []);
+        setTracksPage(1);
+        setHasMoreTracks((data.Tracks || []).length < data.TracksCount);
+        setIsLoadingTracks(false);
         setError('');
       } else {
         setError('Não foi possível carregar os detalhes da playlist ou você não tem acesso.');
@@ -360,6 +373,38 @@ export const PlaylistDetail: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const fetchNextPlaylistTracks = async () => {
+    if (!id || isFetchingMoreTracks || !hasMoreTracks) return;
+    setIsFetchingMoreTracks(true);
+    const nextPage = tracksPage + 1;
+    try {
+      const headers: Record<string, string> = {};
+      if (Token) {
+        headers['Authorization'] = `Bearer ${Token}`;
+      }
+      const res = await fetch(`${API_URL}/Playlists/${id}/Tracks?page=${nextPage}&limit=20`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setTracks(prev => {
+          const existingIds = new Set(prev.map(t => t.TrackId));
+          const newTracks = data.filter((t: any) => !existingIds.has(t.TrackId));
+          return [...prev, ...newTracks];
+        });
+        if (data.length < 20) {
+          setHasMoreTracks(false);
+        } else {
+          setTracksPage(nextPage);
+        }
+      }
+    } catch (err) {
+      console.warn('Erro ao carregar mais músicas da playlist:', err);
+    } finally {
+      setIsFetchingMoreTracks(false);
+    }
+  };
+
+  useInfiniteScroll(hasMoreTracks, isFetchingMoreTracks, isLoadingTracks, fetchNextPlaylistTracks);
 
   useEffect(() => {
     setLoading(true);
@@ -415,7 +460,7 @@ export const PlaylistDetail: React.FC = () => {
       }))
     };
 
-    const tracksQueue = playlist ? playlist.Tracks.map(x => ({
+    const tracksQueue = playlist ? tracks.map(x => ({
       TrackId: x.TrackId,
       TrackTitle: x.TrackTitle,
       ArtistName: x.ArtistName,
@@ -562,17 +607,18 @@ export const PlaylistDetail: React.FC = () => {
       return;
     }
 
-    const updatedTracks = [...playlist.Tracks];
+    const updatedTracks = [...tracks];
     const [draggedTrack] = updatedTracks.splice(draggedIndex, 1);
     const insertIndex = targetPos > draggedIndex ? targetPos - 1 : targetPos;
     updatedTracks.splice(insertIndex, 0, draggedTrack);
 
     // Atualização otimista
+    setTracks(updatedTracks);
     setPlaylist(prev => {
       if (!prev) return null;
       return {
         ...prev,
-        Tracks: updatedTracks
+        Tracks: updatedTracks.slice(0, 20)
       };
     });
 
@@ -643,12 +689,12 @@ export const PlaylistDetail: React.FC = () => {
   }, [showToast]);
 
   const handlePlayPlaylist = () => {
-    if (playlist && playlist.Tracks.length > 0) {
+    if (playlist && tracks.length > 0) {
       const isActivePlaylist = currentPlaylistId === playlist.PlaylistId;
       if (isActivePlaylist) {
         togglePlay();
       } else {
-        const tracksQueue = playlist.Tracks.map(x => ({
+        const tracksQueue = tracks.map(x => ({
           TrackId: x.TrackId,
           TrackTitle: x.TrackTitle,
           ArtistName: x.ArtistName,
@@ -744,7 +790,7 @@ export const PlaylistDetail: React.FC = () => {
       IsOwner: isPlaylistOwner,
       IsCollaborator: isCollaborator,
       IsSaved: playlist.IsSaved || false,
-      TracksCount: playlist.Tracks.length
+      TracksCount: playlist.TracksCount
     };
     openEditPlaylist(iPlaylist);
   };
@@ -842,13 +888,13 @@ export const PlaylistDetail: React.FC = () => {
             
             <span className="text-brand-gray/40 font-normal select-none shrink-0">•</span>
             
-            <span className="shrink-0">{playlist.Tracks.length} {playlist.Tracks.length === 1 ? 'música' : 'músicas'}</span>
+            <span className="shrink-0">{playlist.TracksCount} {playlist.TracksCount === 1 ? 'música' : 'músicas'}</span>
             
             <span className="text-brand-gray/40 font-normal select-none shrink-0">•</span>
             
             <div className="flex items-center gap-1 shrink-0 text-brand-gray select-none h-4">
               <Clock className="w-3.5 h-3.5 text-brand-gray/60 shrink-0" />
-              <span>{getPlaylistTotalDurationString(playlist.Tracks)}</span>
+              <span>{getPlaylistTotalDurationString(tracks)}</span>
             </div>
             
             <span className="text-brand-gray/40 font-normal select-none shrink-0">•</span>
@@ -876,7 +922,7 @@ export const PlaylistDetail: React.FC = () => {
 
         {/* Ações Desktop (Configurações, Download, Curtir, Compartilhar) - Oculto no Mobile */}
         <div className="hidden md:flex gap-3 self-end justify-end mt-0 shrink-0 items-center w-auto">
-          {playlist.Tracks.length > 0 && (
+          {tracks.length > 0 && (
             <button
               onClick={handlePlayPlaylist}
               className="w-10 h-10 rounded-full bg-brand-green text-black flex items-center justify-center shadow hover:scale-105 active:scale-95 transition-all cursor-pointer mr-1"
@@ -983,7 +1029,7 @@ export const PlaylistDetail: React.FC = () => {
         </div>
 
         {/* Botão Gigante de Play Circular Verde no lado direito */}
-        {playlist.Tracks.length > 0 && (
+        {tracks.length > 0 && (
           <button
             onClick={handlePlayPlaylist}
             className="w-12 h-12 rounded-full bg-brand-green text-black flex items-center justify-center shadow-lg active:scale-95 hover:scale-105 transition-all cursor-pointer"
@@ -1000,7 +1046,7 @@ export const PlaylistDetail: React.FC = () => {
 
       {/* 2. Playlist Track List */}
       <div className="bg-transparent md:bg-black/15 p-0 md:p-6 rounded-none md:rounded-lg flex flex-col gap-4 md:gap-6 mt-2 md:mt-4">
-        {playlist.Tracks.length === 0 ? (
+        {tracks.length === 0 ? (
           <div className="text-center py-10 flex flex-col gap-3 items-center">
             <Disc className="w-12 h-12 text-brand-gray/30 animate-pulse" />
             <span className="text-sm font-semibold text-brand-gray">Nenhuma música adicionada ainda.</span>
@@ -1079,7 +1125,7 @@ export const PlaylistDetail: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody onDragLeave={canModifyPlaylist ? handleTableDragLeave : undefined}>
-                  {playlist.Tracks.map((t, index) => {
+                  {tracks.map((t, index) => {
                     const isCurrentTrack = currentTrack && currentTrack.TrackId === t.TrackId;
 
                     return (
@@ -1114,7 +1160,7 @@ export const PlaylistDetail: React.FC = () => {
                         } ${selectedTrackIndex === index ? '!bg-brand-hover/55 border-l-2 border-l-brand-green' : ''} ${draggedIndex === index ? '!opacity-35 !bg-brand-hover/65' : ''} ${
                           dragOverIndex === index && draggedIndex !== index && draggedIndex !== index - 1 ? '!border-t-2 !border-t-brand-green' : ''
                         } ${
-                          dragOverIndex === index + 1 && index === playlist.Tracks.length - 1 && draggedIndex !== index ? '!border-b-2 !border-b-brand-green' : ''
+                          dragOverIndex === index + 1 && index === tracks.length - 1 && draggedIndex !== index ? '!border-b-2 !border-b-brand-green' : ''
                         } ${canModifyPlaylist ? 'cursor-default' : ''}`}
                       >
                         {/* Play Action / Index */}
@@ -1179,7 +1225,7 @@ export const PlaylistDetail: React.FC = () => {
                                         AudioUrl: s.AudioUrl
                                       }))
                                     };
-                                    const tracksQueue = playlist ? playlist.Tracks.map(x => ({
+                                    const tracksQueue = playlist ? tracks.map(x => ({
                                       TrackId: x.TrackId,
                                       TrackTitle: x.TrackTitle,
                                       ArtistName: x.ArtistName,
@@ -1317,7 +1363,7 @@ export const PlaylistDetail: React.FC = () => {
 
             {/* Mobile View: minimalist vertical list */}
             <div className="flex md:hidden flex-col gap-1 w-full select-none">
-              {playlist.Tracks.map((t) => {
+              {tracks.map((t) => {
                 const isCurrentTrack = currentTrack && currentTrack.TrackId === t.TrackId;
 
                 return (
@@ -1388,7 +1434,7 @@ export const PlaylistDetail: React.FC = () => {
                                 AudioUrl: s.AudioUrl
                               }))
                             };
-                            const tracksQueue = playlist ? playlist.Tracks.map(x => ({
+                            const tracksQueue = tracks.map(x => ({
                               TrackId: x.TrackId,
                               TrackTitle: x.TrackTitle,
                               ArtistName: x.ArtistName,
@@ -1401,7 +1447,7 @@ export const PlaylistDetail: React.FC = () => {
                                 StemType: s.StemType,
                                 AudioUrl: s.AudioUrl
                               }))
-                            })) : [];
+                            }));
                             await loadTrack(trackToPlay, playlist?.PlaylistId, undefined, tracksQueue, playlist?.Name, playlistQueueProvider);
                             navigate('/daw');
                           }}
@@ -1479,6 +1525,12 @@ export const PlaylistDetail: React.FC = () => {
                 );
               })}
             </div>
+
+            {isFetchingMoreTracks && (
+              <div className="flex justify-center py-4">
+                <Loader2 className="w-5 h-5 animate-spin text-brand-green" />
+              </div>
+            )}
           </>
         )}
       </div>
