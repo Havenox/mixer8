@@ -950,6 +950,22 @@ export const Library: React.FC = () => {
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={e => e.stopPropagation()}
         >
+          {CurrentUser?.UserRole === 'Admin' && contextMenu.track.ExtractionStatus === 'Falhou' && (
+            <>
+              <button
+                onClick={() => {
+                  handleRetryExtraction(contextMenu.track);
+                  setContextMenu(null);
+                }}
+                className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-brand-green"
+              >
+                <RefreshCw className="w-4 h-4 text-brand-green shrink-0" />
+                <span>Reprocessar Extração</span>
+              </button>
+              <div className="h-[1px] bg-brand-hover my-1" />
+            </>
+          )}
+
           {(contextMenu.track.ExtractionStatus === 'Pronto' || contextMenu.track.ExtractionStatus.startsWith('Processando') || contextMenu.track.ExtractionStatus === 'Falhou') && (
             <button
               onClick={() => {
@@ -965,21 +981,6 @@ export const Library: React.FC = () => {
 
           {(CurrentUser?.UserRole === 'Admin' || contextMenu.track.UploadedBy === CurrentUser?.UserId) && (
             <>
-              {CurrentUser?.UserRole === 'Admin' && contextMenu.track.ExtractionStatus === 'Falhou' && (
-                <>
-                  <button
-                    onClick={() => {
-                      handleRetryExtraction(contextMenu.track);
-                      setContextMenu(null);
-                    }}
-                    className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-brand-green"
-                  >
-                    <RefreshCw className="w-4 h-4 text-brand-green shrink-0" />
-                    <span>Reprocessar Extração</span>
-                  </button>
-                  <div className="h-[1px] bg-brand-hover my-1" />
-                </>
-              )}
               {(contextMenu.track.ExtractionStatus === 'Pronto' || contextMenu.track.ExtractionStatus.startsWith('Processando') || contextMenu.track.ExtractionStatus === 'Falhou') && (
                 <div className="h-[1px] bg-brand-hover my-1" />
               )}
