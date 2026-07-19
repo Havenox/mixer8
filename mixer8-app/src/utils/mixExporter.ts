@@ -12,6 +12,7 @@ export interface IMixExportOptions {
   stemsPan: Record<string, number>;
   stemsReverbWet: Record<string, number>;
   stemsReverbRoom: Record<string, 'room' | 'hall' | 'cathedral'>;
+  stemsReverbEnabled?: Record<string, boolean>;
   masterVolume: number;
   transpose: number;
   bpmDelta: number;
@@ -161,6 +162,7 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
     stemsPan,
     stemsReverbWet,
     stemsReverbRoom,
+    stemsReverbEnabled,
     masterVolume,
     transpose,
     bpmDelta,
@@ -327,8 +329,9 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
     const isMetronome = isMetronomeStem(stemType);
     const reverbWetValue = stemsReverbWet[stemType] ?? 0.0;
     const roomType = stemsReverbRoom[stemType] ?? 'hall';
+    const reverbEnabled = stemsReverbEnabled?.[stemType] ?? false;
 
-    if (!isMetronome && reverbWetValue > 0) {
+    if (!isMetronome && reverbEnabled && reverbWetValue > 0) {
       try {
         const convolver = offlineCtx.createConvolver();
         const dryGain = offlineCtx.createGain();
