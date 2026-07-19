@@ -15,6 +15,7 @@ import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
 import { API_URL, SERVER_URL } from '../config';
 import { createLibraryQueueProvider } from '../utils/queueProviders';
+import { parseTrackMetadata } from '../utils/metadataParser';
 
 export const Library: React.FC = () => {
   const { CurrentUser, Token } = useAuth();
@@ -284,40 +285,7 @@ export const Library: React.FC = () => {
           if (data && data.title) {
             const title = data.title;
             
-            // Limpa termos comuns de títulos do YouTube para focar na música/artista
-            const cleanTitle = title
-              .replace(/\s*[\(\[][Oo]fficial\s*[Vv]ideo[\)\]]/g, '')
-              .replace(/\s*[\(\[][Oo]fficial\s*[Aa]udio[\)\]]/g, '')
-              .replace(/\s*[\(\[][Oo]fficial\s*[Mm]usic\s*[Vv]ideo[\)\]]/g, '')
-              .replace(/\s*[\(\[][Oo]fficial\s*[Ll]yric\s*[Vv]ideo[\)\]]/g, '')
-              .replace(/\s*[\(\[][Ll]yric\s*[Vv]ideo[\)\]]/g, '')
-              .replace(/\s*[\(\[][Vv]ídeo\s*[Oo]ficial[\)\]]/g, '')
-              .replace(/\s*[\(\[][Cc]lipe\s*[Oo]ficial[\)\]]/g, '')
-              .replace(/\s*[\(\[][Aa]udio\s*[Oo]ficial[\)\]]/g, '')
-              .replace(/\s*[\(\[][Ll]ive[\)\]]/g, '')
-              .replace(/\s*[\(\[]HD[\)\]]/g, '')
-              .replace(/\s*[\(\[]4[Kk][\)\]]/g, '')
-              .trim();
-            
-            const separators = [' - ', ' – ', ' — ', ' | ', ' |'];
-            let parsedArtist = '';
-            let parsedSong = '';
-            
-            for (const sep of separators) {
-              if (cleanTitle.includes(sep)) {
-                const parts = cleanTitle.split(sep);
-                if (parts.length >= 2) {
-                  parsedArtist = parts[0].trim();
-                  parsedSong = parts.slice(1).join(sep).trim();
-                  break;
-                }
-              }
-            }
-            
-            if (!parsedArtist && !parsedSong) {
-              parsedSong = cleanTitle;
-              parsedArtist = data.author_name || '';
-            }
+            const { songName: parsedSong, artistName: parsedArtist } = parseTrackMetadata(title, data.author_name);
             
             // Apenas preenche se os inputs correspondentes estiverem vazios (UX amigável)
             if (!songName.trim()) setSongName(parsedSong);
@@ -468,13 +436,9 @@ export const Library: React.FC = () => {
       const file = e.target.files[0];
       setSelectedFile(file);
       const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
-      const parts = nameWithoutExt.split('-');
-      if (parts.length > 1) {
-        setArtistName(parts[0].trim());
-        setSongName(parts[1].trim());
-      } else {
-        setSongName(nameWithoutExt);
-      }
+      const { songName: parsedSong, artistName: parsedArtist } = parseTrackMetadata(nameWithoutExt);
+      setSongName(parsedSong);
+      setArtistName(parsedArtist);
     }
   };
 
@@ -830,25 +794,36 @@ export const Library: React.FC = () => {
                     )}
 
                     {selectedFile && (
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2 animate-in fade-in duration-150">
                         <div className="flex flex-col gap-1 text-xs">
                           <label className="font-semibold text-brand-gray">Nome da Música</label>
                           <input 
                             type="text" 
+                            placeholder="Ex: Yesterday"
                             value={songName}
                             onChange={(e) => setSongName(e.target.value)}
                             disabled={isUploading}
-                            className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green disabled:opacity-50"
+                            className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green w-full disabled:opacity-50"
                           />
                         </div>
+                        <button
+                          type="button"
+                          onClick={swapSongAndArtist}
+                          disabled={isUploading}
+                          className="p-2 bg-brand-card hover:bg-brand-hover text-brand-gray hover:text-white rounded border border-brand-hover hover:border-brand-green flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer h-[38px] disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Inverter Música e Artista"
+                        >
+                          <ArrowLeftRight className="w-4 h-4" />
+                        </button>
                         <div className="flex flex-col gap-1 text-xs">
                           <label className="font-semibold text-brand-gray">Nome do Artista</label>
                           <input 
                             type="text" 
+                            placeholder="Ex: The Beatles"
                             value={artistName}
                             onChange={(e) => setArtistName(e.target.value)}
                             disabled={isUploading}
-                            className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green disabled:opacity-50"
+                            className="bg-black border border-brand-hover rounded p-2 text-white focus:outline-none focus:border-brand-green w-full disabled:opacity-50"
                           />
                         </div>
                       </div>
