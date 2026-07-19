@@ -8,8 +8,17 @@ export interface ParsedMetadata {
  * a partir de nomes de arquivos locais ou títulos de vídeos do YouTube.
  */
 export function parseTrackMetadata(rawTitle: string, fallbackArtist?: string): ParsedMetadata {
+  // 0. Limpeza prévia do fallbackArtist (remover - Topic, Ao Vivo, etc.)
+  const cleanFallback = fallbackArtist
+    ? fallbackArtist
+        .replace(/\s*[\(\[][Aa]o\s*[Vv]ivo[\)\]]\s*/gi, ' ')
+        .replace(/\s*-\s*[Tt]opic\s*$/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+    : '';
+
   if (!rawTitle) {
-    return { songName: '', artistName: fallbackArtist || '' };
+    return { songName: '', artistName: cleanFallback };
   }
 
   // 1. Limpeza inicial de tags comuns (Ao Vivo, Topic, tags do YouTube)
@@ -78,14 +87,12 @@ export function parseTrackMetadata(rawTitle: string, fallbackArtist?: string): P
     parsedSong = parts.slice(1).join(' - '); // Une demais partes com traço se houver subdivisões
   } else if (parts.length === 1) {
     parsedSong = parts[0];
-    parsedArtist = fallbackArtist || '';
+    parsedArtist = cleanFallback;
   }
 
   // Heurística de Autor/Artista do Youtube para auto-inversão se vier [Música] - [Artista]
-  if (fallbackArtist) {
-    const cleanFallback = fallbackArtist.replace(/\s*-\s*[Tt]opic\s*$/gi, '').trim();
+  if (cleanFallback) {
     if (
-      cleanFallback &&
       parsedSong.toLowerCase() === cleanFallback.toLowerCase() &&
       parsedArtist.toLowerCase() !== cleanFallback.toLowerCase()
     ) {
