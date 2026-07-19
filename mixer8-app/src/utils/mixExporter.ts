@@ -1,6 +1,6 @@
 import lameCode from 'lamejs/lame.all.js?raw';
 import { transposeChord } from '../hooks/useLyricsChords';
-import { type ITrack, isMetronomeStem } from '../context/PlayerContext';
+import { type ITrack, isMetronomeStem, createDynamicImpulseResponse } from '../context/PlayerContext';
 import { SERVER_URL } from '../config';
 import { addID3v2Tags } from './id3Writer';
 
@@ -10,6 +10,8 @@ export interface IMixExportOptions {
   stemsMute: Record<string, boolean>;
   stemsSolo: Record<string, boolean>;
   stemsPan: Record<string, number>;
+  stemsReverbWet: Record<string, number>;
+  stemsReverbRoom: Record<string, 'room' | 'hall' | 'cathedral'>;
   masterVolume: number;
   transpose: number;
   bpmDelta: number;
@@ -157,6 +159,8 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
     stemsMute,
     stemsSolo,
     stemsPan,
+    stemsReverbWet,
+    stemsReverbRoom,
     masterVolume,
     transpose,
     bpmDelta,
@@ -320,9 +324,53 @@ export const exportMixToMp3 = async (options: IMixExportOptions): Promise<IMixEx
     const pannerNode = offlineCtx.createStereoPanner();
     pannerNode.pan.value = Math.max(-1, Math.min(1, pan));
 
-    source.connect(gainNode);
-    gainNode.connect(pannerNode);
-    pannerNode.connect(masterGain);
+    const isMetronome = isMetronomeStem(stemType);
+    const reverbWetValue = stemsReverbWet[stemType] ?? 0.0;
+    const roomType = stemsReverbRoom[stemType] ?? 'hall';
+
+    if (!isMetronome && reverbWetValue > 0) {
+      try {
+        const convolver = offlineCtx.createConvolver();
+        const dryGain = offlineCtx.createGain();
+        const wetGain = offlineCtx.createGain();
+
+        dryGain.gain.value = 1.0;
+        wetGain.gain.value = reverbWetValue;
+
+        let duration = 2.0;
+        let decay = 2.0;
+        if (roomType === 'room') {
+          duration = 0.8;
+          decay = 4.0;
+        } else if (roomType === 'cathedral') {
+          duration = 4.5;
+          decay = 1.5;
+        }
+        convolver.buffer = createDynamicImpulseResponse(offlineCtx, duration, decay);
+
+        source.connect(gainNode);
+        gainNode.connect(pannerNode);
+
+        // Split
+        pannerNode.connect(dryGain);
+        pannerNode.connect(convolver);
+        convolver.connect(wetGain);
+
+        // Merge to master
+        dryGain.connect(masterGain);
+        wetGain.connect(masterGain);
+      } catch (err) {
+        console.warn(`[EXPORT-REVERB] Falha ao criar reverb convolver offline para ${stemType}:`, err);
+        // Fallback connections
+        source.connect(gainNode);
+        gainNode.connect(pannerNode);
+        pannerNode.connect(masterGain);
+      }
+    } else {
+      source.connect(gainNode);
+      gainNode.connect(pannerNode);
+      pannerNode.connect(masterGain);
+    }
 
     source.start(0);
   }
