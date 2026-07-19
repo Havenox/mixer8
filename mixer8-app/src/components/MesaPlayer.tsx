@@ -180,6 +180,7 @@ export const MesaPlayer: React.FC = () => {
 
   const hasMultipleStems = currentTrack.Stems && currentTrack.Stems.length > 1;
   const isProcessingOrSingleStem = !!(currentTrack.ExtractionStatus?.startsWith('Processando') || 
+    currentTrack.ExtractionStatus === 'Falhou' ||
     (currentTrack.Stems && currentTrack.Stems.length === 1 && currentTrack.Stems[0].StemType === 'Completo'));
 
   return (

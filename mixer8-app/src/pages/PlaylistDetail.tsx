@@ -9,7 +9,7 @@ import {
   Loader2, ArrowLeft, Settings, Trash2,
   Clock, X, AlertTriangle, Plus, Minus,
   Lock, Globe, EyeOff, MoreHorizontal,
-  Heart, Share2, ListMusic, CheckCircle, Info, ShieldAlert
+  Heart, Share2, ListMusic, CheckCircle, Info, ShieldAlert, RefreshCw
 } from 'lucide-react';
 
 import { API_URL, SERVER_URL } from '../config';
@@ -28,6 +28,7 @@ interface IPlaylistTrack {
   TrackTitle: string;
   ArtistName: string;
   CoverUrl?: string;
+  ExtractionStatus?: string;
   AddedById: string;
   AddedByEmail: string;
   AddedAt: string;
@@ -92,6 +93,8 @@ export const PlaylistDetail: React.FC = () => {
   const [mobileTrackMenu, setMobileTrackMenu] = useState<IPlaylistTrack | null>(null);
   const [mobilePlaylistMenuOpen, setMobilePlaylistMenuOpen] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('Link copiado com sucesso!');
+  const [toastType, setToastType] = useState<'success' | 'warning' | 'error'>('success');
 
   // Estados para paginação infinita de faixas
   const [tracks, setTracks] = useState<IPlaylistTrack[]>([]);
@@ -539,6 +542,33 @@ export const PlaylistDetail: React.FC = () => {
     }
   };
 
+  const handleRetryExtraction = async (track: IPlaylistTrack) => {
+    if (!Token) return;
+    try {
+      const res = await fetch(`${API_URL}/Tracks/${track.TrackId}/Retry`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${Token}`
+        }
+      });
+      if (res.ok) {
+        setToastType('success');
+        setToastMessage(`Extração da música "${track.TrackTitle}" reiniciada com sucesso!`);
+        setShowToast(true);
+        fetchPlaylistDetails(); // Recarrega reativamente a lista
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        setToastType('error');
+        setToastMessage(`Falha ao reiniciar extração: ${errorData.ErrorMessage || 'Erro Desconhecido'}`);
+        setShowToast(true);
+      }
+    } catch {
+      setToastType('error');
+      setToastMessage('Não foi possível conectar com o servidor.');
+      setShowToast(true);
+    }
+  };
+
 
 
   const formatTrackDuration = (secs: number) => {
@@ -678,6 +708,8 @@ export const PlaylistDetail: React.FC = () => {
 
   const handleSharePlaylist = () => {
     navigator.clipboard.writeText(window.location.href);
+    setToastType('success');
+    setToastMessage('Link copiado com sucesso!');
     setShowToast(true);
   };
 
@@ -1572,6 +1604,21 @@ export const PlaylistDetail: React.FC = () => {
           {/* Seção do Administrador para exclusão total da plataforma */}
           {(CurrentUser?.UserRole === 'Admin' || contextMenu.track.UploadedBy === CurrentUser?.UserId) && (
             <>
+              {CurrentUser?.UserRole === 'Admin' && contextMenu.track.ExtractionStatus === 'Falhou' && (
+                <>
+                  <div className="h-[1px] bg-brand-hover my-1" />
+                  <button
+                    onClick={() => {
+                      handleRetryExtraction(contextMenu.track);
+                      setContextMenu(null);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-brand-green"
+                  >
+                    <RefreshCw className="w-4 h-4 text-brand-green shrink-0" />
+                    <span>Reprocessar Música</span>
+                  </button>
+                </>
+              )}
               <div className="h-[1px] bg-brand-hover my-1" />
               {CurrentUser?.UserRole === 'Admin' && contextMenu.track.DeletionPending ? (
                 <button
@@ -2254,11 +2301,19 @@ export const PlaylistDetail: React.FC = () => {
         </div>
       )}
 
-      {/* Toast Notificação de Link Copiado */}
+      {/* Toast Notificação */}
       {showToast && (
-        <div className="fixed bottom-20 md:bottom-28 right-4 md:right-8 bg-brand-green text-black px-4 py-3 rounded-lg shadow-2xl flex items-center gap-2.5 font-bold text-xs z-[200] animate-in slide-in-from-bottom duration-300 select-none">
-          <CheckCircle className="w-4 h-4 shrink-0" />
-          <span>Link copiado com sucesso!</span>
+        <div className={`fixed bottom-20 md:bottom-28 right-4 md:right-8 px-4 py-3 rounded-lg shadow-2xl flex items-center gap-2.5 font-bold text-xs z-[200] animate-in slide-in-from-bottom duration-300 select-none ${
+          toastType === 'success' 
+            ? 'bg-brand-green text-black' 
+            : toastType === 'error'
+              ? 'bg-red-500 text-white'
+              : 'bg-brand-card border border-brand-hover text-white'
+        }`}>
+          {toastType === 'success' && <CheckCircle className="w-4 h-4 shrink-0" />}
+          {toastType === 'error' && <AlertTriangle className="w-4 h-4 shrink-0" />}
+          {toastType === 'warning' && <ShieldAlert className="w-4 h-4 shrink-0" />}
+          <span>{toastMessage}</span>
         </div>
       )}
     </div>

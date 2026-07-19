@@ -36,6 +36,7 @@ export const MobileMixerOverlay: React.FC = () => {
   };
 
   const isProcessingOrSingleStem = !!(currentTrack.ExtractionStatus?.startsWith('Processando') || 
+    currentTrack.ExtractionStatus === 'Falhou' ||
     (currentTrack.Stems && currentTrack.Stems.length === 1 && currentTrack.Stems[0].StemType === 'Completo'));
 
   const sortedStems = [...(currentTrack.Stems || [])].sort((a, b) => {

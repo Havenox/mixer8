@@ -73,7 +73,7 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
   };
 
   const handlePlayClick = (track: ITrack) => {
-    if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando')) return;
+    if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando') && track.ExtractionStatus !== 'Falhou') return;
     if (isCurrentLoaded(track)) {
       togglePlay();
     } else {
@@ -239,7 +239,7 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
                   onClick={() => handlePlayClick(track)}
                 >
                   {/* Botão de playlist no hover */}
-                  {(track.ExtractionStatus === 'Pronto' || track.ExtractionStatus.startsWith('Processando')) && (
+                  {(track.ExtractionStatus === 'Pronto' || track.ExtractionStatus.startsWith('Processando') || track.ExtractionStatus === 'Falhou') && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -267,7 +267,7 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
                       <Disc className={`w-16 h-16 text-brand-green/20 group-hover:text-brand-green/40 transition-colors ${isPlay ? 'animate-spin' : ''}`} style={isPlay ? { animationDuration: '6s' } : {}} />
                     )}
                     <button 
-                      disabled={track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando')}
+                      disabled={track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando') && track.ExtractionStatus !== 'Falhou'}
                       onClick={(e) => {
                         e.stopPropagation();
                         handlePlayClick(track);

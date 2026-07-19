@@ -13,6 +13,7 @@ public class Track
     public string ArtistName { get; set; } = null!;
     public Guid UploadedBy { get; set; }
     public string ExtractionStatus { get; set; } = "Aguardando"; // Aguardando, Processando, Pronto, Falhou
+    public int ExtractionRetryCount { get; set; } = 0;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public string? CoverUrl { get; set; }
     public string? DownloadUrl { get; set; }

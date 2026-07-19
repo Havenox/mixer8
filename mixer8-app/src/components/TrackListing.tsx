@@ -37,7 +37,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
   const navigate = useNavigate();
 
   const handlePlayClick = (track: ITrack) => {
-    if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando')) return;
+    if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando') && track.ExtractionStatus !== 'Falhou') return;
     if (isCurrentLoaded(track)) {
       togglePlay();
     } else {
@@ -108,7 +108,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
                         {idx + 1}
                       </span>
                       <button
-                        disabled={track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando')}
+                        disabled={track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando') && track.ExtractionStatus !== 'Falhou'}
                         onClick={(e) => {
                           e.stopPropagation();
                           handlePlayClick(track);
@@ -137,7 +137,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
                       <span 
                         onClick={async (e) => {
                           e.stopPropagation();
-                          if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando')) return;
+                          if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando') && track.ExtractionStatus !== 'Falhou') return;
                           if (!isCurrentLoaded(track)) {
                             await loadTrack(track, undefined, undefined, tracksQueue || tracks, undefined, queueProvider);
                           }
@@ -220,7 +220,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
 
                   {/* Ações */}
                   <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
-                    {(track.ExtractionStatus === 'Pronto' || track.ExtractionStatus.startsWith('Processando')) && openAddToPlaylist && (
+                    {(track.ExtractionStatus === 'Pronto' || track.ExtractionStatus.startsWith('Processando') || track.ExtractionStatus === 'Falhou') && openAddToPlaylist && (
                       <button
                         onClick={() => openAddToPlaylist(track.TrackId, track.TrackTitle, track.ArtistName)}
                         className="w-7 h-7 rounded-full bg-black/60 border border-brand-hover hover:border-brand-green text-brand-green hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-105 transition-all shadow-md cursor-pointer duration-200"
@@ -279,7 +279,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
                       <span 
                         onClick={async (e) => {
                           e.stopPropagation();
-                          if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando')) return;
+                          if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando') && track.ExtractionStatus !== 'Falhou') return;
                           if (!isCurrentLoaded(track)) {
                             await loadTrack(track, undefined, undefined, tracksQueue || tracks, undefined, queueProvider);
                           }
@@ -369,7 +369,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
               onClick={() => handlePlayClick(track)}
             >
               {/* Botão rápido de adicionar à playlist no hover */}
-              {(track.ExtractionStatus === 'Pronto' || track.ExtractionStatus.startsWith('Processando')) && (
+              {(track.ExtractionStatus === 'Pronto' || track.ExtractionStatus.startsWith('Processando') || track.ExtractionStatus === 'Falhou') && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -393,7 +393,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
                   <Disc className={`w-16 h-16 text-brand-green/20 group-hover:text-brand-green/40 transition-colors ${isPlay ? 'animate-spin' : ''}`} style={isPlay ? { animationDuration: '6s' } : {}} />
                 )}
                 <button 
-                  disabled={track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando')}
+                  disabled={track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando') && track.ExtractionStatus !== 'Falhou'}
                   onClick={(e) => {
                     e.stopPropagation();
                     handlePlayClick(track);
@@ -408,7 +408,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
                 <span 
                   onClick={async (e) => {
                     e.stopPropagation();
-                    if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando')) return;
+                    if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando') && track.ExtractionStatus !== 'Falhou') return;
                     if (!isCurrentLoaded(track)) {
                       await loadTrack(track, undefined, undefined, tracksQueue || tracks, undefined, queueProvider);
                     }

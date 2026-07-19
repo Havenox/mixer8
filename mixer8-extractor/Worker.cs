@@ -1435,8 +1435,18 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             var dbTrack = await db.Tracks.FindAsync(track.TrackId);
             if (dbTrack != null)
             {
-                dbTrack.ExtractionStatus = "Falhou";
-                await db.LogEventAsync("Extractor", "Error", $"Falha catastrófica no fluxo de extração da música '{track.TrackTitle}'.", ex.ToString(), track.TrackId, cancellationToken: stoppingToken);
+                dbTrack.ExtractionRetryCount++;
+                if (dbTrack.ExtractionRetryCount < 5)
+                {
+                    dbTrack.ExtractionStatus = "Processando: Aguardando Extração";
+                    dbTrack.CreatedAt = DateTime.UtcNow; // Envia para o fim da fila (CreatedAt ASC)
+                    await db.LogEventAsync("Extractor", "Warning", $"Falha no processamento da música '{track.TrackTitle}' (Tentativa {dbTrack.ExtractionRetryCount} de 5). Reinserindo no fim da fila.", ex.Message, track.TrackId, cancellationToken: stoppingToken);
+                }
+                else
+                {
+                    dbTrack.ExtractionStatus = "Falhou";
+                    await db.LogEventAsync("Extractor", "Error", $"Falha catastrófica no fluxo de extração da música '{track.TrackTitle}' após 5 tentativas de processamento.", ex.ToString(), track.TrackId, cancellationToken: stoppingToken);
+                }
             }
             await db.SaveChangesAsync(stoppingToken);
         }

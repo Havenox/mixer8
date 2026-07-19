@@ -232,6 +232,32 @@ export const Library: React.FC = () => {
     }
   };
 
+  const handleRetryExtraction = async (track: ITrack) => {
+    try {
+      const res = await fetch(`${API_URL}/Tracks/${track.TrackId}/Retry`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${Token}`
+        }
+      });
+      if (res.ok) {
+        setToastType('success');
+        setToastMessage(`Extração da música "${track.TrackTitle}" reiniciada com sucesso!`);
+        setShowToast(true);
+        fetchTracks(true); // recarrega a lista
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        setToastType('error');
+        setToastMessage(`Falha ao reiniciar extração: ${errorData.ErrorMessage || 'Erro Desconhecido'}`);
+        setShowToast(true);
+      }
+    } catch {
+      setToastType('error');
+      setToastMessage('Não foi possível conectar com o servidor.');
+      setShowToast(true);
+    }
+  };
+
 
   // Controle de Upload de arquivos
   const [isUploading, setIsUploading] = useState(false);
@@ -939,6 +965,21 @@ export const Library: React.FC = () => {
 
           {(CurrentUser?.UserRole === 'Admin' || contextMenu.track.UploadedBy === CurrentUser?.UserId) && (
             <>
+              {CurrentUser?.UserRole === 'Admin' && contextMenu.track.ExtractionStatus === 'Falhou' && (
+                <>
+                  <button
+                    onClick={() => {
+                      handleRetryExtraction(contextMenu.track);
+                      setContextMenu(null);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-brand-green"
+                  >
+                    <RefreshCw className="w-4 h-4 text-brand-green shrink-0" />
+                    <span>Reprocessar Música</span>
+                  </button>
+                  <div className="h-[1px] bg-brand-hover my-1" />
+                </>
+              )}
               {(contextMenu.track.ExtractionStatus === 'Pronto' || contextMenu.track.ExtractionStatus.startsWith('Processando')) && (
                 <div className="h-[1px] bg-brand-hover my-1" />
               )}

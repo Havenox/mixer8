@@ -2032,6 +2032,39 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
 
         return PhysicalFile(filePath, contentType, enableRangeProcessing: true);
     }
+
+    [HttpPost("{id}/Retry")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> Retry(Guid id)
+    {
+        var track = await dbContext.Tracks.FindAsync(id);
+        if (track == null)
+        {
+            return NotFound(new { ErrorMessage = "TRACK_NOT_FOUND" });
+        }
+
+        if (track.ExtractionStatus != "Falhou")
+        {
+            return BadRequest(new { ErrorMessage = "TRACK_NOT_IN_FAILED_STATE" });
+        }
+
+        track.ExtractionRetryCount = 0;
+        track.ExtractionStatus = "Processando: Aguardando Extração";
+        track.CreatedAt = DateTime.UtcNow;
+
+        await dbContext.SaveChangesAsync();
+
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        Guid? userId = null;
+        if (userIdClaim != null && Guid.TryParse(userIdClaim, out var parsedId))
+        {
+            userId = parsedId;
+        }
+
+        await dbContext.LogEventAsync("API", "Info", $"Extração da música '{track.TrackTitle}' reiniciada manualmente por um administrador.", null, track.TrackId, userId);
+
+        return Ok(track);
+    }
 }
 
 public class RecordPlayRequest
