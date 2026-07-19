@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { usePlayer, isMetronomeStem } from '../context/PlayerContext';
+import { usePlayer } from '../context/PlayerContext';
 import { 
   Play, Pause, SkipBack, SkipForward, Volume2, 
-  Sliders, RefreshCw, Disc, Music, ChevronDown, ChevronRight,
-  Shuffle, Repeat, Repeat1, Clock, Activity, X, Wand2
+  Sliders, RefreshCw, Disc, Music, ChevronDown,
+  Shuffle, Repeat, Repeat1, Clock, Activity, X
 } from 'lucide-react';
 
 import { SERVER_URL } from '../config';
@@ -37,11 +37,7 @@ export const MesaPlayer: React.FC = () => {
     toggleRepeatMode,
     transpose,
     activeOverlay,
-    setActiveOverlay,
-    stemsReverbWet,
-    stemsReverbRoom,
-    setStemReverbWet,
-    setStemReverbRoom
+    setActiveOverlay
   } = usePlayer();
 
   const navigate = useNavigate();
@@ -49,10 +45,6 @@ export const MesaPlayer: React.FC = () => {
   const [chords, setChords] = useState<IChordBeat[] | null>(null);
   const [showMixer, setShowMixer] = useState(false);
   const mixerRef = useRef<HTMLDivElement>(null);
-
-  // Estados para expansão dinâmica de efeitos por track na DAW
-  const [expandedTrackEffects, setExpandedTrackEffects] = useState<Record<string, boolean>>({});
-  const [expandedEffectDetails, setExpandedEffectDetails] = useState<Record<string, Record<string, boolean>>>({});
 
   // Fecha o popup do mixer ao clicar fora dele
   useEffect(() => {
@@ -537,19 +529,7 @@ export const MesaPlayer: React.FC = () => {
                               >
                                 S
                               </button>
-                              {!isMetronomeStem(stemName) && (
-                                <button
-                                  onClick={() => setExpandedTrackEffects(prev => ({ ...prev, [stemName]: !prev[stemName] }))}
-                                  className={`w-4 h-4 rounded-[3px] flex items-center justify-center text-[9px] font-black transition-all border cursor-pointer ${
-                                    expandedTrackEffects[stemName]
-                                      ? 'bg-brand-green text-black border-brand-green hover:bg-brand-green'
-                                      : 'bg-brand-hover hover:bg-brand-green/80 hover:text-black hover:border-brand-green/80 text-brand-gray border-transparent'
-                                  }`}
-                                  title="Effects (FX)"
-                                >
-                                  FX
-                                </button>
-                              )}
+
                             </span>
                           </span>
                           <span className="text-brand-gray font-mono">{Math.round(volume * 100)}%</span>
@@ -564,75 +544,6 @@ export const MesaPlayer: React.FC = () => {
                            className="w-full accent-brand-green dynamic-progress h-1 rounded-lg appearance-none cursor-pointer"
                            style={{ '--slider-progress': `${(volume / 1.5) * 100}%` } as React.CSSProperties}
                          />
-
-                        {expandedTrackEffects[stemName] && (
-                          <div className="mt-2 bg-brand-hover/40 border border-brand-hover/80 rounded-lg p-2 flex flex-col gap-1.5 animate-in slide-in-from-top-1 duration-200">
-                            {/* Reverb Header */}
-                            <div 
-                              onClick={() => setExpandedEffectDetails(prev => ({
-                                ...prev,
-                                [stemName]: {
-                                  ...(prev[stemName] || {}),
-                                  reverb: !(prev[stemName]?.reverb ?? false)
-                                }
-                              }))}
-                              className="flex items-center justify-between text-[10px] text-brand-gray hover:text-white cursor-pointer select-none font-bold py-0.5"
-                            >
-                              <div className="flex items-center gap-1">
-                                <Wand2 className="w-3 h-3 text-brand-green" />
-                                <span>Reverb Espacial</span>
-                              </div>
-                              {expandedEffectDetails[stemName]?.reverb ? (
-                                <ChevronDown className="w-3 h-3 text-brand-gray" />
-                              ) : (
-                                <ChevronRight className="w-3 h-3 text-brand-gray" />
-                              )}
-                            </div>
-
-                            {/* Reverb controls */}
-                            {expandedEffectDetails[stemName]?.reverb && (
-                              <div className="flex flex-col gap-2 pl-4 border-l border-brand-hover/80 py-1 animate-in slide-in-from-top-1 duration-200">
-                                {/* Wet Mix Slider */}
-                                <div className="flex flex-col gap-0.5">
-                                  <div className="flex justify-between text-[9px] text-brand-gray">
-                                    <span>Intensidade (Wet/Dry)</span>
-                                    <span className="font-mono">{Math.round((stemsReverbWet[stemName] ?? 0.0) * 100)}%</span>
-                                  </div>
-                                  <input
-                                    type="range"
-                                    min="0"
-                                    max="1.0"
-                                    step="0.05"
-                                    value={stemsReverbWet[stemName] ?? 0.0}
-                                    onChange={(e) => setStemReverbWet(stemName, parseFloat(e.target.value))}
-                                    className="w-full accent-brand-green dynamic-progress h-0.5 rounded appearance-none cursor-pointer"
-                                    style={{ '--slider-progress': `${(stemsReverbWet[stemName] ?? 0.0) * 100}%` } as React.CSSProperties}
-                                  />
-                                </div>
-
-                                {/* Room Preset Dropdown */}
-                                <div className="flex flex-col gap-1">
-                                  <span className="text-[9px] text-brand-gray">Ambiente</span>
-                                  <div className="flex gap-1">
-                                    {(['room', 'hall', 'cathedral'] as const).map(p => (
-                                      <button
-                                        key={p}
-                                        onClick={() => setStemReverbRoom(stemName, p)}
-                                        className={`flex-1 py-1 px-1 rounded text-[8px] font-bold border transition-all cursor-pointer capitalize text-center ${
-                                          (stemsReverbRoom[stemName] ?? 'hall') === p
-                                            ? 'bg-brand-green/20 text-brand-green border-brand-green'
-                                            : 'bg-brand-card/40 text-brand-gray border-transparent hover:bg-brand-hover'
-                                        }`}
-                                      >
-                                        {p === 'room' ? 'Sala' : p === 'hall' ? 'Salão' : 'Catedral'}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
                       </div>
                     );
                   })}

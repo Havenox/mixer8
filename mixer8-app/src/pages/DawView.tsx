@@ -6,7 +6,7 @@ import {
   Loader2, 
   ShieldAlert, Volume2, 
   Disc, PanelLeftClose, PanelLeftOpen,
-  Activity, X
+  Activity, X, Wand2
 } from 'lucide-react';
 import { API_URL } from '../config';
 
@@ -31,11 +31,17 @@ export const DawView: React.FC = () => {
     stemsMute,
     stemsSolo,
     stemsPan,
+    stemsReverbWet,
+    stemsReverbRoom,
+    stemsReverbEnabled,
     seek,
     setStemVolume,
     toggleStemMute,
     toggleStemSolo,
     setStemPan,
+    setStemReverbWet,
+    setStemReverbRoom,
+    setStemReverbEnabled,
     setActiveOverlay
   } = usePlayer();
 
@@ -43,6 +49,14 @@ export const DawView: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => window.innerWidth < 768);
+  const [expandedStems, setExpandedStems] = useState<Record<string, boolean>>({});
+
+  const toggleStemExpanded = (stemName: string) => {
+    setExpandedStems(prev => ({
+      ...prev,
+      [stemName]: !prev[stemName]
+    }));
+  };
 
   const containerRef = useRef<HTMLDivElement>(null);
   const tracksTimelineRef = useRef<HTMLDivElement>(null);
@@ -414,12 +428,15 @@ export const DawView: React.FC = () => {
 
     renderAllCanvas();
 
+    const timeoutId = setTimeout(renderAllCanvas, 250);
+
     window.addEventListener('resize', renderAllCanvas);
     return () => {
       cancelAnimationFrame(frameId);
+      clearTimeout(timeoutId);
       window.removeEventListener('resize', renderAllCanvas);
     };
-  }, [waveforms, loading, currentTrack, zoomLevel, isSidebarCollapsed]);
+  }, [waveforms, loading, currentTrack, zoomLevel, isSidebarCollapsed, expandedStems]);
 
   // Lógica de Seek ao clicar/arrastar na timeline
   const handleTimelineInteraction = (clientX: number) => {
@@ -665,7 +682,9 @@ export const DawView: React.FC = () => {
               return (
                 <div 
                   key={stem.StemId} 
-                  className={`h-22 flex items-center transition-all duration-200 ${
+                  className={`flex items-stretch transition-all duration-200 ${
+                    !isSidebarCollapsed && expandedStems[stemName] ? 'h-40' : 'h-22'
+                  } ${
                     isSilenced ? 'opacity-40' : ''
                   }`}
                 >
@@ -702,11 +721,11 @@ export const DawView: React.FC = () => {
                       </div>
                     </div>
                   ) : (
-                    <div className="w-[240px] pr-4 flex items-center justify-between gap-4 shrink-0 select-none transition-all duration-200">
-                      {/* Coluna 1: M/S + Nome (Topo) e Slider Volume (Base) */}
-                      <div className="flex-1 flex flex-col gap-2 min-w-0">
-                        {/* Mute/Solo + Nome do Canal */}
-                        <div className="flex items-center gap-1.5 select-none">
+                    <div className="w-[240px] pr-4 flex flex-col justify-between py-2 shrink-0 select-none transition-all duration-200 h-full border-r border-brand-hover/40 bg-[#121212]/30">
+                      {/* Linha Superior: Botões M/S/FX + Nome e Panning */}
+                      <div className="flex items-center justify-between gap-2 min-w-0">
+                        {/* M/S/FX + Nome */}
+                        <div className="flex items-center gap-1 select-none min-w-0 flex-1">
                           <button
                             onClick={() => toggleStemMute(stemName)}
                             className={`w-5 h-5 rounded-[3px] flex items-center justify-center text-[9px] font-black transition-all border cursor-pointer shrink-0 ${
@@ -729,46 +748,118 @@ export const DawView: React.FC = () => {
                           >
                             S
                           </button>
+                          {stemName !== 'Metrônomo' && (
+                            <button
+                              onClick={() => toggleStemExpanded(stemName)}
+                              className={`w-5 h-5 rounded-[3px] flex items-center justify-center text-[9px] font-black transition-all border cursor-pointer shrink-0 ${
+                                stemsReverbEnabled[stemName]
+                                  ? 'bg-amber-400 text-black border-amber-400 hover:bg-amber-400/80 hover:border-amber-400/80'
+                                  : expandedStems[stemName]
+                                  ? 'bg-brand-green text-black border-brand-green hover:bg-brand-green'
+                                  : 'bg-[#222] hover:bg-brand-hover text-brand-gray border-transparent'
+                              }`}
+                              title="Efeitos (FX)"
+                            >
+                              FX
+                            </button>
+                          )}
                           <span className="text-[11px] font-black tracking-wide text-white uppercase truncate ml-1">{stemName}</span>
                         </div>
 
-                        {/* Fader de Volume */}
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <Volume2 className="w-3.5 h-3.5 text-brand-gray shrink-0" />
-                          <input
-                            type="range"
-                            min="0"
-                            max="1.5"
-                            step="0.05"
-                            value={volume}
-                            onChange={(e) => setStemVolume(stemName, parseFloat(e.target.value))}
-                            className="w-full fader-input appearance-none bg-transparent cursor-pointer"
-                            style={{ '--slider-progress': `${(volume / 1.5) * 100}%` } as React.CSSProperties}
-                          />
+                        {/* Panning/Mono */}
+                        <div className="shrink-0 flex items-center justify-center min-w-[48px]">
+                          {!mono ? (
+                            <div className="flex flex-col items-center select-none shrink-0 relative">
+                              <RotaryKnob 
+                                value={pan}
+                                onChange={(val) => setStemPan(stemName, val)}
+                                size={32}
+                                hideLabels={true}
+                              />
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center select-none" style={{ width: 48 }}>
+                              <span className="text-[8px] font-bold text-brand-gray/25 uppercase tracking-widest leading-none border border-dashed border-[#222] rounded p-1 text-center">MONO</span>
+                            </div>
+                          )}
                         </div>
                       </div>
 
-                      {/* Coluna 2: Panning Knob (L/R) ou MONO */}
-                      <div className="shrink-0 flex items-center justify-center min-w-[50px]">
-                        {!mono ? (
-                          <div className="flex flex-col items-center select-none shrink-0 relative">
-                            <RotaryKnob 
-                              value={pan}
-                              onChange={(val) => setStemPan(stemName, val)}
-                              size={36}
-                              hideLabels={true}
-                            />
-                            <div className="flex justify-between w-[48px] text-[8px] font-black text-brand-gray/50 mt-0.5 leading-none">
-                              <span>L</span>
-                              <span>R</span>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-center select-none" style={{ width: 50 }}>
-                            <span className="text-[8px] font-bold text-brand-gray/25 uppercase tracking-widest leading-none border border-dashed border-[#222] rounded p-1.5 px-2 text-center">MONO</span>
-                          </div>
-                        )}
+                      {/* Linha do Meio: Volume Fader */}
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <Volume2 className="w-3.5 h-3.5 text-brand-gray shrink-0" />
+                        <input
+                          type="range"
+                          min="0"
+                          max="1.5"
+                          step="0.05"
+                          value={volume}
+                          onChange={(e) => setStemVolume(stemName, parseFloat(e.target.value))}
+                          className="w-full fader-input appearance-none bg-transparent cursor-pointer"
+                          style={{ '--slider-progress': `${(volume / 1.5) * 100}%` } as React.CSSProperties}
+                        />
                       </div>
+
+                      {/* Painel FX Reverb Expandidor */}
+                      {expandedStems[stemName] && (
+                        <div className="mt-1 pt-1.5 border-t border-brand-hover/30 flex flex-col gap-1 text-[9px] text-brand-gray select-none animate-in fade-in duration-200">
+                          {/* Reverb Toggle */}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1 font-bold text-white">
+                              <Wand2 className="w-3 h-3 text-brand-green" />
+                              <span>Reverb</span>
+                            </div>
+                            <button
+                              onClick={() => setStemReverbEnabled(stemName, !(stemsReverbEnabled[stemName] ?? false))}
+                              className={`px-1.5 py-0.5 rounded text-[7px] font-extrabold tracking-wider uppercase transition-all border cursor-pointer ${
+                                stemsReverbEnabled[stemName]
+                                  ? 'bg-brand-green text-black border-brand-green hover:bg-brand-green'
+                                  : 'bg-[#222] text-brand-gray border-brand-hover hover:text-white'
+                              }`}
+                            >
+                              {stemsReverbEnabled[stemName] ? 'ON' : 'OFF'}
+                            </button>
+                          </div>
+
+                          {/* Reverb Parametros (Wet e Ambientes) */}
+                          {stemsReverbEnabled[stemName] && (
+                            <div className="flex flex-col gap-1.5 animate-in slide-in-from-top-1 duration-150">
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex justify-between items-center text-[8px] text-brand-gray/80">
+                                  <span>Intensidade (Mix)</span>
+                                  <span className="font-mono">{Math.round((stemsReverbWet[stemName] ?? 0.0) * 100)}%</span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max="1.0"
+                                  step="0.05"
+                                  value={stemsReverbWet[stemName] ?? 0.0}
+                                  onChange={(e) => setStemReverbWet(stemName, parseFloat(e.target.value))}
+                                  className="w-full accent-brand-green dynamic-progress h-0.5 rounded appearance-none cursor-pointer"
+                                  style={{ '--slider-progress': `${(stemsReverbWet[stemName] ?? 0.0) * 100}%` } as React.CSSProperties}
+                                />
+                              </div>
+
+                              <div className="flex gap-0.5">
+                                {(['room', 'hall', 'cathedral'] as const).map(p => (
+                                  <button
+                                    key={p}
+                                    onClick={() => setStemReverbRoom(stemName, p)}
+                                    className={`flex-1 py-0.5 rounded text-[7px] font-bold border transition-all cursor-pointer capitalize text-center ${
+                                      (stemsReverbRoom[stemName] ?? 'hall') === p
+                                        ? 'bg-brand-green/20 text-brand-green border-brand-green'
+                                        : 'bg-[#222] text-brand-gray border-transparent hover:bg-brand-hover hover:text-white'
+                                    }`}
+                                  >
+                                    {p === 'room' ? 'Sala' : p === 'hall' ? 'Salão' : 'Catedral'}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 
