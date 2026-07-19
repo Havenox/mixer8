@@ -469,6 +469,11 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
     * **Correção de Rolagem dos Overlays:** Ajustada a dimensão dos overlays (DAW, Letras e Mixer) de `absolute inset-0` para `absolute top-0 left-0 right-0 bottom-16 md:bottom-24` para impedir que fiquem ocultos por baixo do player fixado de rodapé, liberando a rolagem vertical de todos os canais.
     * **Fidelidade de Exportação:** O motor de exportação offline (`mixExporter.ts`) valida `stemsReverbEnabled` para aplicar o reverb apenas em trilhas selecionadas.
 
+44. **Algoritmo Inteligente de Naming (Metadata) e Botão de Inversão no Upload de Arquivos**:
+    * **Utilitário de Parsing Unificado (`metadataParser.ts`)**: Criado um parser robusto para extrair nomes de músicas e artistas de filenames locais e títulos do YouTube. Remove tags promocionais, numerações iniciais de faixas (ex: `05 - `) e tags de gravação ao vivo (ex: `(Ao Vivo)`), estruturando as informações por delimitadores de forma limpa.
+    * **Auto-Inversão via Heurística de Autor**: Compara a música extraída com o autor do canal do Youtube (`fallbackArtist`). Caso coincidam, inverte os campos automaticamente para manter o preenchimento correto.
+    * **Botão de Inversão (Swap) no Upload de Arquivo**: Reestruturado o layout da aba de arquivo para usar `grid-cols-[1fr_auto_1fr]` e incluir o botão de setas bidirecionais (`ArrowLeftRight`), permitindo inverter os inputs de Música e Artista com 1 clique.
+
 ---
 
 ## 🎯 Próximo Milestone: Ajustes de Fluxo e Segurança de Rede
