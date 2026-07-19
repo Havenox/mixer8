@@ -462,6 +462,13 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
     * **Infinite Scroll na UI:** Integrado o hook `useInfiniteScroll` na página de detalhes da playlist (`PlaylistDetail.tsx`). Agora, as músicas são carregadas sob demanda, eliminando travamentos em playlists com milhares de músicas.
     * **Queue Provider Dinâmico:** Atualizada a fábrica de enfileiramento `createPlaylistQueueProvider` em `queueProviders.ts` para formatar e mapear a resposta da API perfeitamente para a interface `ITrack`, mantendo a reprodução e carregamento assíncrono em segundo plano estável.
 
+43. **Reverb por Canal na DAW, Isolamento de Memória WASM do Shifter e Toggle de Efeitos**:
+    * **Isolamento de Memória WASM do Shifter:** O processador `pitch-shift-processor.js` do AudioWorklet foi refatorado para agrupar o runtime e heap do WASM do Signalsmith em uma fábrica de closures (`createSignalsmithShifter`). Cada canal instanciado possui seu próprio heap de memória isolado, eliminando completamente os ruídos e craquelamento nas transposições de tom concorrentes.
+    * **Roteamento Dinâmico de Efeitos e Toggle:** Implementada a persistência e controle do estado `stemsReverbEnabled` por canal e a função `updateStemReverbRouting(type, enabled)` que reconecta em tempo real as stems. Se o Reverb for desativado (OFF), o canal se conecta diretamente ao Master, e os nós de convolução e ganho do reverb são 100% desconectados do grafo para economizar processamento de CPU.
+    * **Controles FX Integrados à DAW e Feedback Visual:** Os controles de reverb foram removidos do Mixer (`MesaPlayer.tsx`) e alocados no painel esquerdo dos canais da DAW (`DawView.tsx`). O botão **FX** expande a pista verticalmente de `88px` para `160px` de forma fluida. O botão assume cor amarela/âmbar se o reverb estiver ON, verde se o painel estiver apenas expandido com reverb OFF, e cinza neutro caso contrário. O canvas de waveform na direita se expande e se redesenha automaticamente 250ms após a transição.
+    * **Correção de Rolagem dos Overlays:** Ajustada a dimensão dos overlays (DAW, Letras e Mixer) de `absolute inset-0` para `absolute top-0 left-0 right-0 bottom-16 md:bottom-24` para impedir que fiquem ocultos por baixo do player fixado de rodapé, liberando a rolagem vertical de todos os canais.
+    * **Fidelidade de Exportação:** O motor de exportação offline (`mixExporter.ts`) valida `stemsReverbEnabled` para aplicar o reverb apenas em trilhas selecionadas.
+
 ---
 
 ## 🎯 Próximo Milestone: Ajustes de Fluxo e Segurança de Rede
