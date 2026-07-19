@@ -493,6 +493,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const syncBarrierPromiseRef = useRef<Promise<void> | null>(null);
   const syncBarrierResolveRef = useRef<(() => void) | null>(null);
   const isSyncingRef = useRef(false);
+  const lastDriftCorrectionTimestampsRef = useRef<Record<number, number>>({});
 
   // Aplica as configurações atuais de Pitch (tom) e Tempo (BPM) a todos os elementos de áudio e nós de processamento
   const applyPitchAndTempoSettings = useCallback((overrideTranspose?: number, overrideBpmDelta?: number) => {
@@ -661,6 +662,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     if (!isPlaying || activeStemsRef.current.length <= 1) return;
 
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    const isAppleEnv = isIOS || isSafari;
+    const driftThreshold = isAppleEnv ? 0.15 : 0.05;
+
     const interval = setInterval(() => {
       // Se estiver na fase de sincronização inicial ou de seek, pula a correção
       if (isSyncingRef.current) return;
@@ -685,9 +691,17 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (item.audio.ended || item.audio.paused) continue;
 
         const diff = Math.abs(item.audio.currentTime - masterTime);
-        // Se o desvio for maior do que 50 milissegundos (0.05s)
-        if (diff > 0.05) {
-          console.log(`[SYNC] Ajustando drift em stem '${item.type}': desvio de ${(diff * 1000).toFixed(1)}ms. Novo tempo alinhado: ${masterTime.toFixed(3)}s`);
+        if (diff > driftThreshold) {
+          if (isAppleEnv) {
+            const now = Date.now();
+            const lastSeek = lastDriftCorrectionTimestampsRef.current[i] || 0;
+            if (now - lastSeek < 2500) {
+              // Rate limit: pula a correção no iOS se foi feita a menos de 2.5 segundos
+              continue;
+            }
+            lastDriftCorrectionTimestampsRef.current[i] = now;
+          }
+          console.log(`[SYNC] Ajustando drift em stem '${item.type}' (iOS/Safari=${isAppleEnv}): desvio de ${(diff * 1000).toFixed(1)}ms. Novo tempo alinhado: ${masterTime.toFixed(3)}s`);
           item.audio.currentTime = masterTime;
         }
       }
@@ -696,9 +710,79 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => clearInterval(interval);
   }, [isPlaying, currentTrack]);
 
+  // Efeito para monitorar suspensão do AudioContext no iOS e suspensão/retorno do navegador
+  useEffect(() => {
+    const handleVisibility = async () => {
+      if (document.visibilityState === 'visible' && isPlayingRef.current && audioContextRef.current) {
+        const ctx = audioContextRef.current;
+        if (ctx.state === 'suspended') {
+          console.log('[AUDIO-LIFECYCLE] Visibilidade retornou e AudioContext está suspenso. Tentando resumir...');
+          try {
+            await ctx.resume();
+          } catch (err) {
+            console.warn('[AUDIO-LIFECYCLE] Falha ao resumir AudioContext na visibilidade:', err);
+          }
+        }
+        
+        // Alinhamento forçado ao retornar de suspensão/bloqueio
+        const masterItem = activeStemsRef.current[0];
+        if (masterItem) {
+          const masterTime = masterItem.audio.currentTime;
+          activeStemsRef.current.forEach((item, idx) => {
+            if (idx > 0 && !item.audio.paused && !item.audio.ended) {
+              console.log(`[AUDIO-LIFECYCLE] Alinhando stem '${item.type}' pós-retorno de visibilidade.`);
+              item.audio.currentTime = masterTime;
+            }
+          });
+        }
+      }
+    };
+
+    const handleGestureResume = async () => {
+      if (audioContextRef.current && audioContextRef.current.state === 'suspended' && isPlayingRef.current) {
+        console.log('[AUDIO-LIFECYCLE] Clique/Toque do usuário detectado com AudioContext suspenso. Tentando resumir...');
+        try {
+          await audioContextRef.current.resume();
+        } catch (err) {
+          console.warn('[AUDIO-LIFECYCLE] Falha ao resumir AudioContext no clique/toque:', err);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('click', handleGestureResume, { passive: true });
+    window.addEventListener('touchstart', handleGestureResume, { passive: true });
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('click', handleGestureResume);
+      window.removeEventListener('touchstart', handleGestureResume);
+    };
+  }, [isPlaying]);
+
   const cleanupActiveStems = () => {
+    lastDriftCorrectionTimestampsRef.current = {};
+    if (audioContextRef.current && (audioContextRef.current as any)._activeNodes) {
+      try {
+        (audioContextRef.current as any)._activeNodes.clear();
+      } catch (e) {}
+    }
+
     activeStemsRef.current.forEach(item => {
       item.audio.pause();
+
+      // Limpa referências fortes do elemento audio para descarte de memória
+      const audioExtended = item.audio as any;
+      try {
+        delete audioExtended._sourceNode;
+        delete audioExtended._gainNode;
+        delete audioExtended._pannerNode;
+        delete audioExtended._pitchNode;
+        delete audioExtended._reverbConvolver;
+        delete audioExtended._reverbWetGain;
+        delete audioExtended._reverbDryGain;
+      } catch (e) {}
+
       const src = item.audio.src;
       item.audio.src = '';
       item.audio.load();
@@ -737,6 +821,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // Suporta múltiplos browsers
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       const ctx = new AudioContextClass();
+      (ctx as any)._activeNodes = new Set<AudioNode>();
       audioContextRef.current = ctx;
 
       // Cria e conecta o nó de ganho master
@@ -1193,6 +1278,29 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       // Inicialmente ganho = 0 por conta da fase de sincronização silenciosa
       gainNode.gain.value = 0;
+
+      // Prevenir coleta de lixo agressiva do WebKit no iOS (Anti-GC)
+      // Guardamos referências fortes no elemento HTMLAudioElement correspondente
+      const audioExtended = audio as any;
+      audioExtended._sourceNode = sourceNode;
+      audioExtended._gainNode = gainNode;
+      if (pannerNode) audioExtended._pannerNode = pannerNode;
+      if (pitchNode) audioExtended._pitchNode = pitchNode;
+      if (reverbConvolver) audioExtended._reverbConvolver = reverbConvolver;
+      if (reverbWetGain) audioExtended._reverbWetGain = reverbWetGain;
+      if (reverbDryGain) audioExtended._reverbDryGain = reverbDryGain;
+
+      // Adicionamos os nós ao conjunto ativo do AudioContext para sobrevivência a nível de grafo
+      const activeNodes = (ctx as any)._activeNodes;
+      if (activeNodes) {
+        activeNodes.add(sourceNode);
+        activeNodes.add(gainNode);
+        if (pannerNode) activeNodes.add(pannerNode);
+        if (pitchNode) activeNodes.add(pitchNode);
+        if (reverbConvolver) activeNodes.add(reverbConvolver);
+        if (reverbWetGain) activeNodes.add(reverbWetGain);
+        if (reverbDryGain) activeNodes.add(reverbDryGain);
+      }
 
       loadedStems.push({
         audio,
