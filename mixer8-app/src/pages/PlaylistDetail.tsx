@@ -1615,7 +1615,7 @@ export const PlaylistDetail: React.FC = () => {
                     className="w-full text-left px-3 py-2 rounded text-xs font-semibold hover:bg-brand-hover text-white transition-all cursor-pointer flex items-center gap-2 hover:text-brand-green"
                   >
                     <RefreshCw className="w-4 h-4 text-brand-green shrink-0" />
-                    <span>Reprocessar Música</span>
+                    <span>Reprocessar Extração</span>
                   </button>
                 </>
               )}
