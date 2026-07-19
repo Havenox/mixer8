@@ -18,10 +18,11 @@ Ao importar músicas via arquivos locais ou por links do YouTube, os títulos br
 ### Frontend
 * **`metadataParser.ts`**:
   * Desenvolvida a função `parseTrackMetadata` que aceita o título bruto e um artista de fallback.
+  * O `fallbackArtist` é higienizado logo na entrada da função para remover sufixos como ` - Topic` ou `(Ao Vivo)`.
   * Remove `(Ao Vivo)`, ` - Topic`, numeração decimal inicial (`01`, `02.`, etc.) e strings promocionais do YouTube, reduzindo múltiplos espaços.
   * Executa a divisão por separadores estruturados (ex: ` - `) e cruas (ex: `-`).
   * Associa por padrão `parts[0]` ao Artista e `parts[1]` à Música.
-  * Efetua auto-inversão se a música extraída for igual ao `fallbackArtist`.
+  * Efetua auto-inversão se a música extraída for igual ao `cleanFallback`.
 * **`Library.tsx`**:
   * Importado `parseTrackMetadata` para substituir a lógica inline anterior do `useEffect` de URL/Youtube.
   * Substituído o split simples do `handleFileChange` pela nova função `parseTrackMetadata(nameWithoutExt)`.
@@ -29,6 +30,7 @@ Ao importar músicas via arquivos locais ou por links do YouTube, os títulos br
 
 ## 🎯 Impacto e Resultado
 * **Entrada de Dados Limpa**: Títulos poluídos como `05 - Quero Estar Livre - Grupo Modão - Topic` ou `Balada Prime (Ao Vivo) - Cristiano Araujo` agora preenchem os campos de formulário de forma totalmente higienizada.
+* **Limpeza de Canais Topic**: Nomes de canais do YouTube Music como `Chiquito & Bordoneio - Topic` são limpos automaticamente para `Chiquito & Bordoneio` mesmo quando o título do vídeo não contém delimitadores.
 * **Ergonomia e UX Consistente**: O botão de inversão de nomes está presente em ambas as abas, permitindo corrigir a ordenação com um único clique de forma fluida.
 * **Aderência aos Padrões Estéticos**: A interface preserva as cores sóbrias e arquitetura minimalista, sem poluição de componentes.
 
