@@ -8,11 +8,14 @@ export interface ParsedMetadata {
  * a partir de nomes de arquivos locais ou títulos de vídeos do YouTube.
  */
 export function parseTrackMetadata(rawTitle: string, fallbackArtist?: string): ParsedMetadata {
-  // 0. Limpeza prévia do fallbackArtist (remover - Topic, Ao Vivo, etc.)
+  // 0. Limpeza prévia do fallbackArtist (remover - Topic, Ao Vivo, Cover, etc.)
   const cleanFallback = fallbackArtist
     ? fallbackArtist
-        .replace(/\s*[\(\[][Aa]o\s*[Vv]ivo[\)\]]\s*/gi, ' ')
         .replace(/\s*-\s*[Tt]opic\s*$/gi, '')
+        .replace(/\s*[\(\[][Aa]o\s*[Vv]ivo[\)\]]/gi, '')
+        .replace(/\s*[\(\[][Cc]over[\)\]]/gi, '')
+        .replace(/\s*[\(\[][Oo]fficial[\)\]]/gi, '')
+        .replace(/\s*[\(\[][Of]icial[\)\]]/gi, '')
         .replace(/\s+/g, ' ')
         .trim()
     : '';
@@ -21,26 +24,44 @@ export function parseTrackMetadata(rawTitle: string, fallbackArtist?: string): P
     return { songName: '', artistName: cleanFallback };
   }
 
-  // 1. Limpeza inicial de tags comuns (Ao Vivo, Topic, tags do YouTube)
+  // 1. Limpeza inicial de tags comuns (Ao Vivo, Cover, Topic, tags do YouTube)
   let cleaned = rawTitle
-    // Remove "(Ao Vivo)" ou "[Ao Vivo]" com qualquer variação de caixa e espaços ao redor
-    .replace(/\s*[\(\[][Aa]o\s*[Vv]ivo[\)\]]\s*/gi, ' ')
     // Remove sufixo de canal do YouTube (ex: " - Topic")
     .replace(/\s*-\s*[Tt]opic\s*$/gi, '')
+    // Remove tag de gravação Ao Vivo
+    .replace(/\s*[\(\[][Aa]o\s*[Vv]ivo[\)\]]/gi, '')
+    // Remove tag de Cover
+    .replace(/\s*[\(\[][Cc]over[\)\]]/gi, '')
+    // Remove tag de Acústico / Acoustic
+    .replace(/\s*[\(\[][Aa]coustic[\)\]]/gi, '')
+    .replace(/\s*[\(\[][Aa]cústico[\)\]]/gi, '')
+    // Remove Remix / Version / Single / EP
+    .replace(/\s*[\(\[][Rr]emix[\)\]]/gi, '')
+    .replace(/\s*[\(\[][Vv]ersion[\)\]]/gi, '')
+    .replace(/\s*[\(\[][Ss]ingle[\)\]]/gi, '')
+    .replace(/\s*[\(\[][Ee][Pp][\)\]]/gi, '')
     // Remove termos comuns de vídeos do YouTube
     .replace(/\s*[\(\[][Oo]fficial\s*[Vv]ideo[\)\]]/gi, '')
     .replace(/\s*[\(\[][Oo]fficial\s*[Aa]udio[\)\]]/gi, '')
     .replace(/\s*[\(\[][Oo]fficial\s*[Mm]usic\s*[Vv]ideo[\)\]]/gi, '')
     .replace(/\s*[\(\[][Oo]fficial\s*[Ll]yric\s*[Vv]ideo[\)\]]/gi, '')
     .replace(/\s*[\(\[][Ll]yric\s*[Vv]ideo[\)\]]/gi, '')
+    .replace(/\s*[\(\[][Ll]yrics\s*[Vv]ideo[\)\]]/gi, '')
     .replace(/\s*[\(\[][Vv]ídeo\s*[Oo]ficial[\)\]]/gi, '')
     .replace(/\s*[\(\[][Cc]lipe\s*[Oo]ficial[\)\]]/gi, '')
     .replace(/\s*[\(\[][Aa]udio\s*[Oo]ficial[\)\]]/gi, '')
+    .replace(/\s*[\(\[][Vv]ídeo\s*[Ll]írico[\)\]]/gi, '')
+    .replace(/\s*[\(\[][Cc]lipe\s*[Ll]írico[\)\]]/gi, '')
     .replace(/\s*[\(\[][Ll]ive[\)\]]/gi, '')
     .replace(/\s*[\(\[]HD[\)\]]/gi, '')
     .replace(/\s*[\(\[]4[Kk][\)\]]/gi, '')
     .replace(/\s*[\(\[][Ll]yrics[\)\]]/gi, '')
+    .replace(/\s*[\(\[][Ll]yric[\)\]]/gi, '')
     .replace(/\s*[\(\[][Oo]fficial[\)\]]/gi, '')
+    .replace(/\s*[\(\[][Of]icial[\)\]]/gi, '')
+    .replace(/\s*[\(\[][Cc]lipe[\)\]]/gi, '')
+    .replace(/\s*[\(\[][Vv]ídeo[\)\]]/gi, '')
+    .replace(/\s*[\(\[][Vv]ideo[\)\]]/gi, '')
     .trim();
 
   // Substitui múltiplos espaços consecutivos causados pelas substituições por um espaço único
