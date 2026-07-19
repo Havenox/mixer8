@@ -11,6 +11,7 @@ public class Track
     public Guid UploadedBy { get; set; }
     public string ExtractionStatus { get; set; } = "Aguardando"; // Aguardando, Processando, Pronto, Falhou
     public int ExtractionRetryCount { get; set; } = 0;
+    public bool DeletionPending { get; set; } = false;
     public DateTime CreatedAt { get; set; }
     public string? CoverUrl { get; set; }
     public string? DownloadUrl { get; set; }

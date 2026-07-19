@@ -1042,6 +1042,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 if (waitSec % 10 == 0)
                 {
                     Console.WriteLine($"[BOT-PASSO] Aguardando separação de stems via GraphQL... (Segundo {waitSec}/{maxSeparateWaitSeconds})");
+                    await CheckIfTrackAbortedAsync(track.TrackId, db);
                 }
                 
                 await Task.Delay(1000, stoppingToken);
@@ -1065,6 +1066,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                     if (extraSec % 10 == 0)
                     {
                         Console.WriteLine($"[BOT-PASSO] Aguardando BEATSCHORDS_A via GraphQL... (Segundo {extraSec}/180) - Status atual: {beatschordsOperationStatus ?? "PENDING"}");
+                        await CheckIfTrackAbortedAsync(track.TrackId, db);
                     }
                     await Task.Delay(1000, stoppingToken);
                 }
@@ -1431,9 +1433,15 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         }
         catch (Exception ex)
         {
+            if (ex is TrackAbortedException)
+            {
+                logger.LogWarning($"[WORKER] Processamento abortado porque a música {track.TrackId} foi excluída.");
+                return;
+            }
+
             logger.LogError(ex, $"[WORKER ERROR] Falha catastrófica ao processar track: {track.TrackId}");
             var dbTrack = await db.Tracks.FindAsync(track.TrackId);
-            if (dbTrack != null)
+            if (dbTrack != null && !dbTrack.DeletionPending)
             {
                 dbTrack.ExtractionRetryCount++;
                 if (dbTrack.ExtractionRetryCount < 5)
@@ -1447,8 +1455,8 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                     dbTrack.ExtractionStatus = "Falhou";
                     await db.LogEventAsync("Extractor", "Error", $"Falha catastrófica no fluxo de extração da música '{track.TrackTitle}' após 5 tentativas de processamento.", ex.ToString(), track.TrackId, cancellationToken: stoppingToken);
                 }
+                await db.SaveChangesAsync(stoppingToken);
             }
-            await db.SaveChangesAsync(stoppingToken);
         }
         finally
         {
@@ -1473,15 +1481,26 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         }
     }
 
+    private async Task CheckIfTrackAbortedAsync(Guid trackId, Mixer8DbContext db)
+    {
+        var dbTrack = await db.Tracks.FindAsync(trackId);
+        if (dbTrack == null || dbTrack.DeletionPending)
+        {
+            throw new TrackAbortedException($"Música {trackId} foi deletada ou está pendente de exclusão do banco de dados.");
+        }
+    }
+
     private async Task UpdateTrackStatusAsync(Guid trackId, string status, Mixer8DbContext db, CancellationToken stoppingToken)
     {
         var dbTrack = await db.Tracks.FindAsync(trackId);
-        if (dbTrack != null)
+        if (dbTrack == null || dbTrack.DeletionPending)
         {
-            dbTrack.ExtractionStatus = status;
-            await db.SaveChangesAsync(stoppingToken);
-            logger.LogInformation($"[WORKER STATUS] Track: {trackId} -> {status}");
+            throw new TrackAbortedException($"Música {trackId} foi deletada ou está pendente de exclusão do banco de dados.");
         }
+
+        dbTrack.ExtractionStatus = status;
+        await db.SaveChangesAsync(stoppingToken);
+        logger.LogInformation($"[WORKER STATUS] Track: {trackId} -> {status}");
     }
 
     private async Task AcceptCookiesIfVisibleAsync(IPage page, CancellationToken stoppingToken)
@@ -1620,5 +1639,10 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
 
         return sb.ToString().Normalize(System.Text.NormalizationForm.FormC).Trim();
     }
+}
+
+public class TrackAbortedException : Exception
+{
+    public TrackAbortedException(string message) : base(message) { }
 }
 
