@@ -1,394 +1,261 @@
 // PitchShiftProcessor AudioWorklet usando Signalsmith Stretch WASM (SIMD 128-bit)
 // Processa o áudio na thread dedicada de tempo real sem latência nem travamento de UI
+// Cada processador possui sua própria instância isolada do WASM e heap de memória local.
 
-var Module = typeof Module !== "undefined" ? Module : {};
-var ENVIRONMENT_IS_WEB = false;
-var ENVIRONMENT_IS_WORKER = true;
-var ENVIRONMENT_IS_NODE = false;
-var programArgs = [];
-var thisProgram = "./this.program";
-var quit_ = (status, toThrow) => { throw toThrow; };
-var _scriptName = "/wasm/pitch-shift-processor.js";
-var scriptDirectory = "/wasm/";
+function createSignalsmithShifter(wasmModule, sampleRateVal, initialPitch, bufferSize) {
+  var Module = {};
+  var ENVIRONMENT_IS_WEB = false;
+  var ENVIRONMENT_IS_WORKER = true;
+  var ENVIRONMENT_IS_NODE = false;
+  var quit_ = (status, toThrow) => { throw toThrow; };
+  
+  var ABORT = false;
+  var runtimeInitialized = false;
 
-function locateFile(path) {
-  if (Module["locateFile"]) {
-    return Module["locateFile"](path, scriptDirectory);
+  var HEAP16, HEAP32, HEAP64, HEAP8, HEAPF32, HEAPF64, HEAPU16, HEAPU32, HEAPU64, HEAPU8;
+  var wasmMemory;
+  var wasmExports;
+
+  function getMemoryBuffer() { return wasmMemory.buffer; }
+  
+  function updateMemoryViews() {
+    if (HEAP8?.buffer?.resizable) return;
+    var b = getMemoryBuffer();
+    HEAP8 = new Int8Array(b);
+    HEAP16 = new Int16Array(b);
+    HEAPU8 = new Uint8Array(b);
+    HEAPU16 = new Uint16Array(b);
+    HEAP32 = new Int32Array(b);
+    HEAPU32 = new Uint32Array(b);
+    HEAPF32 = new Float32Array(b);
+    HEAPF64 = new Float64Array(b);
+    HEAP64 = new BigInt64Array(b);
+    HEAPU64 = new BigUint64Array(b);
   }
-  return scriptDirectory + path;
-}
 
-var readAsync = async (url) => {
-  var response = await fetch(url);
-  if (response.ok) return response.arrayBuffer();
-  throw new Error(response.status + " : " + response.url);
-};
-var readBinary = (url) => { throw new Error("Sync XHR not supported in AudioWorklet"); };
+  var onPostRuns = [];
+  var onPreRuns = [];
 
-var out = console.log.bind(console);
-var err = console.error.bind(console);
-var wasmBinary;
-var ABORT = false;
-var isFileURI = filename => filename.startsWith("file://");
-class EmscriptenEH {}
-class EmscriptenSjLj extends EmscriptenEH {}
-var runtimeInitialized = false;
-
-function getMemoryBuffer() { return wasmMemory.buffer; }
-function updateMemoryViews() {
-  if (HEAP8?.buffer?.resizable) return;
-  var b = getMemoryBuffer();
-  HEAP8 = new Int8Array(b);
-  HEAP16 = new Int16Array(b);
-  HEAPU8 = new Uint8Array(b);
-  HEAPU16 = new Uint16Array(b);
-  HEAP32 = new Int32Array(b);
-  HEAPU32 = new Uint32Array(b);
-  HEAPF32 = new Float32Array(b);
-  HEAPF64 = new Float64Array(b);
-  HEAP64 = new BigInt64Array(b);
-  HEAPU64 = new BigUint64Array(b);
-}
-
-function preRun() {
-  var preRun = Module["preRun"];
-  if (preRun) {
-    if (typeof preRun == "function") preRun = [preRun];
-    onPreRuns.push(...preRun);
+  function preRun() {
+    var preRun = Module["preRun"];
+    if (preRun) {
+      if (typeof preRun == "function") preRun = [preRun];
+      onPreRuns.push(...preRun);
+    }
+    callRuntimeCallbacks(onPreRuns);
   }
-  callRuntimeCallbacks(onPreRuns);
-}
-function initRuntime() {
-  runtimeInitialized = true;
-  if (wasmExports["f"]) wasmExports["f"]();
-}
-function postRun() {
-  var postRun = Module["postRun"];
-  if (postRun) {
-    if (typeof postRun == "function") postRun = [postRun];
-    onPostRuns.push(...postRun);
+
+  function initRuntime() {
+    runtimeInitialized = true;
+    if (wasmExports["f"]) wasmExports["f"]();
   }
-  callRuntimeCallbacks(onPostRuns);
-}
-function abort(what) {
-  Module["onAbort"]?.(what);
-  what = `Aborted(${what})`;
-  err(what);
-  ABORT = true;
-  var e = new WebAssembly.RuntimeError(what);
-  throw e;
-}
 
-var wasmBinaryFile;
-function findWasmBinary() { return locateFile("signalsmith-stretch.wasm"); }
-function getBinarySync(file) { throw new Error("Sync WASM fetch not supported"); }
-async function getWasmBinary(binaryFile) {
-  if (wasmBinary) return wasmBinary;
-  var response = await fetch(binaryFile);
-  if (!response.ok) throw new Error(`HTTP ${response.status} fetching ${binaryFile}`);
-  var buffer = await response.arrayBuffer();
-  wasmBinary = new Uint8Array(buffer);
-  return wasmBinary;
-}
+  function postRun() {
+    var postRun = Module["postRun"];
+    if (postRun) {
+      if (typeof postRun == "function") postRun = [postRun];
+      onPostRuns.push(...postRun);
+    }
+    callRuntimeCallbacks(onPostRuns);
+  }
 
-async function instantiateArrayBuffer(binaryFile, imports) {
+  function abort(what) {
+    Module["onAbort"]?.(what);
+    what = `Aborted(${what})`;
+    console.error(what);
+    ABORT = true;
+    var e = new WebAssembly.RuntimeError(what);
+    throw e;
+  }
+
+  class ExitStatus {
+    name = "ExitStatus";
+    constructor(status) {
+      this.message = `Program terminated with exit(${status})`;
+      this.status = status;
+    }
+  }
+
+  var callRuntimeCallbacks = callbacks => {
+    while (callbacks.length > 0) {
+      callbacks.shift()(Module);
+    }
+  };
+
+  class ExceptionInfo {
+    constructor(excPtr) {
+      this.excPtr = excPtr;
+      this.ptr = excPtr - 24;
+    }
+    set_type(type) { HEAPU32[this.ptr + 4 >> 2] = type; }
+    get_type() { return HEAPU32[this.ptr + 4 >> 2]; }
+    set_destructor(destructor) { HEAPU32[this.ptr + 8 >> 2] = destructor; }
+    get_destructor() { return HEAPU32[this.ptr + 8 >> 2]; }
+    set_caught(caught) { HEAP8[this.ptr + 12] = caught ? 1 : 0; }
+    get_caught() { return HEAP8[this.ptr + 12] != 0; }
+    set_rethrown(rethrown) { HEAP8[this.ptr + 13] = rethrown ? 1 : 0; }
+    get_rethrown() { return HEAP8[this.ptr + 13] != 0; }
+    init(type, destructor) {
+      this.set_adjusted_ptr(0);
+      this.set_type(type);
+      this.set_destructor(destructor);
+    }
+    set_adjusted_ptr(adjustedPtr) { HEAPU32[this.ptr + 16 >> 2] = adjustedPtr; }
+    get_adjusted_ptr() { return HEAPU32[this.ptr + 16 >> 2]; }
+  }
+
+  var uncaughtExceptionCount = 0;
+  var ___cxa_throw = (ptr, type, destructor) => {
+    var info = new ExceptionInfo(ptr);
+    info.init(type, destructor);
+    uncaughtExceptionCount++;
+    abort();
+  };
+
+  var __abort_js = () => abort("");
+  var getHeapMax = () => 2147483648;
+  var alignMemory = (size, alignment) => Math.ceil(size / alignment) * alignment;
+  var growMemory = size => {
+    var oldHeapSize = wasmMemory.buffer.byteLength;
+    var pages = (size - oldHeapSize + 65535) / 65536 | 0;
+    try {
+      wasmMemory.grow(pages);
+      updateMemoryViews();
+      return 1;
+    } catch (e) {}
+  };
+
+  var _emscripten_resize_heap = requestedSize => {
+    var oldSize = HEAPU8.length;
+    requestedSize >>>= 0;
+    var maxHeapSize = getHeapMax();
+    if (requestedSize > maxHeapSize) return false;
+    for (var cutDown = 1; cutDown <= 4; cutDown *= 2) {
+      var overGrownHeapSize = oldSize * (1 + .2 / cutDown);
+      overGrownHeapSize = Math.min(overGrownHeapSize, requestedSize + 100663296);
+      var newSize = Math.min(maxHeapSize, alignMemory(Math.max(requestedSize, overGrownHeapSize), 65536));
+      var replacement = growMemory(newSize);
+      if (replacement) return true;
+    }
+    return false;
+  };
+
+  var randomFill = view => {
+    for (let i = 0; i < view.length; i++) view[i] = (Math.random() * 256) | 0;
+    return 0;
+  };
+  var _random_get = (buffer, size) => randomFill(HEAPU8.subarray(buffer, buffer + size));
+
+  var _stretch_create, _stretch_set_transpose_semitones, _stretch_process, _stretch_destroy, _malloc, _free, __emscripten_stack_restore, __emscripten_stack_alloc, _emscripten_stack_get_current, memory, __indirect_function_table;
+
+  function assignWasmExports(wasmExports) {
+    _stretch_create = Module["_stretch_create"] = wasmExports["g"];
+    _stretch_set_transpose_semitones = Module["_stretch_set_transpose_semitones"] = PageExports_h(wasmExports);
+    _stretch_process = Module["_stretch_process"] = wasmExports["i"];
+    _stretch_destroy = Module["_stretch_destroy"] = wasmExports["j"];
+    _malloc = Module["_malloc"] = wasmExports["k"];
+    _free = Module["_free"] = wasmExports["l"];
+    __emscripten_stack_restore = wasmExports["m"];
+    __emscripten_stack_alloc = wasmExports["n"];
+    _emscripten_stack_get_current = wasmExports["o"];
+    memory = wasmMemory = wasmExports["e"];
+    __indirect_function_table = wasmExports["__indirect_function_table"];
+  }
+
+  function PageExports_h(wasmExports) { return wasmExports["h"]; }
+
+  var wasmImports = { a: ___cxa_throw, c: __abort_js, d: _emscripten_resize_heap, b: _random_get };
+
+  function run() {
+    preRun();
+    if (ABORT) return;
+    initRuntime();
+    postRun();
+  }
+
+  // Inicializa o WASM localmente nesta closure
   try {
-    var binary = await getWasmBinary(binaryFile);
-    var instance = await WebAssembly.instantiate(binary, imports);
-    return instance;
-  } catch (reason) {
-    err(`failed to prepare wasm: ${reason}`);
-    abort(reason);
-  }
-}
-
-async function instantiateAsync(binary, binaryFile, imports) {
-  try {
-    var response = await fetch(binaryFile);
-    if (!response.ok) throw new Error(`HTTP ${response.status} fetching ${binaryFile}`);
-    var instantiationResult = await WebAssembly.instantiateStreaming(response, imports);
-    return instantiationResult;
-  } catch (reason) {
-    console.warn('[WASM] instantiateStreaming failed, falling back to ArrayBuffer:', reason);
-    return await instantiateArrayBuffer(binaryFile, imports);
-  }
-}
-
-function getWasmImports() { return { a: wasmImports }; }
-
-async function createWasm() {
-  function receiveInstance(instance) {
+    var info = { a: wasmImports };
+    var instance = new WebAssembly.Instance(wasmModule, info);
     wasmExports = instance.exports;
     assignWasmExports(wasmExports);
     updateMemoryViews();
-    return wasmExports;
+    run();
+
+    // Cria a instância do C++ Signalsmith Stretch
+    var stretchHandle = _stretch_create(sampleRateVal, 2);
+    _stretch_set_transpose_semitones(stretchHandle, initialPitch);
+
+    // Aloca buffers de memória Float32 no heap local do WASM
+    const bytesPerBlock = bufferSize * 4;
+    var inPtr0 = _malloc(bytesPerBlock);
+    var inPtr1 = _malloc(bytesPerBlock);
+    var outPtr0 = _malloc(bytesPerBlock);
+    var outPtr1 = _malloc(bytesPerBlock);
+
+    return {
+      isInitialized: true,
+      setTranspose: function(semitones) {
+        _stretch_set_transpose_semitones(stretchHandle, semitones);
+      },
+      process: function(inL, inR, outL, outR, numSamples) {
+        if (ABORT || !HEAPF32) return false;
+        HEAPF32.set(inL, inPtr0 >> 2);
+        HEAPF32.set(inR, inPtr1 >> 2);
+
+        _stretch_process(
+          stretchHandle,
+          inPtr0,
+          inPtr1,
+          numSamples,
+          outPtr0,
+          outPtr1,
+          numSamples
+        );
+
+        const startL = outPtr0 >> 2;
+        const startR = outPtr1 >> 2;
+        outL.set(HEAPF32.subarray(startL, startL + numSamples));
+        outR.set(HEAPF32.subarray(startR, startR + numSamples));
+        return true;
+      },
+      destroy: function() {
+        try {
+          _free(inPtr0);
+          _free(inPtr1);
+          _free(outPtr0);
+          _free(outPtr1);
+          _stretch_destroy(stretchHandle);
+        } catch (e) {
+          console.error('[AudioWorklet] Erro ao liberar recursos do Signalsmith Stretch:', e);
+        }
+      }
+    };
+  } catch (err) {
+    console.error('[AudioWorklet] Erro ao instanciar runtime local do Signalsmith:', err);
+    return {
+      isInitialized: false,
+      setTranspose: function() {},
+      process: function() { return false; },
+      destroy: function() {}
+    };
   }
-  function receiveInstantiationResult(result) {
-    return receiveInstance(result["instance"]);
-  }
-  var info = getWasmImports();
-  wasmBinaryFile = findWasmBinary();
-  var result = await instantiateAsync(wasmBinary, wasmBinaryFile, info);
-  var exports = receiveInstantiationResult(result);
-  return exports;
 }
-
-class ExitStatus {
-  name = "ExitStatus";
-  constructor(status) {
-    this.message = `Program terminated with exit(${status})`;
-    this.status = status;
-  }
-}
-
-var HEAP16, HEAP32, HEAP64, HEAP8, HEAPF32, HEAPF64, HEAPU16, HEAPU32, HEAPU64, HEAPU8;
-var callRuntimeCallbacks = callbacks => {
-  while (callbacks.length > 0) {
-    callbacks.shift()(Module);
-  }
-};
-var onPostRuns = [];
-var onPreRuns = [];
-
-function getValue(ptr, type = "i8") {
-  if (type.endsWith("*")) type = "*";
-  switch (type) {
-    case "i1": case "i8": return HEAP8[ptr];
-    case "i16": return HEAP16[ptr >> 1];
-    case "i32": return HEAP32[ptr >> 2];
-    case "i64": return HEAP64[ptr >> 3];
-    case "float": return HEAPF32[ptr >> 2];
-    case "double": return HEAPF64[ptr >> 3];
-    case "*": return HEAPU32[ptr >> 2];
-    default: abort(`invalid type for getValue: ${type}`);
-  }
-}
-
-var noExitRuntime = true;
-function setValue(ptr, value, type = "i8") {
-  if (type.endsWith("*")) type = "*";
-  switch (type) {
-    case "i1": case "i8": HEAP8[ptr] = value; break;
-    case "i16": HEAP16[ptr >> 1] = value; break;
-    case "i32": HEAP32[ptr >> 2] = value; break;
-    case "i64": HEAP64[ptr >> 3] = BigInt(value); break;
-    case "float": HEAPF32[ptr >> 2] = value; break;
-    case "double": HEAPF64[ptr >> 3] = value; break;
-    case "*": HEAPU32[ptr >> 2] = value; break;
-    default: abort(`invalid type for setValue: ${type}`);
-  }
-}
-
-var stackRestore = val => __emscripten_stack_restore(val);
-var stackSave = () => _emscripten_stack_get_current();
-
-class ExceptionInfo {
-  constructor(excPtr) {
-    this.excPtr = excPtr;
-    this.ptr = excPtr - 24;
-  }
-  set_type(type) { HEAPU32[this.ptr + 4 >> 2] = type; }
-  get_type() { return HEAPU32[this.ptr + 4 >> 2]; }
-  set_destructor(destructor) { HEAPU32[this.ptr + 8 >> 2] = destructor; }
-  get_destructor() { return HEAPU32[this.ptr + 8 >> 2]; }
-  set_caught(caught) { HEAP8[this.ptr + 12] = caught ? 1 : 0; }
-  get_caught() { return HEAP8[this.ptr + 12] != 0; }
-  set_rethrown(rethrown) { HEAP8[this.ptr + 13] = rethrown ? 1 : 0; }
-  get_rethrown() { return HEAP8[this.ptr + 13] != 0; }
-  init(type, destructor) {
-    this.set_adjusted_ptr(0);
-    this.set_type(type);
-    this.set_destructor(destructor);
-  }
-  set_adjusted_ptr(adjustedPtr) { HEAPU32[this.ptr + 16 >> 2] = adjustedPtr; }
-  get_adjusted_ptr() { return HEAPU32[this.ptr + 16 >> 2]; }
-}
-
-var uncaughtExceptionCount = 0;
-var ___cxa_throw = (ptr, type, destructor) => {
-  var info = new ExceptionInfo(ptr);
-  info.init(type, destructor);
-  uncaughtExceptionCount++;
-  abort();
-};
-var __abort_js = () => abort("");
-var getHeapMax = () => 2147483648;
-var alignMemory = (size, alignment) => Math.ceil(size / alignment) * alignment;
-var growMemory = size => {
-  var oldHeapSize = wasmMemory.buffer.byteLength;
-  var pages = (size - oldHeapSize + 65535) / 65536 | 0;
-  try {
-    wasmMemory.grow(pages);
-    updateMemoryViews();
-    return 1;
-  } catch (e) {}
-};
-
-var _emscripten_resize_heap = requestedSize => {
-  var oldSize = HEAPU8.length;
-  requestedSize >>>= 0;
-  var maxHeapSize = getHeapMax();
-  if (requestedSize > maxHeapSize) return false;
-  for (var cutDown = 1; cutDown <= 4; cutDown *= 2) {
-    var overGrownHeapSize = oldSize * (1 + .2 / cutDown);
-    overGrownHeapSize = Math.min(overGrownHeapSize, requestedSize + 100663296);
-    var newSize = Math.min(maxHeapSize, alignMemory(Math.max(requestedSize, overGrownHeapSize), 65536));
-    var replacement = growMemory(newSize);
-    if (replacement) return true;
-  }
-  return false;
-};
-
-var randomFill = view => {
-  for (let i = 0; i < view.length; i++) view[i] = (Math.random() * 256) | 0;
-  return 0;
-};
-var _random_get = (buffer, size) => randomFill(HEAPU8.subarray(buffer, buffer + size));
-var getCFunc = ident => Module["_" + ident];
-var writeArrayToMemory = (array, buffer) => { HEAP8.set(array, buffer); };
-var lengthBytesUTF8 = str => {
-  var len = 0;
-  for (var i = 0; i < str.length; ++i) {
-    var c = str.charCodeAt(i);
-    if (c <= 127) len++;
-    else if (c <= 2047) len += 2;
-    else if (c >= 55296 && c <= 57343) { len += 4; ++i; }
-    else len += 3;
-  }
-  return len;
-};
-
-var stringToUTF8Array = (str, heap, outIdx, maxBytesToWrite) => {
-  if (!(maxBytesToWrite > 0)) return 0;
-  var startIdx = outIdx;
-  var endIdx = outIdx + maxBytesToWrite - 1;
-  for (var i = 0; i < str.length; ++i) {
-    var u = str.codePointAt(i);
-    if (u <= 127) {
-      if (outIdx >= endIdx) break;
-      heap[outIdx++] = u;
-    } else if (u <= 2047) {
-      if (outIdx + 1 >= endIdx) break;
-      heap[outIdx++] = 192 | u >> 6;
-      heap[outIdx++] = 128 | u & 63;
-    } else if (u <= 65535) {
-      if (outIdx + 2 >= endIdx) break;
-      heap[outIdx++] = 224 | u >> 12;
-      heap[outIdx++] = 128 | u >> 6 & 63;
-      heap[outIdx++] = 128 | u & 63;
-    } else {
-      if (outIdx + 3 >= endIdx) break;
-      heap[outIdx++] = 240 | u >> 18;
-      heap[outIdx++] = 128 | u >> 12 & 63;
-      heap[outIdx++] = 128 | u >> 6 & 63;
-      heap[outIdx++] = 128 | u & 63;
-      i++;
-    }
-  }
-  heap[outIdx] = 0;
-  return outIdx - startIdx;
-};
-
-var stringToUTF8 = (str, outPtr, maxBytesToWrite) => stringToUTF8Array(str, HEAPU8, outPtr, maxBytesToWrite);
-var stackAlloc = sz => __emscripten_stack_alloc(sz);
-var stringToUTF8OnStack = str => {
-  var size = lengthBytesUTF8(str) + 1;
-  var ret = stackAlloc(size);
-  stringToUTF8(str, ret, size);
-  return ret;
-};
-
-var UTF8Decoder = globalThis.TextDecoder && new TextDecoder;
-var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
-  var maxIdx = idx + maxBytesToRead;
-  if (ignoreNul) return maxIdx;
-  while (heapOrArray[idx] && !(idx >= maxIdx)) ++idx;
-  return idx;
-};
-
-var UTF8ArrayToString = (heapOrArray, idx = 0, maxBytesToRead, ignoreNul) => {
-  var endPtr = findStringEnd(heapOrArray, idx, maxBytesToRead, ignoreNul);
-  if (endPtr - idx > 16 && heapOrArray.buffer && UTF8Decoder) {
-    return UTF8Decoder.decode(heapOrArray.subarray(idx, endPtr));
-  }
-  var str = "";
-  while (idx < endPtr) {
-    var u0 = heapOrArray[idx++];
-    if (!(u0 & 128)) { str += String.fromCharCode(u0); continue; }
-    var u1 = heapOrArray[idx++] & 63;
-    if ((u0 & 224) == 192) { str += String.fromCharCode((u0 & 31) << 6 | u1); continue; }
-    var u2 = heapOrArray[idx++] & 63;
-    if ((u0 & 240) == 224) { u0 = (u0 & 15) << 12 | u1 << 6 | u2; }
-    else { u0 = (u0 & 7) << 18 | u1 << 12 | u2 << 6 | heapOrArray[idx++] & 63; }
-    if (u0 < 65536) { str += String.fromCharCode(u0); }
-    else { var ch = u0 - 65536; str += String.fromCharCode(55296 | ch >> 10, 56320 | ch & 1023); }
-  }
-  return str;
-};
-
-var UTF8ToString = (ptr, maxBytesToRead, ignoreNul) => ptr ? UTF8ArrayToString(HEAPU8, ptr, maxBytesToRead, ignoreNul) : "";
-
-var _stretch_create, _stretch_set_transpose_semitones, _stretch_process, _stretch_destroy, _malloc, _free, __emscripten_stack_restore, __emscripten_stack_alloc, _emscripten_stack_get_current, memory, __indirect_function_table, wasmMemory;
-
-function assignWasmExports(wasmExports) {
-  _stretch_create = Module["_stretch_create"] = wasmExports["g"];
-  _stretch_set_transpose_semitones = Module["_stretch_set_transpose_semitones"] = PageExports_h(wasmExports);
-  _stretch_process = Module["_stretch_process"] = wasmExports["i"];
-  _stretch_destroy = Module["_stretch_destroy"] = wasmExports["j"];
-  _malloc = Module["_malloc"] = wasmExports["k"];
-  _free = Module["_free"] = wasmExports["l"];
-  __emscripten_stack_restore = wasmExports["m"];
-  __emscripten_stack_alloc = wasmExports["n"];
-  _emscripten_stack_get_current = wasmExports["o"];
-  memory = wasmMemory = wasmExports["e"];
-  __indirect_function_table = wasmExports["__indirect_function_table"];
-}
-
-function PageExports_h(wasmExports) { return wasmExports["h"]; }
-
-var wasmImports = { a: ___cxa_throw, c: __abort_js, d: _emscripten_resize_heap, b: _random_get };
-
-async function run() {
-  preRun();
-  if (ABORT) return;
-  initRuntime();
-  Module["onRuntimeInitialized"]?.();
-  postRun();
-}
-
-var wasmExports;
-Module.initWasmEngine = async function() {
-  if (!wasmExports) {
-    var exp = await createWasm();
-    await run();
-    return exp;
-  }
-  return wasmExports;
-};
 
 class PitchShiftProcessor extends AudioWorkletProcessor {
   constructor(options) {
     super();
-    this.wasmInstance = null;
-    this.stretchHandle = null;
+    this.shifter = null;
     this.pitchSemitones = 0;
     this.sampleRateVal = sampleRate || 44100;
-
-    // Pointers de memória WASM
-    this.inPtr0 = null;
-    this.inPtr1 = null;
-    this.outPtr0 = null;
-    this.outPtr1 = null;
-    this.bufferSize = 128; // tamanho do bloco do AudioWorklet
-
-    this.isInitialized = false;
+    this.bufferSize = 128; // tamanho do bloco padrão do Web Audio
 
     this.port.onmessage = (event) => {
       const data = event.data;
       if (data && data.type === 'SET_PITCH') {
         this.pitchSemitones = typeof data.semitones === 'number' ? data.semitones : 0;
-        if (this.stretchHandle && this.wasmInstance) {
-          this.wasmInstance._stretch_set_transpose_semitones(this.stretchHandle, this.pitchSemitones);
+        if (this.shifter && this.shifter.isInitialized) {
+          this.shifter.setTranspose(this.pitchSemitones);
         }
       }
     };
@@ -399,49 +266,11 @@ class PitchShiftProcessor extends AudioWorkletProcessor {
     this.forceProcess = !!options?.processorOptions?.forceProcess;
 
     if (wasmModule) {
-      this.initWasmSync(wasmModule);
-    }
-  }
-
-  initWasmSync(wasmModule) {
-    try {
-      const info = getWasmImports();
-      const instance = new WebAssembly.Instance(wasmModule, info);
-      wasmExports = instance.exports;
-      assignWasmExports(wasmExports);
-      updateMemoryViews();
-      run();
-
-      this.wasmInstance = Module;
-      
-      // Cria instância do Signalsmith Stretch C++ (44.1/48kHz, 2 canais stereo)
-      this.stretchHandle = Module._stretch_create(this.sampleRateVal, 2);
-      Module._stretch_set_transpose_semitones(this.stretchHandle, this.pitchSemitones);
-
-      // Aloca buffers de memória float32 no WASM heap
-      const bytesPerBlock = this.bufferSize * 4;
-      this.inPtr0 = Module._malloc(bytesPerBlock);
-      this.inPtr1 = Module._malloc(bytesPerBlock);
-      this.outPtr0 = Module._malloc(bytesPerBlock);
-      this.outPtr1 = Module._malloc(bytesPerBlock);
-
-      this.isInitialized = true;
-      this.port.postMessage({ type: 'STATUS', status: 'READY' });
-      console.log('[AudioWorklet] WASM Signalsmith Stretch inicializado de forma SINCRONA com sucesso!');
-    } catch (err) {
-      console.error('[AudioWorklet] Falha ao inicializar WASM Signalsmith Stretch de forma sincrona:', err);
-    }
-  }
-
-  getHeapF32() {
-    if (this.wasmInstance) {
-      if (this.wasmInstance.HEAPF32) return this.wasmInstance.HEAPF32;
-      if (this.wasmInstance.memory && this.wasmInstance.memory.buffer) {
-        return new Float32Array(this.wasmInstance.memory.buffer);
+      this.shifter = createSignalsmithShifter(wasmModule, this.sampleRateVal, this.pitchSemitones, this.bufferSize);
+      if (this.shifter && this.shifter.isInitialized) {
+        this.port.postMessage({ type: 'STATUS', status: 'READY' });
       }
     }
-    if (typeof HEAPF32 !== 'undefined') return HEAPF32;
-    return null;
   }
 
   process(inputs, outputs) {
@@ -461,8 +290,8 @@ class PitchShiftProcessor extends AudioWorkletProcessor {
     const outL = output[0];
     const outR = output[1] || output[0];
 
-    // Se o WASM ainda estiver carregando, faz passthrough direto
-    if (!this.isInitialized || !this.stretchHandle) {
+    // Se o Shifter não inicializou ou falhou, realiza o bypass direto sem processamento
+    if (!this.shifter || !this.shifter.isInitialized) {
       for (let i = 0; i < numSamples; i++) {
         outL[i] = inL[i];
         if (output[1]) output[1][i] = inR[i];
@@ -470,7 +299,7 @@ class PitchShiftProcessor extends AudioWorkletProcessor {
       return true;
     }
 
-    // Se sem transposição (pitch = 0) e não forçado, faz passthrough direto para economizar CPU
+    // Se a afinação for 0 sem semitones adicionais e não forçados, faz passthrough direto para economizar CPU
     if (this.pitchSemitones === 0 && !this.forceProcess) {
       for (let i = 0; i < numSamples; i++) {
         outL[i] = inL[i];
@@ -479,41 +308,9 @@ class PitchShiftProcessor extends AudioWorkletProcessor {
       return true;
     }
 
-    try {
-      const HEAPF32 = this.getHeapF32();
-      if (!HEAPF32) {
-        for (let i = 0; i < numSamples; i++) {
-          outL[i] = inL[i];
-          if (output[1]) output[1][i] = inR[i];
-        }
-        return true;
-      }
-
-      // Copia áudio da entrada para o Heap WASM
-      HEAPF32.set(inL, this.inPtr0 >> 2);
-      HEAPF32.set(inR, this.inPtr1 >> 2);
-
-      // Executa processamento C++ Signalsmith Stretch SIMD
-      this.wasmInstance._stretch_process(
-        this.stretchHandle,
-        this.inPtr0,
-        this.inPtr1,
-        numSamples,
-        this.outPtr0,
-        this.outPtr1,
-        numSamples
-      );
-
-      // Copia áudio processado do Heap WASM para a saída do AudioWorklet
-      const startL = this.outPtr0 >> 2;
-      const startR = this.outPtr1 >> 2;
-      outL.set(HEAPF32.subarray(startL, startL + numSamples));
-      if (output[1]) {
-        outR.set(HEAPF32.subarray(startR, startR + numSamples));
-      }
-    } catch (e) {
-      console.error('[AudioWorklet] Erro na execução do stretch_process:', e);
-      // Fallback em caso de exceção pontual
+    const processed = this.shifter.process(inL, inR, outL, outR, numSamples);
+    if (!processed) {
+      // Fallback em caso de falha de processamento pontual
       for (let i = 0; i < numSamples; i++) {
         outL[i] = inL[i];
         if (output[1]) output[1][i] = inR[i];
