@@ -104,8 +104,10 @@ interface IPlayerContext {
   resumeExport: () => void;
   stemsReverbWet: Record<string, number>;
   stemsReverbRoom: Record<string, 'room' | 'hall' | 'cathedral'>;
+  stemsReverbEnabled: Record<string, boolean>;
   setStemReverbWet: (type: string, val: number) => void;
   setStemReverbRoom: (type: string, room: 'room' | 'hall' | 'cathedral') => void;
+  setStemReverbEnabled: (type: string, enabled: boolean) => void;
 }
 
 export type ActiveOverlayType = 'none' | 'daw' | 'lyrics' | 'mixer' | 'player';
@@ -439,6 +441,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const saved = localStorage.getItem('mixer8_stems_reverb_room');
     return saved !== null ? JSON.parse(saved) : {};
   });
+  const [stemsReverbEnabled, setStemsReverbEnabled] = useState<Record<string, boolean>>(() => {
+    const saved = localStorage.getItem('mixer8_stems_reverb_enabled');
+    return saved !== null ? JSON.parse(saved) : {};
+  });
   const [masterVolume, setMasterVolumeState] = useState(() => {
     const saved = localStorage.getItem('mixer8_master_volume');
     return saved !== null ? parseFloat(saved) : 1.0;
@@ -451,6 +457,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const stemsPanRef = useRef<Record<string, number>>(stemsPan);
   const stemsReverbWetRef = useRef<Record<string, number>>(stemsReverbWet);
   const stemsReverbRoomRef = useRef<Record<string, 'room' | 'hall' | 'cathedral'>>(stemsReverbRoom);
+  const stemsReverbEnabledRef = useRef<Record<string, boolean>>(stemsReverbEnabled);
 
   // Sincroniza referências com os estados a cada ciclo de render
   useEffect(() => {
@@ -460,6 +467,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     stemsPanRef.current = stemsPan;
     stemsReverbWetRef.current = stemsReverbWet;
     stemsReverbRoomRef.current = stemsReverbRoom;
+    stemsReverbEnabledRef.current = stemsReverbEnabled;
   });
 
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -700,6 +708,18 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       item.gainNode.disconnect();
       if (item.pannerNode) {
         item.pannerNode.disconnect();
+      }
+      if (item.pitchNode) {
+        try { item.pitchNode.disconnect(); } catch (e) {}
+      }
+      if (item.reverbConvolver) {
+        try { item.reverbConvolver.disconnect(); } catch (e) {}
+      }
+      if (item.reverbWetGain) {
+        try { item.reverbWetGain.disconnect(); } catch (e) {}
+      }
+      if (item.reverbDryGain) {
+        try { item.reverbDryGain.disconnect(); } catch (e) {}
       }
       item.sourceNode.disconnect();
     });
@@ -1129,8 +1149,18 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       const masterDest: AudioNode = masterGainNodeRef.current || ctx.destination;
 
-      // Conexão do Panner/Gain para a próxima etapa (Pitch Node ou Master/Splitter)
-      let pannerDest: AudioNode;
+      // Conectamos gainNode -> pannerNode (se houver) -> pitchNode (se houver) -> finalChain
+      let currentSource: AudioNode = gainNode;
+      if (pannerNode) {
+        gainNode.connect(pannerNode);
+        currentSource = pannerNode;
+      }
+      if (pitchNode) {
+        currentSource.connect(pitchNode);
+        currentSource = pitchNode;
+      }
+
+      // Agora, decidimos para onde conectar currentSource
       if (isMetronome) {
         let delayNode: DelayNode | undefined;
         try {
@@ -1143,54 +1173,22 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
 
         if (delayNode) {
-          pannerDest = delayNode;
+          currentSource.connect(delayNode);
           delayNode.connect(masterDest);
         } else {
-          pannerDest = masterDest;
-        }
-      } else if (pitchNode) {
-        pannerDest = pitchNode;
-        
-        // Do Pitch Node para o Splitter de Reverb
-        if (reverbConvolver && reverbDryGain && reverbWetGain) {
-          pitchNode.connect(reverbDryGain);
-          pitchNode.connect(reverbConvolver);
-          reverbConvolver.connect(reverbWetGain);
-
-          reverbDryGain.connect(masterDest);
-          reverbWetGain.connect(masterDest);
-        } else {
-          pitchNode.connect(masterDest);
+          currentSource.connect(masterDest);
         }
       } else {
-        // Sem pitchNode (fallback) mas com Reverb
-        if (reverbConvolver && reverbDryGain && reverbWetGain) {
-          pannerDest = reverbDryGain; // Nó provisório para conectar o panner
-          
-          // E conecta o sinal original para o convolver também
-          if (pannerNode) {
-            gainNode.connect(pannerNode);
-            pannerNode.connect(reverbDryGain);
-            pannerNode.connect(reverbConvolver);
-          } else {
-            gainNode.connect(reverbDryGain);
-            gainNode.connect(reverbConvolver);
-          }
-          
+        const isReverbEnabled = stemsReverbEnabledRef.current[stemType] ?? false;
+        if (isReverbEnabled && reverbConvolver && reverbDryGain && reverbWetGain) {
+          currentSource.connect(reverbDryGain);
+          currentSource.connect(reverbConvolver);
           reverbConvolver.connect(reverbWetGain);
           reverbDryGain.connect(masterDest);
           reverbWetGain.connect(masterDest);
         } else {
-          pannerDest = masterDest;
+          currentSource.connect(masterDest);
         }
-      }
-
-      // Se usamos a conexão direta (com pannerNode)
-      if (pannerNode && (!reverbConvolver || pitchNode || isMetronome)) {
-        gainNode.connect(pannerNode);
-        pannerNode.connect(pannerDest);
-      } else if (!pannerNode && (!reverbConvolver || pitchNode || isMetronome)) {
-        gainNode.connect(pannerDest);
       }
 
       // Inicialmente ganho = 0 por conta da fase de sincronização silenciosa
@@ -1496,6 +1494,77 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       stemsReverbRoomRef.current = next;
       localStorage.setItem('mixer8_stems_reverb_room', JSON.stringify(next));
       updateStemReverb(type, stemsReverbWetRef.current[type] ?? 0.0, room);
+      return next;
+    });
+  };
+
+  const updateStemReverbRouting = (stemType: string, enabled: boolean) => {
+    const activeStem = activeStemsRef.current.find(item => item.type === stemType);
+    if (!activeStem || !audioContextRef.current) return;
+    const ctx = audioContextRef.current;
+    const masterDest: AudioNode = masterGainNodeRef.current || ctx.destination;
+
+    const { pannerNode, gainNode, pitchNode, reverbConvolver, reverbWetGain, reverbDryGain } = activeStem;
+
+    let sourceNode: AudioNode = gainNode;
+    if (pannerNode) {
+      sourceNode = pannerNode;
+    }
+    if (pitchNode) {
+      sourceNode = pitchNode;
+    }
+
+    try {
+      sourceNode.disconnect();
+    } catch (e) {
+      console.warn(`[PLAYER-REVERB] Error disconnecting source for ${stemType}:`, e);
+    }
+
+    if (enabled && reverbConvolver && reverbDryGain && reverbWetGain) {
+      try {
+        sourceNode.connect(reverbDryGain);
+        sourceNode.connect(reverbConvolver);
+
+        try { reverbConvolver.disconnect(); } catch (e) {}
+        reverbConvolver.connect(reverbWetGain);
+
+        try { reverbDryGain.disconnect(); } catch (e) {}
+        reverbDryGain.connect(masterDest);
+
+        try { reverbWetGain.disconnect(); } catch (e) {}
+        reverbWetGain.connect(masterDest);
+        
+        const wetVal = stemsReverbWetRef.current[stemType] ?? 0.0;
+        reverbWetGain.gain.setValueAtTime(wetVal, ctx.currentTime);
+        reverbDryGain.gain.setValueAtTime(1.0, ctx.currentTime);
+      } catch (err) {
+        console.error(`[PLAYER-REVERB] Error establishing reverb routing for ${stemType}:`, err);
+        try { sourceNode.connect(masterDest); } catch (e) {}
+      }
+    } else {
+      try {
+        sourceNode.connect(masterDest);
+        if (reverbDryGain) {
+          try { reverbDryGain.disconnect(); } catch (e) {}
+        }
+        if (reverbWetGain) {
+          try { reverbWetGain.disconnect(); } catch (e) {}
+        }
+        if (reverbConvolver) {
+          try { reverbConvolver.disconnect(); } catch (e) {}
+        }
+      } catch (err) {
+        console.error(`[PLAYER-REVERB] Error establishing bypass routing for ${stemType}:`, err);
+      }
+    }
+  };
+
+  const setStemReverbEnabled = (type: string, enabled: boolean) => {
+    setStemsReverbEnabled(prev => {
+      const next = { ...prev, [type]: enabled };
+      stemsReverbEnabledRef.current = next;
+      localStorage.setItem('mixer8_stems_reverb_enabled', JSON.stringify(next));
+      updateStemReverbRouting(type, enabled);
       return next;
     });
   };
@@ -1816,6 +1885,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         stemsPan,
         stemsReverbWet,
         stemsReverbRoom,
+        stemsReverbEnabled,
         masterVolume,
         transpose,
         bpmDelta,
@@ -1911,8 +1981,10 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         resumeExport,
         stemsReverbWet,
         stemsReverbRoom,
+        stemsReverbEnabled,
         setStemReverbWet,
-        setStemReverbRoom
+        setStemReverbRoom,
+        setStemReverbEnabled
       }}
     >
       {children}
