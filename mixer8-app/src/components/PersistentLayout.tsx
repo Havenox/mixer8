@@ -535,14 +535,14 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
 
           {/* 2. Overlay de Estúdio DAW */}
           {activeOverlay === 'daw' && currentTrack && (
-            <div className="absolute inset-0 flex flex-col bg-brand-dark overflow-hidden animate-in fade-in duration-200">
+            <div className="absolute top-0 left-0 right-0 bottom-16 md:bottom-24 flex flex-col bg-brand-dark overflow-hidden animate-in fade-in duration-200">
               <DawView />
             </div>
           )}
 
           {/* 3. Overlay de Letras & Cifras */}
           {activeOverlay === 'lyrics' && currentTrack && (
-            <div className="absolute inset-0 flex flex-col bg-brand-dark overflow-hidden animate-in fade-in duration-200">
+            <div className="absolute top-0 left-0 right-0 bottom-16 md:bottom-24 flex flex-col bg-brand-dark overflow-hidden animate-in fade-in duration-200">
               <LyricsChordsViewer 
                 TrackId={currentTrack.TrackId} 
                 CurrentTime={currentTime} 
@@ -553,7 +553,7 @@ export const PersistentLayout: React.FC<{ children: React.ReactNode }> = ({ chil
 
           {/* 4. Overlay de Mixer de Som (Mobile) */}
           {activeOverlay === 'mixer' && currentTrack && (
-            <div className="absolute inset-0 flex flex-col bg-brand-dark overflow-hidden animate-in fade-in duration-200">
+            <div className="absolute top-0 left-0 right-0 bottom-16 md:bottom-24 flex flex-col bg-brand-dark overflow-hidden animate-in fade-in duration-200">
               <MobileMixerOverlay />
             </div>
           )}
