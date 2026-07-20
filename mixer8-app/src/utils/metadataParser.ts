@@ -125,7 +125,49 @@ export function parseTrackMetadata(rawTitle: string, fallbackArtist?: string): P
   }
 
   return {
-    songName: parsedSong.trim(),
-    artistName: parsedArtist.trim(),
+    songName: toTitleCase(parsedSong.trim()),
+    artistName: toTitleCase(parsedArtist.trim()),
   };
 }
+
+/**
+ * Converte uma string para o padrão Title Case, mantendo palavras de ligação em minúsculo
+ * e siglas conhecidas (ex: DJ, MC) em maiúsculo.
+ */
+function toTitleCase(text: string): string {
+  if (!text) return '';
+
+  const lowercaseWords = new Set([
+    // Português
+    'e', 'ou', 'de', 'do', 'da', 'dos', 'das', 'em', 'no', 'na', 'nos', 'nas', 
+    'com', 'por', 'para', 'a', 'o', 'os', 'as', 'um', 'uma', 'uns', 'umas', 'ao', 'aos',
+    // Inglês
+    'and', 'or', 'of', 'in', 'the', 'a', 'an', 'to', 'for', 'by', 'with', 'at', 'from', 'on'
+  ]);
+
+  const uppercaseWords = new Set([
+    'dj', 'mc', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'
+  ]);
+
+  const words = text.split(/\s+/);
+  
+  const formattedWords = words.map((word, index) => {
+    // Extrai apenas a parte alfanumérica para checagem, ignorando pontuações nas bordas
+    const cleanWord = word.replace(/^[^\w\dÀ-ÿ]+|[^\w\dÀ-ÿ]+$/g, '').toLowerCase();
+    
+    if (!cleanWord) return word;
+
+    if (uppercaseWords.has(cleanWord)) {
+      return word.toUpperCase();
+    }
+
+    if (lowercaseWords.has(cleanWord) && index > 0 && index < words.length - 1) {
+      return word.toLowerCase();
+    }
+
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  });
+
+  return formattedWords.join(' ');
+}
+
