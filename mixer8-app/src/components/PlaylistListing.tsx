@@ -17,18 +17,9 @@ interface PlaylistListingProps {
   onPlaylistContextMenu: (e: React.MouseEvent, playlist: any) => void;
 }
 
-const getPlaylistTotalDuration = (playlistId: string, tracksCount: number) => {
-  if (tracksCount === 0) return '0 min';
-  let sum = 0;
-  for (let i = 0; i < playlistId.length; i++) {
-    sum += playlistId.charCodeAt(i);
-  }
-  let totalSeconds = 0;
-  for (let idx = 0; idx < tracksCount; idx++) {
-    const trackSeed = (sum + idx) % 120;
-    totalSeconds += 180 + trackSeed;
-  }
-  const totalMinutes = Math.floor(totalSeconds / 60);
+const getPlaylistTotalDuration = (durationSeconds: number) => {
+  if (!durationSeconds || durationSeconds <= 0) return '0 min';
+  const totalMinutes = Math.floor(durationSeconds / 60);
   if (totalMinutes >= 60) {
     const hours = Math.floor(totalMinutes / 60);
     const mins = totalMinutes % 60;
@@ -203,7 +194,7 @@ export const PlaylistListing: React.FC<PlaylistListingProps> = ({
                     <span className="text-brand-gray/40">•</span>
                     <div className="flex items-center gap-1 text-[11px]">
                       <Clock className="w-3.5 h-3.5 text-brand-gray/60" />
-                      <span>{getPlaylistTotalDuration(playlist.PlaylistId, playlist.TracksCount)}</span>
+                      <span>{getPlaylistTotalDuration(playlist.Duration)}</span>
                     </div>
                   </div>
 
@@ -447,7 +438,7 @@ export const PlaylistListing: React.FC<PlaylistListingProps> = ({
                 <span className="text-brand-gray/40 font-normal select-none">•</span>
                 <div className="flex items-center gap-1 text-brand-gray font-normal leading-none h-3.5">
                   <Clock className="w-3 h-3 text-brand-gray/60 shrink-0" />
-                  <span>{getPlaylistTotalDuration(playlist.PlaylistId, playlist.TracksCount)}</span>
+                  <span>{getPlaylistTotalDuration(playlist.Duration)}</span>
                 </div>
               </div>
 

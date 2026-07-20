@@ -65,6 +65,7 @@ interface IPlaylistDetail {
   IsSaved: boolean;
   Tracks: IPlaylistTrack[];
   TracksCount: number;
+  Duration: number;
   Collaborators: IPlaylistCollaborator[];
   OwnerUserName?: string;
   OwnerFirstName?: string;
@@ -495,11 +496,16 @@ export const PlaylistDetail: React.FC = () => {
       });
 
       if (res.ok) {
+        const removedTrack = playlist.Tracks.find(t => t.TrackId === trackId);
+        const trackDuration = removedTrack ? (removedTrack.Duration || 0) : 0;
+
         setPlaylist(prev => {
           if (!prev) return null;
           return {
             ...prev,
-            Tracks: prev.Tracks.filter(t => t.TrackId !== trackId)
+            Tracks: prev.Tracks.filter(t => t.TrackId !== trackId),
+            TracksCount: Math.max(0, prev.TracksCount - 1),
+            Duration: Math.max(0, prev.Duration - trackDuration)
           };
         });
         fetchPlaylists(); // atualiza barra lateral
@@ -577,10 +583,9 @@ export const PlaylistDetail: React.FC = () => {
     return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
-  const getPlaylistTotalDurationString = (tracks: IPlaylistTrack[]) => {
-    if (tracks.length === 0) return '0 min';
-    const totalSeconds = tracks.reduce((acc, t) => acc + (t.Duration || 0), 0);
-    const totalMinutes = Math.floor(totalSeconds / 60);
+  const getPlaylistTotalDurationString = (durationSeconds: number) => {
+    if (!durationSeconds || durationSeconds <= 0) return '0 min';
+    const totalMinutes = Math.floor(durationSeconds / 60);
     if (totalMinutes >= 60) {
       const hours = Math.floor(totalMinutes / 60);
       const mins = totalMinutes % 60;
@@ -822,7 +827,8 @@ export const PlaylistDetail: React.FC = () => {
       IsOwner: isPlaylistOwner,
       IsCollaborator: isCollaborator,
       IsSaved: playlist.IsSaved || false,
-      TracksCount: playlist.TracksCount
+      TracksCount: playlist.TracksCount,
+      Duration: playlist.Duration
     };
     openEditPlaylist(iPlaylist);
   };
@@ -926,7 +932,7 @@ export const PlaylistDetail: React.FC = () => {
             
             <div className="flex items-center gap-1 shrink-0 text-brand-gray select-none h-4">
               <Clock className="w-3.5 h-3.5 text-brand-gray/60 shrink-0" />
-              <span>{getPlaylistTotalDurationString(tracks)}</span>
+              <span>{getPlaylistTotalDurationString(playlist.Duration)}</span>
             </div>
             
             <span className="text-brand-gray/40 font-normal select-none shrink-0">•</span>
