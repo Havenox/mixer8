@@ -217,7 +217,10 @@ export const MesaPlayer: React.FC = () => {
             >
               {currentTrack.TrackTitle}
             </span>
-            <span className="text-[10px] md:text-xs text-brand-gray/80 hover:text-white cursor-pointer truncate mt-0.5 leading-none">
+            <span 
+              onClick={() => navigate(`/library?search=${encodeURIComponent(currentTrack.ArtistName)}`)}
+              className="text-[10px] md:text-xs text-brand-gray/80 hover:text-white cursor-pointer hover:underline truncate mt-0.5 leading-none"
+            >
               {currentTrack.ArtistName}
             </span>
           </div>
@@ -635,7 +638,10 @@ export const MesaPlayer: React.FC = () => {
               {currentTrack.TrackTitle}
             </span>
             <div className="flex items-center gap-1.5 mt-0.5 truncate">
-              <span className="text-[10px] text-brand-gray/80 truncate">
+              <span 
+                onClick={() => navigate(`/library?search=${encodeURIComponent(currentTrack.ArtistName)}`)}
+                className="text-[10px] text-brand-gray/80 hover:text-white cursor-pointer hover:underline truncate"
+              >
                 {currentTrack.ArtistName}
               </span>
               {currentChord && (
@@ -772,7 +778,10 @@ export const MesaPlayer: React.FC = () => {
                 {currentTrack.TrackTitle}
               </h2>
               <div className="flex items-center gap-2 mt-1 truncate">
-                <p className="text-sm text-brand-gray hover:text-white cursor-pointer truncate select-text">
+                <p 
+                  onClick={() => navigate(`/library?search=${encodeURIComponent(currentTrack.ArtistName)}`)}
+                  className="text-sm text-brand-gray hover:text-white cursor-pointer hover:underline truncate select-text"
+                >
                   {currentTrack.ArtistName}
                 </p>
                 {currentChord && (

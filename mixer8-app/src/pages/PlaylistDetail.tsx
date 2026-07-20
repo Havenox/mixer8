@@ -1328,7 +1328,7 @@ export const PlaylistDetail: React.FC = () => {
                               <span 
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  // Future: navigate(`/artists/${t.ArtistName}`)
+                                  navigate(`/library?search=${encodeURIComponent(t.ArtistName)}`);
                                 }}
                                 className="text-[11px] text-brand-gray truncate hover:underline cursor-pointer mt-0.5"
                               >
@@ -1537,7 +1537,7 @@ export const PlaylistDetail: React.FC = () => {
                       <span 
                         onClick={(e) => {
                           e.stopPropagation();
-                          // Future: navigate(`/artists/${t.ArtistName}`)
+                          navigate(`/library?search=${encodeURIComponent(t.ArtistName)}`);
                         }}
                         className="text-xs text-brand-gray truncate hover:underline cursor-pointer mt-0.5 leading-none"
                       >

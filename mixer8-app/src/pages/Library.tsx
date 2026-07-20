@@ -52,6 +52,16 @@ export const Library: React.FC = () => {
   const [toastMessage, setToastMessage] = useState('');
   const [showToast, setShowToast] = useState(false);
 
+  // Lê o parâmetro ?search= da URL para preencher a busca automaticamente (ex: clique no nome do artista)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const searchParam = params.get('search');
+    if (searchParam) {
+      setSearchInput(searchParam);
+      setDebouncedSearch(searchParam);
+    }
+  }, [location.search]);
+
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(searchInput);

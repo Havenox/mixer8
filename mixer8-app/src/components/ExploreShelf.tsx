@@ -283,7 +283,10 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
                       {track.TrackTitle}
                     </span>
                     <div className="flex items-center justify-between gap-2 min-w-0">
-                      <span className="text-xs text-brand-gray truncate">{track.ArtistName}</span>
+                      <span 
+                        onClick={(e) => { e.stopPropagation(); navigate(`/library?search=${encodeURIComponent(track.ArtistName)}`); }}
+                        className="text-xs text-brand-gray truncate cursor-pointer hover:underline"
+                      >{track.ArtistName}</span>
                       <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
                         {track.DeletionPending && (
                           <span className="text-[8px] bg-red-950/60 text-red-400 border border-red-900/50 px-1 py-0.5 rounded font-bold uppercase tracking-wider">
@@ -492,7 +495,10 @@ export const ExploreShelf: React.FC<ExploreShelfProps> = ({
                     <span className={`font-bold text-xs truncate ${isLoaded ? 'text-brand-green' : 'text-white'}`} title={track.TrackTitle}>
                       {track.TrackTitle}
                     </span>
-                    <span className="text-[10px] text-brand-gray truncate">{track.ArtistName}</span>
+                    <span 
+                      onClick={(e) => { e.stopPropagation(); navigate(`/library?search=${encodeURIComponent(track.ArtistName)}`); }}
+                      className="text-[10px] text-brand-gray truncate cursor-pointer hover:underline"
+                    >{track.ArtistName}</span>
                   </div>
 
                   {/* Botão de Ações no Hover */}

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Play, Pause, Disc, Music, Plus, Loader2, Info, MoreVertical, MoreHorizontal 
 } from 'lucide-react';
@@ -33,6 +34,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
   const { CurrentUser } = useAuth();
   const { loadTrack, currentTrack, isPlaying, togglePlay } = usePlayer();
   const { openAddToPlaylist } = usePlaylists();
+  const navigate = useNavigate();
 
   const handlePlayClick = (track: ITrack) => {
     if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando') && track.ExtractionStatus !== 'Falhou') return;
@@ -140,7 +142,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
                       </span>
                       <div className="flex items-center gap-2 min-w-0">
                         <span 
-                          onClick={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); navigate(`/library?search=${encodeURIComponent(track.ArtistName)}`); }}
                           className="text-xs text-brand-gray truncate cursor-pointer hover:underline"
                         >
                           {track.ArtistName}
@@ -299,7 +301,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
                     </div>
 
                     <span 
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={(e) => { e.stopPropagation(); navigate(`/library?search=${encodeURIComponent(track.ArtistName)}`); }}
                       className="text-xs text-brand-gray truncate cursor-pointer hover:underline mt-0.5 leading-none"
                     >
                       {track.ArtistName}
@@ -398,7 +400,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
                 </span>
                 <div className="flex items-center justify-between gap-2 min-w-0">
                   <span 
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={(e) => { e.stopPropagation(); navigate(`/library?search=${encodeURIComponent(track.ArtistName)}`); }}
                     className="text-xs text-brand-gray truncate cursor-pointer hover:underline"
                   >
                     {track.ArtistName}
