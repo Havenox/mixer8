@@ -1,5 +1,4 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import { 
   Play, Pause, Disc, Music, Plus, Loader2, Info, MoreVertical, MoreHorizontal 
 } from 'lucide-react';
@@ -34,7 +33,6 @@ export const TrackListing: React.FC<TrackListingProps> = ({
   const { CurrentUser } = useAuth();
   const { loadTrack, currentTrack, isPlaying, togglePlay } = usePlayer();
   const { openAddToPlaylist } = usePlaylists();
-  const navigate = useNavigate();
 
   const handlePlayClick = (track: ITrack) => {
     if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando') && track.ExtractionStatus !== 'Falhou') return;
