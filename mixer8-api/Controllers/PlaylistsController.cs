@@ -93,7 +93,11 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetPlaylists()
+    public async Task<IActionResult> GetPlaylists(
+        [FromQuery] string? search = null,
+        [FromQuery] string? visibility = null,
+        [FromQuery] int? page = null,
+        [FromQuery] int? limit = null)
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var userId))
@@ -119,6 +123,30 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             p.PlaylistCollaborators.Any(pc => pc.UserId == userId) ||
             savedPlaylistIds.Contains(p.PlaylistId)
         );
+
+        // Aplica filtro de visibilidade se informado
+        if (!string.IsNullOrWhiteSpace(visibility) && visibility != "all")
+        {
+            playlistsQuery = playlistsQuery.Where(p => p.Visibility.ToLower() == visibility.ToLower());
+        }
+
+        // Aplica filtro de busca imune a acentos
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var searchPattern = $"%{search.Trim()}%";
+            playlistsQuery = playlistsQuery.Where(p =>
+                EF.Functions.ILike(EF.Functions.Unaccent(p.Name), EF.Functions.Unaccent(searchPattern)) ||
+                (p.Description != null && EF.Functions.ILike(EF.Functions.Unaccent(p.Description), EF.Functions.Unaccent(searchPattern)))
+            );
+        }
+
+        // Aplica paginação se page e limit forem providos
+        if (page.HasValue && limit.HasValue)
+        {
+            int p = page.Value < 1 ? 1 : page.Value;
+            int l = limit.Value < 1 ? 20 : limit.Value;
+            playlistsQuery = playlistsQuery.Skip((p - 1) * l).Take(l);
+        }
 
         var playlists = await playlistsQuery.ToListAsync();
 

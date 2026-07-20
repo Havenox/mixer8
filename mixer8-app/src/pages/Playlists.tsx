@@ -8,23 +8,26 @@ import {
 } from 'lucide-react';
 
 import { PlaylistListing } from '../components/PlaylistListing';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { API_URL } from '../config';
 
 export const Playlists: React.FC = () => {
   const { playlists, openCreatePlaylist, openEditPlaylist, openDeletePlaylist, fetchPlaylists } = usePlaylists();
   const { CurrentUser, Token } = useAuth();
 
-  useEffect(() => {
-    if (Token) {
-      fetchPlaylists();
-    }
-  }, [Token]);
-
   const [layoutMode, setLayoutMode] = useState<'grid' | 'list'>(
     () => (localStorage.getItem('mixer8:layout-preference') as 'grid' | 'list') || 'grid'
   );
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; playlist: IPlaylist } | null>(null);
   const [collabPlaylistToLeave, setCollabPlaylistToLeave] = useState<IPlaylist | null>(null);
+
+  // Estados locais para paginação e scroll infinito
+  const [playlistsList, setPlaylistsList] = useState<IPlaylist[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const [error, setError] = useState('');
 
   const [searchInput, setSearchInput] = useState('');
   type VisibilityFilterType = 'all' | 'public' | 'private' | 'unlisted';
@@ -41,33 +44,73 @@ export const Playlists: React.FC = () => {
     localStorage.setItem('mixer8_visibility_filter_playlists', newFilter);
   };
 
-  // Helper para normalizar texto removendo acentos e pontuação (case/accent insensitive)
-  const normalizeText = (text: string) => {
-    return text
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
-  };
+  const fetchPlaylistsPage = async (resetPage = false) => {
+    if (!Token) return;
 
-  // Filtragem das playlists em memória (client-side)
-  const filteredPlaylists = playlists.filter(p => {
-    const query = normalizeText(searchInput);
-    const matchesSearch = 
-      normalizeText(p.Name).includes(query) ||
-      (p.Description && normalizeText(p.Description).includes(query));
-
-    let matchesVisibility = true;
-    const vis = (p.Visibility || 'Public').toLowerCase();
-    if (visibilityFilter === 'public') {
-      matchesVisibility = vis === 'public';
-    } else if (visibilityFilter === 'private') {
-      matchesVisibility = vis === 'private';
-    } else if (visibilityFilter === 'unlisted') {
-      matchesVisibility = vis === 'unlisted';
+    const targetPage = resetPage ? 1 : page;
+    if (resetPage) {
+      setIsLoading(true);
+      setPage(1);
+      setHasMore(true);
+    } else {
+      setIsFetchingMore(true);
     }
 
-    return matchesSearch && matchesVisibility;
-  });
+    try {
+      const url = `${API_URL}/Playlists?page=${targetPage}&limit=20&visibility=${visibilityFilter}&search=${encodeURIComponent(searchInput)}`;
+      const res = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${Token}`
+        }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (resetPage) {
+          setPlaylistsList(data);
+        } else {
+          setPlaylistsList(prev => {
+            const existingIds = new Set(prev.map(p => p.PlaylistId));
+            const newItems = data.filter((p: any) => !existingIds.has(p.PlaylistId));
+            return [...prev, ...newItems];
+          });
+        }
+
+        if (data.length < 20) {
+          setHasMore(false);
+        } else {
+          setPage(prev => (resetPage ? 2 : prev + 1));
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao buscar playlists paginadas:', err);
+      setError('Erro ao carregar as playlists.');
+    } finally {
+      setIsLoading(false);
+      setIsFetchingMore(false);
+    }
+  };
+
+  // Debounce na busca textual e sincronia com filtros
+  useEffect(() => {
+    if (!Token) return;
+    
+    const delayDebounceFn = setTimeout(() => {
+      fetchPlaylistsPage(true);
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchInput, visibilityFilter, Token]);
+
+  // Sincroniza a listagem local com alterações globais (criação, edição, exclusão) do context
+  useEffect(() => {
+    if (Token) {
+      fetchPlaylistsPage(true);
+    }
+  }, [playlists, Token]);
+
+  // Hook de Infinite Scroll
+  useInfiniteScroll(hasMore, isFetchingMore, isLoading, () => fetchPlaylistsPage(false));
 
   const handleLayoutToggle = (mode: 'grid' | 'list') => {
     setLayoutMode(mode);
@@ -91,7 +134,8 @@ export const Playlists: React.FC = () => {
         }
       });
       if (res.ok) {
-        await fetchPlaylists();
+        await fetchPlaylists(); // atualiza barra lateral
+        await fetchPlaylistsPage(true); // atualiza listagem local
       }
     } catch (err) {
       console.error("Erro ao remover playlist da biblioteca", err);
@@ -109,7 +153,8 @@ export const Playlists: React.FC = () => {
       });
       if (res.ok) {
         setCollabPlaylistToLeave(null);
-        await fetchPlaylists();
+        await fetchPlaylists(); // atualiza barra lateral
+        await fetchPlaylistsPage(true); // atualiza listagem local
       }
     } catch (err) {
       console.error("Erro ao deixar colaboração de playlist", err);
@@ -207,12 +252,24 @@ export const Playlists: React.FC = () => {
         </div>
       </div>
 
-      {/* Grid de Playlists */}
-      {playlists.length === 0 ? (
+      {/* Grid/Lista de Playlists */}
+      {isLoading ? (
+        <PlaylistListing
+          playlists={[]}
+          layoutMode={layoutMode}
+          isLoading={true}
+          onPlaylistContextMenu={() => {}}
+        />
+      ) : error ? (
+        <div className="text-xs text-brand-gray font-semibold py-8 text-center bg-brand-card/20 border border-brand-hover border-dashed rounded-lg flex flex-col items-center justify-center gap-3">
+          <AlertTriangle className="w-10 h-10 text-red-400" />
+          <span className="text-white font-bold">{error}</span>
+        </div>
+      ) : playlistsList.length === 0 ? (
         <div className="text-xs text-brand-gray font-semibold py-8 text-center bg-brand-card/20 border border-brand-hover border-dashed rounded-lg flex flex-col items-center justify-center gap-3">
           <ListMusic className="w-12 h-12 text-brand-gray/40" />
           <div className="flex flex-col items-center gap-1">
-            <span className="text-white text-sm font-bold">Nenhuma playlist criada</span>
+            <span className="text-white text-sm font-bold">Nenhuma playlist cadastrada</span>
             <span>Crie sua primeira playlist para começar a agrupar suas faixas favoritas!</span>
           </div>
           <button 
@@ -222,16 +279,11 @@ export const Playlists: React.FC = () => {
             Começar Agora
           </button>
         </div>
-      ) : filteredPlaylists.length === 0 ? (
-        <div className="text-xs text-brand-gray font-semibold py-12 text-center bg-brand-card/10 border border-brand-hover border-dashed rounded-lg flex flex-col items-center justify-center gap-3">
-          <ListMusic className="w-10 h-10 text-brand-gray/30 animate-pulse" />
-          <span className="text-white font-bold text-sm">Nenhuma playlist encontrada</span>
-          <span>Tente ajustar sua busca ou mude a visibilidade para "Todas".</span>
-        </div>
       ) : (
         <PlaylistListing
-          playlists={filteredPlaylists}
+          playlists={playlistsList}
           layoutMode={layoutMode}
+          isFetchingMore={isFetchingMore}
           onToggleSavePlaylist={handleUnsavePlaylist}
           onPlaylistContextMenu={(e, playlist) => {
             setContextMenu({
@@ -294,7 +346,7 @@ export const Playlists: React.FC = () => {
         </div>
       )}
 
-      {/* DIÁLOGO DE CONFIRMAÇÃO PARA PARAR DE COLABORAR (React styled shadcn custom modal) */}
+      {/* DIÁLOGO DE CONFIRMAÇÃO PARA PARAR DE COLABORAR */}
       {collabPlaylistToLeave && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
           <div className="bg-brand-card border border-brand-hover p-6 rounded-md max-w-sm w-full flex flex-col gap-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
