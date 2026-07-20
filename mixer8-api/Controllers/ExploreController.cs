@@ -106,6 +106,7 @@ public class ExploreController(Mixer8DbContext dbContext) : ControllerBase
                 IsCollaborator = userId.HasValue && p.PlaylistCollaborators.Any(pc => pc.UserId == userId.Value),
                 IsSaved = userId.HasValue && savedPlaylistIds.Contains(p.PlaylistId),
                 TracksCount = p.PlaylistTracks.Count(pt => IsTrackVisible(pt.Track, p, userId, isAdmin)),
+                Duration = p.Duration,
                 OwnerUserName = profile?.UserName,
                 OwnerFirstName = profile?.FirstName,
                 OwnerLastName = profile?.LastName,

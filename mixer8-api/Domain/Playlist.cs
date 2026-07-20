@@ -17,6 +17,7 @@ public class Playlist
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public long PlayCount { get; set; } = 0;
+    public int Duration { get; set; } = 0;
 
     public ICollection<PlaylistTrack> PlaylistTracks { get; set; } = new List<PlaylistTrack>();
     public ICollection<PlaylistCollaborator> PlaylistCollaborators { get; set; } = new List<PlaylistCollaborator>();

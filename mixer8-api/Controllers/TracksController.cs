@@ -1461,6 +1461,17 @@ public class TracksController(Mixer8DbContext dbContext, IConfiguration configur
         try
         {
             await dbContext.LogEventAsync("API", "Warning", $"Música '{track.TrackTitle}' (Artista: {track.ArtistName}) foi excluída permanentemente pelo administrador.", null, null, userId);
+
+            // Atualizar a duração acumulada das playlists que continham esta track antes de excluí-la
+            var playlistsToUpdate = await dbContext.Playlists
+                .Where(p => p.PlaylistTracks.Any(pt => pt.TrackId == id))
+                .ToListAsync();
+
+            foreach (var pl in playlistsToUpdate)
+            {
+                pl.Duration = Math.Max(0, pl.Duration - track.Duration);
+            }
+
             dbContext.Tracks.Remove(track);
             await dbContext.SaveChangesAsync();
 

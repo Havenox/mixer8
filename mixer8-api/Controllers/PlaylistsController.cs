@@ -87,7 +87,8 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             CreatedAt = playlist.CreatedAt,
             IsOwner = true,
             IsCollaborator = false,
-            TracksCount = 0
+            TracksCount = 0,
+            Duration = 0
         });
     }
 
@@ -154,6 +155,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
                 IsCollaborator = p.PlaylistCollaborators.Any(pc => pc.UserId == userId),
                 IsSaved = savedPlaylistIds.Contains(p.PlaylistId),
                 TracksCount = p.PlaylistTracks.Count(pt => IsTrackVisible(pt.Track, p, userId, isAdmin)),
+                Duration = p.Duration,
                 OwnerUserName = profile?.UserName,
                 OwnerFirstName = profile?.FirstName,
                 OwnerLastName = profile?.LastName,
@@ -257,6 +259,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             OwnerLastName = ownerProfile?.LastName,
             OwnerAvatarUrl = ownerProfile?.AvatarUrl,
             TracksCount = visibleTracks.Count,
+            Duration = playlist.Duration,
             Tracks = visibleTracks
                 .Take(20)
                 .Select(pt => new PlaylistTrackResponseDto
@@ -546,8 +549,8 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
         if (!isOwner && !isCollaborator && !isAdmin)
             return Forbid();
 
-        var trackExists = await dbContext.Tracks.AnyAsync(t => t.TrackId == request.TrackId);
-        if (!trackExists)
+        var track = await dbContext.Tracks.FindAsync(request.TrackId);
+        if (track == null)
             return BadRequest(new { ErrorMessage = "TRACK_NOT_FOUND" });
 
         var alreadyInPlaylist = await dbContext.PlaylistTracks
@@ -569,6 +572,8 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
             AddedAt = DateTime.UtcNow,
             Order = maxOrder + 1
         };
+
+        playlist.Duration += track.Duration;
 
         dbContext.PlaylistTracks.Add(playlistTrack);
         await dbContext.SaveChangesAsync();
@@ -602,6 +607,12 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
         // Somente o dono da playlist, o colaborador que adicionou a música, ou admins podem remover a música
         if (!isOwner && !isAddedByCurrentUser && !isAdmin)
             return Forbid();
+
+        var track = await dbContext.Tracks.FindAsync(trackId);
+        if (track != null)
+        {
+            playlist.Duration = Math.Max(0, playlist.Duration - track.Duration);
+        }
 
         dbContext.PlaylistTracks.Remove(playlistTrack);
         await dbContext.SaveChangesAsync();
@@ -819,6 +830,7 @@ public class PlaylistsController(Mixer8DbContext dbContext) : ControllerBase
                 IsCollaborator = p.PlaylistCollaborators.Any(pc => pc.UserId == userId),
                 IsSaved = savedPlaylistIds.Contains(p.PlaylistId),
                 TracksCount = p.PlaylistTracks.Count(pt => IsTrackVisible(pt.Track, p, userId, isAdmin)),
+                Duration = p.Duration,
                 OwnerUserName = profile?.UserName,
                 OwnerFirstName = profile?.FirstName,
                 OwnerLastName = profile?.LastName,
@@ -950,6 +962,7 @@ public class PlaylistResponseDto
     public bool IsCollaborator { get; set; }
     public bool IsSaved { get; set; }
     public int TracksCount { get; set; }
+    public int Duration { get; set; }
     public string? OwnerUserName { get; set; }
     public string? OwnerFirstName { get; set; }
     public string? OwnerLastName { get; set; }
@@ -975,6 +988,7 @@ public class PlaylistDetailResponseDto
     public string? OwnerAvatarUrl { get; set; }
     public List<PlaylistTrackResponseDto> Tracks { get; set; } = new();
     public int TracksCount { get; set; }
+    public int Duration { get; set; }
     public List<PlaylistCollaboratorResponseDto> Collaborators { get; set; } = new();
 }
 

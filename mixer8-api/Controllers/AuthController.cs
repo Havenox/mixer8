@@ -418,6 +418,7 @@ public class AuthController(Mixer8DbContext dbContext, IConfiguration configurat
                 IsCollaborator = false,
                 IsSaved = false,
                 TracksCount = p.PlaylistTracks.Count,
+                Duration = p.Duration,
                 OwnerUserName = profile.UserName,
                 OwnerFirstName = profile.FirstName,
                 OwnerLastName = profile.LastName,
