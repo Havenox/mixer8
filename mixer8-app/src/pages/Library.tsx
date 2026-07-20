@@ -32,8 +32,14 @@ export const Library: React.FC = () => {
   const [error, setError] = useState('');
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; track: ITrack } | null>(null);
 
-  const [searchInput, setSearchInput] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [searchInput, setSearchInput] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('search') || '';
+  });
+  const [debouncedSearch, setDebouncedSearch] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('search') || '';
+  });
   
   type VisibilityFilterType = 'all' | 'public' | 'private' | 'unlisted';
   const [visibilityFilter, setVisibilityFilter] = useState<VisibilityFilterType>(() => {
@@ -52,14 +58,12 @@ export const Library: React.FC = () => {
   const [toastMessage, setToastMessage] = useState('');
   const [showToast, setShowToast] = useState(false);
 
-  // Lê o parâmetro ?search= da URL para preencher a busca automaticamente (ex: clique no nome do artista)
+  // Sincroniza busca com o parâmetro ?search= da URL (navegação de artista ou limpeza ao clicar no link Library)
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const searchParam = params.get('search');
-    if (searchParam) {
-      setSearchInput(searchParam);
-      setDebouncedSearch(searchParam);
-    }
+    const searchParam = params.get('search') || '';
+    setSearchInput(searchParam);
+    setDebouncedSearch(searchParam);
   }, [location.search]);
 
   useEffect(() => {

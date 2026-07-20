@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { usePlaylists } from '../context/PlaylistContext';
 import type { IPlaylist } from '../context/PlaylistContext';
 import { useAuth } from '../context/AuthContext';
@@ -103,7 +103,13 @@ export const Playlists: React.FC = () => {
   }, [searchInput, visibilityFilter, Token]);
 
   // Sincroniza a listagem local com alterações globais (criação, edição, exclusão) do context
+  // Pula a montagem inicial pois o useEffect de debounce já faz o primeiro fetch
+  const isInitialMount = useRef(true);
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
     if (Token) {
       fetchPlaylistsPage(true);
     }
