@@ -1244,7 +1244,7 @@ export const PlaylistDetail: React.FC = () => {
                                   onClick={async (e) => {
                                     e.stopPropagation();
                                     if (isCurrentTrack) {
-                                      navigate('/daw');
+                                      togglePlay();
                                       return;
                                     }
                                     const trackToPlay = {
@@ -1280,7 +1280,7 @@ export const PlaylistDetail: React.FC = () => {
                                       }))
                                     })) : [];
                                     await loadTrack(trackToPlay, playlist?.PlaylistId, undefined, tracksQueue, playlist?.Name, playlistQueueProvider);
-                                    navigate('/daw');
+                                    togglePlay();
                                   }}
                                   className={`font-bold truncate text-sm hover:underline cursor-pointer ${isCurrentTrack ? 'text-brand-green' : 'text-white'}`}
                                 >
@@ -1455,7 +1455,7 @@ export const PlaylistDetail: React.FC = () => {
                           onClick={async (e) => {
                             e.stopPropagation();
                             if (isCurrentTrack) {
-                              navigate('/daw');
+                              togglePlay();
                               return;
                             }
                             const trackToPlay = {
@@ -1487,7 +1487,7 @@ export const PlaylistDetail: React.FC = () => {
                               }))
                             }));
                             await loadTrack(trackToPlay, playlist?.PlaylistId, undefined, tracksQueue, playlist?.Name, playlistQueueProvider);
-                            navigate('/daw');
+                            togglePlay();
                           }}
                           className={`font-bold text-sm truncate hover:underline cursor-pointer leading-tight ${
                             isCurrentTrack ? 'text-brand-green' : 'text-white'

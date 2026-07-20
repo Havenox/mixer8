@@ -135,14 +135,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
                     </div>
                     <div className="flex flex-col min-w-0">
                       <span 
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando') && track.ExtractionStatus !== 'Falhou') return;
-                          if (!isCurrentLoaded(track)) {
-                            await loadTrack(track, undefined, undefined, tracksQueue || tracks, undefined, queueProvider);
-                          }
-                          navigate('/daw');
-                        }}
+                        onClick={(e) => { e.stopPropagation(); handlePlayClick(track); }}
                         className={`font-bold text-sm truncate cursor-pointer hover:underline ${isLoaded ? 'text-brand-green' : 'text-white'}`}
                       >
                         {track.TrackTitle}
@@ -277,14 +270,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
                   <div className="flex-1 min-w-0 flex flex-col justify-center">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span 
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando') && track.ExtractionStatus !== 'Falhou') return;
-                          if (!isCurrentLoaded(track)) {
-                            await loadTrack(track, undefined, undefined, tracksQueue || tracks, undefined, queueProvider);
-                          }
-                          navigate('/daw');
-                        }}
+                        onClick={(e) => { e.stopPropagation(); handlePlayClick(track); }}
                         className={`font-bold text-sm truncate cursor-pointer hover:underline leading-tight ${
                           isLoaded ? 'text-brand-green' : 'text-white'
                         }`}
@@ -406,14 +392,7 @@ export const TrackListing: React.FC<TrackListingProps> = ({
 
               <div className="flex flex-col gap-1 mb-2">
                 <span 
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    if (track.ExtractionStatus !== 'Pronto' && !track.ExtractionStatus.startsWith('Processando') && track.ExtractionStatus !== 'Falhou') return;
-                    if (!isCurrentLoaded(track)) {
-                      await loadTrack(track, undefined, undefined, tracksQueue || tracks, undefined, queueProvider);
-                    }
-                    navigate('/daw');
-                  }}
+                  onClick={(e) => { e.stopPropagation(); handlePlayClick(track); }}
                   className={`font-bold text-sm truncate cursor-pointer hover:underline ${isLoaded ? 'text-brand-green' : 'text-white'}`} 
                   title={track.TrackTitle}
                 >

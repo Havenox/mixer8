@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
 import { 
   Play, Pause, SkipBack, SkipForward, Volume2, 
@@ -212,7 +211,7 @@ export const MesaPlayer: React.FC = () => {
           </div>
           <div className="flex flex-col truncate max-w-[80px] xs:max-w-[120px] md:max-w-[150px]">
             <span 
-              onClick={() => navigate('/daw')}
+              onClick={() => togglePlay()}
               className="text-xs md:text-sm font-semibold text-white hover:underline cursor-pointer truncate leading-tight"
             >
               {currentTrack.TrackTitle}
