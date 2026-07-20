@@ -495,6 +495,10 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
     * **Solução Intermediária:** Ao clicar no nome do artista, o usuário é redirecionado para `/library?search=ArtistName`. A Library lê o parâmetro `?search=` da URL via `useEffect` + `URLSearchParams` e preenche o campo de busca imediatamente.
     * **Abrangência:** 13 handlers atualizados em 5 arquivos: `TrackListing` (3), `PlaylistDetail` (2), `MesaPlayer` (3), `ExploreShelf` (2). Todos usam `encodeURIComponent` para segurança.
     * **Evolução Planejada:** Quando a página `/artists/:name` for construída, basta alterar o `navigate` de `/library?search=X` para `/artists/X`.
+50. **Correção de Race Condition na Library e Double-Fetch na Playlists**:
+    * **Race Condition (Library):** Ao navegar para `/library?search=X`, dois fetches competiam — um sem filtro (estado inicial vazio) e um com filtro (do URL). Corrigido com lazy initializers no `useState` que leem `?search=` do `window.location.search` diretamente na primeira renderização.
+    * **Limpeza de Busca (Library):** O `useEffect` de `location.search` agora sempre sincroniza (inclusive limpando), usando `params.get('search') || ''`. Clicar no link Library na sidebar limpa a busca.
+    * **Double-Fetch (Playlists):** Dois `useEffect`s disparavam `fetchPlaylistsPage(true)` na montagem. Corrigido com `useRef(true)` como flag `isInitialMount` no effect de sincronização com o context.
 
 ---
 
