@@ -1240,6 +1240,14 @@ export const PlaylistDetail: React.FC = () => {
                             </div>
                             <div className="flex flex-col truncate">
                               <div className="flex items-center gap-2 min-w-0">
+                                {t.Key && (
+                                  <span 
+                                    className="px-1.5 py-0.5 bg-brand-green/10 text-[10px] text-brand-green font-bold font-mono rounded tracking-wider border border-brand-green/30 select-none shrink-0 leading-none shadow-sm"
+                                    title={`Tonalidade: ${t.Key}`}
+                                  >
+                                    {t.Key}
+                                  </span>
+                                )}
                                 <span 
                                   onClick={async (e) => {
                                     e.stopPropagation();
@@ -1451,6 +1459,14 @@ export const PlaylistDetail: React.FC = () => {
                     {/* Título & Artista */}
                     <div className="flex-1 min-w-0 flex flex-col justify-center">
                       <div className="flex items-center gap-1.5 min-w-0">
+                        {t.Key && (
+                          <span 
+                            className="px-1 py-0.5 bg-brand-green/10 text-[9px] text-brand-green font-bold font-mono rounded tracking-wider border border-brand-green/30 select-none shrink-0 leading-none shadow-sm"
+                            title={`Tonalidade: ${t.Key}`}
+                          >
+                            {t.Key}
+                          </span>
+                        )}
                         <span 
                           onClick={async (e) => {
                             e.stopPropagation();
@@ -1465,6 +1481,8 @@ export const PlaylistDetail: React.FC = () => {
                               CoverUrl: t.CoverUrl,
                               ExtractionStatus: 'Pronto',
                               CreatedAt: t.AddedAt,
+                              Bpm: t.Bpm,
+                              Key: t.Key,
                               Stems: t.Stems.map(s => ({
                                 StemId: s.StemId,
                                 TrackId: s.TrackId,
@@ -1479,6 +1497,8 @@ export const PlaylistDetail: React.FC = () => {
                               CoverUrl: x.CoverUrl,
                               ExtractionStatus: 'Pronto',
                               CreatedAt: x.AddedAt,
+                              Bpm: x.Bpm,
+                              Key: x.Key,
                               Stems: x.Stems.map(s => ({
                                 StemId: s.StemId,
                                 TrackId: s.TrackId,

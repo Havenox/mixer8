@@ -134,13 +134,23 @@ export const TrackListing: React.FC<TrackListingProps> = ({
                       )}
                     </div>
                     <div className="flex flex-col min-w-0">
-                      <span 
-                        onClick={(e) => { e.stopPropagation(); handlePlayClick(track); }}
-                        className={`font-bold text-sm truncate cursor-pointer hover:underline ${isLoaded ? 'text-brand-green' : 'text-white'}`}
-                      >
-                        {track.TrackTitle}
-                      </span>
                       <div className="flex items-center gap-2 min-w-0">
+                        {track.Key && (
+                          <span 
+                            className="px-1.5 py-0.5 bg-brand-green/10 text-[10px] text-brand-green font-bold font-mono rounded tracking-wider border border-brand-green/30 select-none shrink-0 leading-none shadow-sm"
+                            title={`Tonalidade: ${track.Key}`}
+                          >
+                            {track.Key}
+                          </span>
+                        )}
+                        <span 
+                          onClick={(e) => { e.stopPropagation(); handlePlayClick(track); }}
+                          className={`font-bold text-sm truncate cursor-pointer hover:underline ${isLoaded ? 'text-brand-green' : 'text-white'}`}
+                        >
+                          {track.TrackTitle}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 min-w-0 mt-0.5">
                         <span 
                           onClick={(e) => { e.stopPropagation(); navigate(`/library?search=${encodeURIComponent(track.ArtistName)}`); }}
                           className="text-xs text-brand-gray truncate cursor-pointer hover:underline"
@@ -269,6 +279,14 @@ export const TrackListing: React.FC<TrackListingProps> = ({
                   {/* Título & Artista */}
                   <div className="flex-1 min-w-0 flex flex-col justify-center">
                     <div className="flex items-center gap-1.5 min-w-0">
+                      {track.Key && (
+                        <span 
+                          className="px-1 py-0.5 bg-brand-green/10 text-[9px] text-brand-green font-bold font-mono rounded tracking-wider border border-brand-green/30 select-none shrink-0 leading-none shadow-sm"
+                          title={`Tonalidade: ${track.Key}`}
+                        >
+                          {track.Key}
+                        </span>
+                      )}
                       <span 
                         onClick={(e) => { e.stopPropagation(); handlePlayClick(track); }}
                         className={`font-bold text-sm truncate cursor-pointer hover:underline leading-tight ${
@@ -391,13 +409,23 @@ export const TrackListing: React.FC<TrackListingProps> = ({
               </div>
 
               <div className="flex flex-col gap-1 mb-2">
-                <span 
-                  onClick={(e) => { e.stopPropagation(); handlePlayClick(track); }}
-                  className={`font-bold text-sm truncate cursor-pointer hover:underline ${isLoaded ? 'text-brand-green' : 'text-white'}`} 
-                  title={track.TrackTitle}
-                >
-                  {track.TrackTitle}
-                </span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {track.Key && (
+                    <span 
+                      className="px-1.5 py-0.5 bg-brand-green/10 text-[10px] text-brand-green font-bold font-mono rounded tracking-wider border border-brand-green/30 select-none shrink-0 leading-none shadow-sm"
+                      title={`Tonalidade: ${track.Key}`}
+                    >
+                      {track.Key}
+                    </span>
+                  )}
+                  <span 
+                    onClick={(e) => { e.stopPropagation(); handlePlayClick(track); }}
+                    className={`font-bold text-sm truncate cursor-pointer hover:underline ${isLoaded ? 'text-brand-green' : 'text-white'}`} 
+                    title={track.TrackTitle}
+                  >
+                    {track.TrackTitle}
+                  </span>
+                </div>
                 <div className="flex items-center justify-between gap-2 min-w-0">
                   <span 
                     onClick={(e) => { e.stopPropagation(); navigate(`/library?search=${encodeURIComponent(track.ArtistName)}`); }}
