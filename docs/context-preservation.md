@@ -499,6 +499,11 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
     * **Race Condition (Library):** Ao navegar para `/library?search=X`, dois fetches competiam — um sem filtro (estado inicial vazio) e um com filtro (do URL). Corrigido com lazy initializers no `useState` que leem `?search=` do `window.location.search` diretamente na primeira renderização.
     * **Limpeza de Busca (Library):** O `useEffect` de `location.search` agora sempre sincroniza (inclusive limpando), usando `params.get('search') || ''`. Clicar no link Library na sidebar limpa a busca.
     * **Double-Fetch (Playlists):** Dois `useEffect`s disparavam `fetchPlaylistsPage(true)` na montagem. Corrigido com `useRef(true)` como flag `isInitialMount` no effect de sincronização com o context.
+51. **Exibição da Tonalidade (Key) Antes do Título em Playlists e Biblioteca**:
+    * **Visibilidade Imediata da Nota/Tom:** A nota musical base de cada música (propriedade `Key` calculada e persistida na entidade `Track`) agora é renderizada estaticamente e de forma proativa antes do nome da música em [PlaylistDetail.tsx](file:///g:/DEV/mixer8/mixer8-app/src/pages/PlaylistDetail.tsx) e [TrackListing.tsx](file:///g:/DEV/mixer8/mixer8-app/src/components/TrackListing.tsx), sem exigir que a música seja reproduzida.
+    * **Design System Refinado:** Badge construído sob os padrões do `frontend-design` com fundo translúcido `bg-brand-green/10`, texto em verde neon `text-brand-green`, borda suave de 1px `border-brand-green/30`, tipografia monoespaçada (`font-mono`) e cantos arredondados, mantendo perfeito alinhamento visual com os badges inline existentes.
+    * **Suporte Multi-Layout:** O badge é exibido tanto no Desktop (tabela de playlists e lista da biblioteca) quanto no Mobile (lista vertical de faixas e cards em grade).
+    * **Consistência de Enfileiramento Mobile:** Incluídas as propriedades `Bpm` e `Key` nos payloads de `trackToPlay` e `tracksQueue` ao acionar a reprodução de faixas pela visão mobile de playlists.
 
 ---
 
