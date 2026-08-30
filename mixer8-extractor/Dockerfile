@@ -23,6 +23,16 @@ WORKDIR /app
 # Atualiza o runtime do .NET para o .NET 10.0 a partir da imagem oficial Microsoft
 COPY --from=mcr.microsoft.com/dotnet/runtime:10.0 /usr/share/dotnet /usr/share/dotnet
 
+# Instala a distribuição oficial do Google Chrome (/opt/google/chrome/chrome) com codecs proprietários
+# A imagem noble já contém todas as dependências do SO, instalando o Chrome diretamente em poucos segundos
+RUN (sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirror.ufscar.br/ubuntu/|g' /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null || true) && \
+    (sed -i 's|http://security.ubuntu.com/ubuntu/|http://mirror.ufscar.br/ubuntu/|g' /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null || true) && \
+    echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4 && \
+    curl -fsSL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o /tmp/chrome.deb && \
+    apt-get update && \
+    apt-get install -y /tmp/chrome.deb --no-install-recommends && \
+    rm -rf /tmp/chrome.deb /var/lib/apt/lists/*
+
 # Copia apenas os binários compilados (.NET)
 COPY --from=build-env /app/out .
 
