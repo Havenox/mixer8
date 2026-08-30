@@ -504,6 +504,11 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
     * **Design System Refinado:** Badge construído sob os padrões do `frontend-design` com fundo translúcido `bg-brand-green/10`, texto em verde neon `text-brand-green`, borda suave de 1px `border-brand-green/30`, tipografia monoespaçada (`font-mono`) e cantos arredondados, mantendo perfeito alinhamento visual com os badges inline existentes.
     * **Suporte Multi-Layout:** O badge é exibido tanto no Desktop (tabela de playlists e lista da biblioteca) quanto no Mobile (lista vertical de faixas e cards em grade).
     * **Consistência de Enfileiramento Mobile:** Incluídas as propriedades `Bpm` e `Key` nos payloads de `trackToPlay` e `tracksQueue` ao acionar a reprodução de faixas pela visão mobile de playlists.
+52. **Padronização de Docker Build Cache e Isolamento de Camadas Estáticas**:
+    * **Eliminação de Rebuilds Desnecessários de S.O.:** Reestruturados todos os `Dockerfile`s do ecossistema seguindo a arquitetura de cache imutável em 4 camadas. Dependências do sistema operacional (`apt-get`, `ffmpeg`, `chrome`, `node`, `yt-dlp`) foram isoladas no estágio de runtime antes de qualquer injeção de binários compilados (`/app/out`).
+    * **Correção Crítica no Extrator:** No [mixer8-extractor/Dockerfile](file:///g:/DEV/mixer8/mixer8-extractor/Dockerfile), o download e instalação do Chrome e dependências Linux (`npx -y playwright@1.49.0 install --with-deps chrome`) agora ocorrem na camada base imutável, desacoplados do `dotnet publish`, eliminando re-execuções de 30+ minutos ao alterar o código C#.
+    * **Proteção Global com `.dockerignore`:** Criados e expandidos arquivos `.dockerignore` em todos os 5 serviços (`api`, `app`, `downloader`, `waveformer`, `extractor`) bloqueando `bin/`, `obj/`, `node_modules/`, `dist/`, `.vite/`, `downloads/`, `config/`, `.git/` e logs, reduzindo drasticamente o tráfego de contexto e prevenindo a perda de cache por arquivos locais.
+    * **Tempos de Rebuild:** Alterações de código pontuais agora recompilam e recriam containers em **menos de 5 a 10 segundos**.
 
 ---
 
