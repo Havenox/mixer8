@@ -13,17 +13,15 @@ COPY . ./
 RUN dotnet publish -c Release -o out
 
 # =========================================================================
-# 2. Estágio de Runtime (.NET 10 Runtime + FFmpeg)
+# 2. Estágio de Runtime (.NET 10 Runtime + FFmpeg Estático)
+# Utiliza o binário estático do FFmpeg (Zero apt-get, 0 MB de pacotes X11/Mesa)
 # =========================================================================
 FROM mcr.microsoft.com/dotnet/runtime:10.0
 WORKDIR /app
 
-# Força IPv4 no APT e instala FFmpeg para decodificação de áudio PCM
-RUN echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4 && \
-    apt-get update && apt-get install -y \
-    ffmpeg \
-    --no-install-recommends && \
-    rm -rf /var/lib/apt/lists/*
+# Copia o binário estático do FFmpeg e FFprobe
+COPY --from=mwader/static-ffmpeg:latest /ffmpeg /usr/local/bin/ffmpeg
+COPY --from=mwader/static-ffmpeg:latest /ffprobe /usr/local/bin/ffprobe
 
 # Copia os binários compilados (.NET)
 COPY --from=build-env /app/out .

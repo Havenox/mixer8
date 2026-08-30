@@ -13,7 +13,7 @@ COPY . ./
 RUN dotnet publish -c Release -o out
 
 # =========================================================================
-# 2. Estágio de Runtime (.NET 10 Runtime + yt-dlp + Deno)
+# 2. Estágio de Runtime (.NET 10 Runtime + yt-dlp + Deno + FFmpeg Estático)
 # =========================================================================
 FROM mcr.microsoft.com/dotnet/runtime:10.0
 WORKDIR /app
@@ -21,13 +21,16 @@ WORKDIR /app
 # Copia o binário estático do Deno (solucionador JS recomendado pelo yt-dlp)
 COPY --from=denoland/deno:bin /deno /usr/local/bin/deno
 
-# Força IPv4 no APT para eliminar o bug de timeout de 30s por pacote no Docker
-# e instala ffmpeg, python3, pip, yt-dlp, curl-cffi e yt-dlp-ejs
+# Copia os binários estáticos do FFmpeg e FFprobe (Zero pacotes X11/Mesa/LLVM)
+COPY --from=mwader/static-ffmpeg:latest /ffmpeg /usr/local/bin/ffmpeg
+COPY --from=mwader/static-ffmpeg:latest /ffprobe /usr/local/bin/ffprobe
+
+# Instala apenas o Python 3 mínimo e os pacotes Python com timeout estendido e retentativas
 RUN echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4 && \
     apt-get update && \
-    apt-get install -y ffmpeg python3 python3-pip python3-venv --no-install-recommends && \
+    apt-get install -y python3 python3-pip python3-venv --no-install-recommends && \
     python3 -m venv /opt/venv && \
-    /opt/venv/bin/pip install --upgrade pip yt-dlp yt-dlp-ejs curl-cffi && \
+    /opt/venv/bin/pip install --no-cache-dir --timeout 120 --retries 10 yt-dlp yt-dlp-ejs curl-cffi && \
     ln -s /opt/venv/bin/yt-dlp /usr/local/bin/yt-dlp && \
     rm -rf /var/lib/apt/lists/*
 
