@@ -28,7 +28,8 @@ Durante o fluxo de Continuous Delivery e manutenção em produção, alteraçõe
 ### 1. `mixer8-extractor`
 * **Base Oficial:** Imagem runtime `mcr.microsoft.com/playwright/dotnet:v1.49.0-noble`.
 * **Injeção de Runtime:** `COPY --from=mcr.microsoft.com/dotnet/runtime:10.0 /usr/share/dotnet /usr/share/dotnet`.
-* **Zero apt-get:** Sem etapas de compilação de SO, executando .NET 10 perfeitamente.
+* **Google Chrome Oficial (`google-chrome-stable`):** Instalado diretamente via pacote `.deb` oficial da Google com espelho UFSCar para resolução instantânea de dependências, garantindo suporte ao canal `EXTRACTOR_BROWSER_CHANNEL=chrome` e aos codecs de áudio proprietários exigidos pela DAW (MP3/AAC).
+* **Paridade Total e Cache:** Execução estável do .NET 10 e Google Chrome Oficial em `/opt/google/chrome/chrome`.
 
 ### 2. `mixer8-waveformer` e `mixer8-api`
 * **FFmpeg Estático:** `COPY --from=mwader/static-ffmpeg:latest /ffmpeg /ffprobe /usr/local/bin/`.
