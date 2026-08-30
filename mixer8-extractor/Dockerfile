@@ -13,12 +13,15 @@ COPY . ./
 RUN dotnet publish -c Release -o out
 
 # =========================================================================
-# 2. Estágio de Runtime Oficial do Playwright (.NET + Chrome + Libs Linux)
+# 2. Estágio de Runtime Oficial do Playwright (.NET 10 + Chrome + Libs Linux)
 # Utiliza a imagem oficial da Microsoft onde o Chrome, Node e todas as
 # 120+ bibliotecas do Linux já vêm 100% pré-instaladas de fábrica (Zero apt-get)
 # =========================================================================
 FROM mcr.microsoft.com/playwright/dotnet:v1.49.0-noble
 WORKDIR /app
+
+# Atualiza o runtime do .NET para o .NET 10.0 a partir da imagem oficial Microsoft
+COPY --from=mcr.microsoft.com/dotnet/runtime:10.0 /usr/share/dotnet /usr/share/dotnet
 
 # Copia apenas os binários compilados (.NET)
 COPY --from=build-env /app/out .
