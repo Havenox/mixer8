@@ -923,7 +923,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             // 7. Retorno à Biblioteca
             await UpdateTrackStatusAsync(track.TrackId, "Processando: Aguardando retorno para a Biblioteca", db, stoppingToken);
             logger.LogInformation("[WORKER] PASSO: Aguardando redirecionamento para a biblioteca...");
-            Console.WriteLine("[BOT-PASSO] Aguardando processamento/upload e redirecionamento para a biblioteca (/library)...");
+            Console.WriteLine("[BOT-PASSO] Aguardando processamento/upload e redirecionamento para a biblioteca (/play)...");
             
             bool redirecionou = false;
             int waitLibrarySeconds = 120;
@@ -931,23 +931,23 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             {
                 await Task.Delay(5000, stoppingToken);
 
-                // Verifica se a página principal ou o iframe navegaram para /library
+                // Verifica se a página principal ou o iframe navegaram para /play
                 var mainUrl = page.Url;
                 var frameUrl = interactionFrame != null ? interactionFrame.Url : "";
                 
                 Console.WriteLine($"[BOT-PASSO] [Aguardando Redirecionamento - Passo {i}] URL Principal: {mainUrl} | URL IFrame: {frameUrl}");
 
-                if (mainUrl.Contains("/library") || frameUrl.Contains("/library"))
+                if (mainUrl.Contains("/play") || frameUrl.Contains("/play"))
                 {
                     redirecionou = true;
-                    Console.WriteLine("[BOT-PASSO] Redirecionamento para /library detectado com sucesso!");
+                    Console.WriteLine("[BOT-PASSO] Redirecionamento para /play detectado com sucesso!");
                     break;
                 }
             }
 
             if (!redirecionou)
             {
-                throw new TimeoutException("[WORKER ERROR] O redirecionamento para a biblioteca (/library) não ocorreu dentro de 120 segundos.");
+                throw new TimeoutException("[WORKER ERROR] O redirecionamento para a biblioteca (/play) não ocorreu dentro de 120 segundos.");
             }
 
             await Task.Delay(Random.Shared.Next(3000, 5000), stoppingToken); // delay humano de carregamento
