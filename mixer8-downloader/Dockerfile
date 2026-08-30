@@ -21,8 +21,10 @@ WORKDIR /app
 # Copia o binário estático do Deno (solucionador JS recomendado pelo yt-dlp)
 COPY --from=denoland/deno:bin /deno /usr/local/bin/deno
 
-# Instala ffmpeg, python3, pip, yt-dlp, curl-cffi e yt-dlp-ejs (camada 100% cacheada)
-RUN apt-get update && \
+# Força IPv4 no APT para eliminar o bug de timeout de 30s por pacote no Docker
+# e instala ffmpeg, python3, pip, yt-dlp, curl-cffi e yt-dlp-ejs
+RUN echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4 && \
+    apt-get update && \
     apt-get install -y ffmpeg python3 python3-pip python3-venv --no-install-recommends && \
     python3 -m venv /opt/venv && \
     /opt/venv/bin/pip install --upgrade pip yt-dlp yt-dlp-ejs curl-cffi && \

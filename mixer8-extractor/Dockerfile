@@ -13,25 +13,14 @@ COPY . ./
 RUN dotnet publish -c Release -o out
 
 # =========================================================================
-# 2. Estágio de Runtime (.NET 10 Runtime + Playwright Chrome)
+# 2. Estágio de Runtime Oficial do Playwright (.NET + Chrome + Libs Linux)
+# Utiliza a imagem oficial da Microsoft onde o Chrome, Node e todas as
+# 120+ bibliotecas do Linux já vêm 100% pré-instaladas de fábrica (Zero apt-get)
 # =========================================================================
-FROM mcr.microsoft.com/dotnet/runtime:10.0
+FROM mcr.microsoft.com/playwright/dotnet:v1.49.0-noble
 WORKDIR /app
 
-ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
-
-# Instalação do Node.js + Playwright CLI + Google Chrome Oficial e dependências Linux
-# Esta camada é 100% estática e imutável (fica em cache eterno para alterações de C#)
-RUN apt-get update && apt-get install -y \
-    curl \
-    gnupg \
-    --no-install-recommends && \
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs && \
-    npx -y playwright@1.49.0 install --with-deps chrome && \
-    rm -rf /var/lib/apt/lists/*
-
-# Copia os binários compilados (única camada que reexecuta ao alterar o C# - ~0.2s)
+# Copia apenas os binários compilados (.NET)
 COPY --from=build-env /app/out .
 
 # Definição de volumes para persistência de cookies de sessão (config) e downloads

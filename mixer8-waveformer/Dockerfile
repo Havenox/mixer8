@@ -18,8 +18,9 @@ RUN dotnet publish -c Release -o out
 FROM mcr.microsoft.com/dotnet/runtime:10.0
 WORKDIR /app
 
-# Instalação do FFmpeg para decodificação de áudio PCM (camada 100% cacheada)
-RUN apt-get update && apt-get install -y \
+# Força IPv4 no APT e instala FFmpeg para decodificação de áudio PCM
+RUN echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4 && \
+    apt-get update && apt-get install -y \
     ffmpeg \
     --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*

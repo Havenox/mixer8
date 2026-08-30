@@ -18,8 +18,9 @@ RUN dotnet publish -c Release -o out
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
 
-# Instala ffmpeg no container final (necessário para a conversão de áudio para Opus)
-RUN apt-get update && \
+# Força IPv4 no APT e instala ffmpeg para conversão de áudio para Opus
+RUN echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4 && \
+    apt-get update && \
     apt-get install -y ffmpeg --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
 
