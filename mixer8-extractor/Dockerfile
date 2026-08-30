@@ -27,8 +27,11 @@ COPY --from=mcr.microsoft.com/dotnet/runtime:10.0 /usr/share/dotnet /usr/share/d
 # A imagem noble já contém todas as dependências do SO, instalando o Chrome diretamente em poucos segundos
 RUN (sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirror.ufscar.br/ubuntu/|g' /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null || true) && \
     (sed -i 's|http://security.ubuntu.com/ubuntu/|http://mirror.ufscar.br/ubuntu/|g' /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null || true) && \
+    (sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirror.ufscar.br/ubuntu/|g' /etc/apt/sources.list 2>/dev/null || true) && \
+    (sed -i 's|http://security.ubuntu.com/ubuntu/|http://mirror.ufscar.br/ubuntu/|g' /etc/apt/sources.list 2>/dev/null || true) && \
     echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4 && \
-    curl -fsSL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o /tmp/chrome.deb && \
+    (curl -4 -fsSL --retry 10 --retry-delay 2 --retry-connrefused --connect-timeout 15 -o /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb || \
+     wget -4 --tries=10 --timeout=15 -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb) && \
     apt-get update && \
     apt-get install -y /tmp/chrome.deb --no-install-recommends && \
     rm -rf /tmp/chrome.deb /var/lib/apt/lists/*
