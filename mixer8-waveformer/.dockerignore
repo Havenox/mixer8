@@ -1,7 +1,5 @@
 bin/
 obj/
-config/
-downloads/
 .git/
 .gitignore
 .vscode/

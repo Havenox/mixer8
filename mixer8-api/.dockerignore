@@ -2,3 +2,9 @@ bin/
 obj/
 wwwroot/stems/
 wwwroot/temp_uploads/
+wwwroot/playlists/
+wwwroot/profiles/
+.git/
+.gitignore
+.vscode/
+*.log

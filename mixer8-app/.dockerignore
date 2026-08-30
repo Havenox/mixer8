@@ -1,7 +1,6 @@
-bin/
-obj/
-config/
-downloads/
+node_modules/
+dist/
+.vite/
 .git/
 .gitignore
 .vscode/
