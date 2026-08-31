@@ -24,6 +24,8 @@ services:
       - ${EXTRACTOR_CONFIG_DIR:-./mixer8-extractor/config}:/app/config
     ports:
       - "${EXTRACTOR_PORT:-5010}:5010"
+    shm_size: '2gb'
+    ipc: host
 
   # =========================================================================
   # 1.1 MICROSERVIÇO: Downloader (mixer8-downloader - .NET 10 yt-dlp Worker)
