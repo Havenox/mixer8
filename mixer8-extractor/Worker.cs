@@ -271,6 +271,8 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 Headless = isHeadless,
                 SlowMo = slowMo,
                 Channel = string.IsNullOrEmpty(browserChannel) ? null : browserChannel,
+                AcceptDownloads = true,
+                DownloadsPath = downloadsDir,
                 Args = new[] 
                 { 
                     "--no-sandbox", 
@@ -278,10 +280,11 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                     "--disable-dev-shm-usage",
                     "--disable-blink-features=AutomationControlled", // Anti-bot stealth
                     "--autoplay-policy=no-user-gesture-required",
-                    "--use-gl=angle",
-                    "--use-angle=gl",
-                    "--ignore-gpu-blocklist",
-                    "--enable-webgl"
+                    "--disable-gpu",
+                    "--disable-software-rasterizer",
+                    "--disable-background-timer-throttling",
+                    "--disable-backgrounding-occluded-windows",
+                    "--disable-renderer-backgrounding"
                 },
                 UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 ViewportSize = new ViewportSize { Width = 1280, Height = 800 },
@@ -1346,10 +1349,73 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             var zipPath = Path.Combine(downloadsDir, $"{track.TrackId}_stems.zip");
             logger.LogInformation($"[WORKER] PASSO: Download iniciado! Gravando arquivo ZIP em: {zipPath}");
             Console.WriteLine($"[BOT-PASSO] Efetuando gravação do download do ZIP em: {zipPath}...");
-            await download.SaveAsAsync(zipPath);
+            
+            var downloadUrl = download.Url;
+            Console.WriteLine($"[BOT-PASSO] Download URL detectada: {downloadUrl}");
 
-            logger.LogInformation($"[WORKER SUCCESS] PASSO: Download do ZIP de stems finalizado com sucesso: {zipPath}");
-            Console.WriteLine($"[BOT-PASSO] Sucesso: ZIP gravado com êxito em disco!");
+            bool saveSuccess = false;
+            try
+            {
+                await download.SaveAsAsync(zipPath);
+                if (File.Exists(zipPath) && new FileInfo(zipPath).Length > 0)
+                {
+                    saveSuccess = true;
+                    logger.LogInformation($"[WORKER SUCCESS] PASSO: Download do ZIP de stems finalizado com sucesso via Playwright: {zipPath} (Tamanho: {new FileInfo(zipPath).Length} bytes)");
+                    Console.WriteLine($"[BOT-PASSO] Sucesso: ZIP gravado com êxito via Playwright! (Tamanho: {new FileInfo(zipPath).Length} bytes)");
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning($"[WORKER WARNING] Falha no download.SaveAsAsync via Playwright: {ex.Message}. Tentando fallback direto via HttpClient...");
+                Console.WriteLine($"[BOT-PASSO] [Aviso] Falha no SaveAsAsync ({ex.Message}). Acionando fallback resiliente via HttpClient...");
+            }
+
+            // Fallback: se o SaveAsAsync falhou devido a desconexão ou fechamento precoce do navegador, tenta baixar diretamente via HttpClient
+            if (!saveSuccess && !string.IsNullOrEmpty(downloadUrl) && downloadUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    Console.WriteLine($"[BOT-PASSO] Baixando ZIP de stems diretamente via HttpClient a partir da URL: {downloadUrl}...");
+                    using var fallbackHandler = new HttpClientHandler
+                    {
+                        AllowAutoRedirect = true,
+                        AutomaticDecompression = System.Net.DecompressionMethods.All
+                    };
+                    using var fallbackClient = new HttpClient(fallbackHandler);
+                    fallbackClient.Timeout = TimeSpan.FromMinutes(10);
+                    if (!string.IsNullOrEmpty(authToken))
+                    {
+                        fallbackClient.DefaultRequestHeaders.Add("Authorization", authToken);
+                    }
+                    
+                    using var directDownloadResponse = await fallbackClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, stoppingToken);
+                    directDownloadResponse.EnsureSuccessStatusCode();
+                    
+                    using (var fs = new FileStream(zipPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                    {
+                        await directDownloadResponse.Content.CopyToAsync(fs, stoppingToken);
+                    }
+                    
+                    if (File.Exists(zipPath) && new FileInfo(zipPath).Length > 0)
+                    {
+                        saveSuccess = true;
+                        logger.LogInformation($"[WORKER SUCCESS] PASSO: Download do ZIP de stems finalizado com sucesso via HttpClient Fallback: {zipPath} (Tamanho: {new FileInfo(zipPath).Length} bytes)");
+                        Console.WriteLine($"[BOT-PASSO] Sucesso: Download do ZIP concluído via HttpClient Fallback! (Tamanho: {new FileInfo(zipPath).Length} bytes)");
+                    }
+                }
+                catch (Exception fallbackEx)
+                {
+                    logger.LogError(fallbackEx, $"[WORKER ERROR] Falha também no fallback HttpClient de download: {fallbackEx.Message}");
+                    Console.WriteLine($"[BOT-ERRO] Falha no download via HttpClient Fallback: {fallbackEx.Message}");
+                }
+            }
+
+            if (!saveSuccess || !File.Exists(zipPath) || new FileInfo(zipPath).Length == 0)
+            {
+                var failureReason = "";
+                try { failureReason = await download.FailureAsync(); } catch { }
+                throw new Exception($"[WORKER ERROR] Não foi possível salvar o arquivo ZIP de stems. Motivo de falha: {failureReason ?? "TargetClosed / Conexão interrompida"}");
+            }
 
             // Injeta os metadados (cifras/letras) capturados no ZIP
             if (!string.IsNullOrEmpty(chordsJsonData) || !string.IsNullOrEmpty(lyricsJsonData) || !string.IsNullOrEmpty(lyricsNewFormatJsonData))
