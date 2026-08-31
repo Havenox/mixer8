@@ -511,6 +511,10 @@ O **Mixer8** é uma aplicação moderna baseada em streaming multi-stems (estilo
     * **Downloader Resiliente com Espelho UFSCar:** O [mixer8-downloader/Dockerfile](file:///g:/DEV/mixer8/mixer8-downloader/Dockerfile) utiliza o espelho brasileiro de alta velocidade da UFSCar (`mirror.ufscar.br`) para baixar o Python3 mínimo (~15MB) em menos de 2s, e o `pip` opera com `--timeout 120 --retries 10 --no-cache-dir`, eliminando timeouts de rede (build em 18.4s).
     * **Proteção Global com `.dockerignore`:** Criados e expandidos arquivos `.dockerignore` em todos os 5 serviços (`api`, `app`, `downloader`, `waveformer`, `extractor`) bloqueando `bin/`, `obj/`, `node_modules/`, `dist/`, `.vite/`, `downloads/`, `config/`, `.git/` e logs, reduzindo o contexto para < 100KB.
     * **Validação em Tempo Real:** Todos os 5 containers (`mixer8_api`, `mixer8_app`, `mixer8_downloader`, `mixer8_extractor`, `mixer8_waveformer`) compilados e validados localmente em execução simultânea via Docker Compose.
+53. **Extrator: Download Resiliente de Stems com Fallback HTTP e Memória Compartilhada (`shm_size: 2gb` / `ipc: host`)**:
+    * **Prevenção de TargetClosedException e Queda de Contexto:** O método de gravação de arquivos ZIP de stems no worker (`mixer8-extractor/Worker.cs`) foi encapsulado com tratamento defensivo. Caso o download via Playwright `SaveAsAsync` falhe ou gere arquivos incompletos/zerados, o worker aciona imediatamente um fallback nativo via `HttpClient` (com streaming `HttpCompletionOption.ResponseHeadersRead` direto para disco, headers de autorização e descompressão automática).
+    * **Estabilidade do Chromium Headless em Docker Linux:** Configurado `shm_size: '2gb'` e `ipc: host` no `docker-compose.yml` para o serviço `mixer8-extractor`, eliminando o limite padrão de 64MB em `/dev/shm` e prevenindo crashes ou fechamentos prematuros de abas sob processamento multicanal de áudio na DAW.
+    * **Validações Defensivas de Disco:** Adicionadas checagens de existência física e tamanho em bytes antes de iniciar a injeção dos metadados de cifras (`chords.json`) e letras (`lyrics.json`) no arquivo compactado.
 
 ---
 
