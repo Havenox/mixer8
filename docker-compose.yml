@@ -109,6 +109,11 @@ services:
       - ./mixer8-api/wwwroot:/app/wwwroot
     ports:
       - "${API_PORT:-5000}:5000"
+    networks:
+      default:
+        aliases:
+          - api
+          - mixer8_api
 
   # =========================================================================
   # 4. FRONTEND WEB: mixer8-app (React + Vite + Nginx)
