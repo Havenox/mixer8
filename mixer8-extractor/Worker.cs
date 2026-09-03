@@ -1382,8 +1382,8 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             Console.WriteLine($"[BOT-PASSO] Efetuando gravação do download do ZIP em: {zipPath} via .NET Resiliente...");
             await UpdateTrackStatusAsync(track.TrackId, "Processando: Baixando stems da nuvem (.NET Watchdog)", db, stoppingToken);
 
-            // Download 100% nativo em .NET com Watchdog de inatividade (45s) e timeout global (10 minutos)
-            await DownloadFileWithHeartbeatAsync(downloadUrl, zipPath, TimeSpan.FromSeconds(45), TimeSpan.FromMinutes(10), stoppingToken);
+            // Download 100% nativo em .NET com Watchdog de inatividade (60s) e timeout global (10 minutos)
+            await DownloadFileWithHeartbeatAsync(downloadUrl, zipPath, TimeSpan.FromSeconds(60), TimeSpan.FromMinutes(10), stoppingToken);
 
             // Injeta os metadados (cifras/letras) capturados no ZIP
             if (!string.IsNullOrEmpty(chordsJsonData) || !string.IsNullOrEmpty(lyricsJsonData) || !string.IsNullOrEmpty(lyricsNewFormatJsonData))
@@ -1554,17 +1554,26 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                     AllowAutoRedirect = true,
                     AutomaticDecompression = DecompressionMethods.All,
                     ConnectTimeout = TimeSpan.FromSeconds(30),
-                    KeepAlivePingDelay = TimeSpan.FromSeconds(15),
-                    KeepAlivePingTimeout = TimeSpan.FromSeconds(10),
-                    EnableMultipleHttp2Connections = true
+                    PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
+                    ResponseDrainTimeout = TimeSpan.FromSeconds(30)
                 };
-                using var httpClient = new HttpClient(handler, disposeHandler: true);
+                using var httpClient = new HttpClient(handler, disposeHandler: true)
+                {
+                    // Força HTTP/1.1 para permitir que o TCP Window Scaling nativo do Linux sature a banda total sem o limite de 64KB do HTTP/2
+                    DefaultRequestVersion = HttpVersion.Version11,
+                    DefaultVersionPolicy = HttpVersionPolicy.RequestVersionExact
+                };
 
                 // NOTA DE ENGENHARIA: NÃO adicionar cabeçalho 'Authorization' para URLs pré-assinadas da Google Cloud Storage (storage.googleapis.com).
                 // Elas já contêm autorização autossuficiente via query string (GoogleAccessId, Signature).
+                using var request = new HttpRequestMessage(HttpMethod.Get, downloadUrl)
+                {
+                    Version = HttpVersion.Version11,
+                    VersionPolicy = HttpVersionPolicy.RequestVersionExact
+                };
 
-                using var response = await httpClient.GetAsync(
-                    downloadUrl, 
+                using var response = await httpClient.SendAsync(
+                    request, 
                     HttpCompletionOption.ResponseHeadersRead, 
                     totalCts.Token);
 
@@ -1572,13 +1581,14 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
 
                 var totalBytes = response.Content.Headers.ContentLength ?? -1L;
                 var totalMbStr = totalBytes > 0 ? $"{(totalBytes / (1024.0 * 1024.0)):F1} MB" : "Tamanho dinâmico";
-                logger.LogInformation($"[WORKER] Conexão com Storage estabelecida com sucesso. Tamanho esperado: {totalMbStr}.");
-                Console.WriteLine($"[BOT-PASSO] Conexão com Storage estabelecida com sucesso. Tamanho: {totalMbStr} ({(totalBytes > 0 ? $"{totalBytes} bytes" : "stream")})");
+                logger.LogInformation($"[WORKER] Conexão HTTP/1.1 com Storage estabelecida com sucesso. Tamanho esperado: {totalMbStr}.");
+                Console.WriteLine($"[BOT-PASSO] Conexão HTTP/1.1 com Storage estabelecida com sucesso. Tamanho: {totalMbStr} ({(totalBytes > 0 ? $"{totalBytes} bytes" : "stream")})");
 
+                const int bufferSize = 1024 * 1024; // 1 MB buffer para máxima vazão e mínima sobrecarga de chamadas de kernel
                 await using var networkStream = await response.Content.ReadAsStreamAsync(totalCts.Token);
-                await using var fileStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true);
+                await using var fileStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize, useAsync: true);
 
-                var buffer = new byte[81920]; // 80 KB chunks
+                var buffer = new byte[bufferSize]; // 1 MB chunks
                 long totalBytesRead = 0;
                 var lastLogTime = DateTime.UtcNow;
 
