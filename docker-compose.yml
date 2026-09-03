@@ -130,3 +130,13 @@ services:
 # volumes:
 #   pgdata:
 #     driver: local
+
+# =========================================================================
+# CONFIGURAÇÃO DE REDE: Calibração de MTU para Túneis VPN (WireGuard / CGNAT)
+# =========================================================================
+networks:
+  default:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: "${DOCKER_NETWORK_MTU:-1420}"
+
