@@ -294,6 +294,9 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 TimezoneId = "America/Sao_Paulo"
             };
 
+            // Blindagem contra reinícios forçados de contêineres: expurga travas órfãs do Chromium (SingletonLock, etc.)
+            PurgeStaleChromiumLocks(userProfileDir);
+
             logger.LogInformation($"[WORKER] Lançando Chromium com Perfil Persistente (Headless: {isHeadless}, Canal: {browserChannel}, SlowMo: {slowMo}ms, Perfil: {userProfileDir})...");
             Console.WriteLine($"[BOT-PASSO] Lançando navegador com perfil persistente em: {userProfileDir}");
 
@@ -1648,6 +1651,42 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         }
 
         throw new TimeoutException($"[WORKER ERROR] Falha definitiva no download das stems após {maxAttempts} tentativas.");
+    }
+
+    /// <summary>
+    /// Purga preventivamente arquivos e symlinks de trava de processo do Chromium (SingletonLock, SingletonCookie, SingletonSocket, lockfile).
+    /// Evita que reinícios forçados de contêineres Docker ou crashes prematuros deixem o perfil persistente bloqueado.
+    /// </summary>
+    private void PurgeStaleChromiumLocks(string userProfileDir)
+    {
+        if (!Directory.Exists(userProfileDir)) return;
+
+        try
+        {
+            var dirInfo = new DirectoryInfo(userProfileDir);
+            var lockPatterns = new[] { "SingletonLock*", "SingletonCookie*", "SingletonSocket*", "lockfile*" };
+            foreach (var pattern in lockPatterns)
+            {
+                var entries = dirInfo.GetFileSystemInfos(pattern, SearchOption.TopDirectoryOnly);
+                foreach (var entry in entries)
+                {
+                    try
+                    {
+                        entry.Delete();
+                        logger.LogInformation($"[WORKER] Trava órfã do Chromium removida preventivamente: {entry.Name}");
+                        Console.WriteLine($"[BOT-PASSO] Limpeza preventiva: Trava órfã do Chromium removida: {entry.Name}");
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning($"[WORKER WARNING] Não foi possível remover trava órfã '{entry.Name}': {ex.Message}");
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning($"[WORKER WARNING] Falha na verificação preventiva de travas do perfil do navegador: {ex.Message}");
+        }
     }
 
     private async Task CheckIfTrackAbortedAsync(Guid trackId, Mixer8DbContext db)
