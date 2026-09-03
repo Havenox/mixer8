@@ -7,6 +7,7 @@ using System;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -155,6 +156,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         var db = scope.ServiceProvider.GetRequiredService<Mixer8DbContext>();
 
         IPage? page = null;
+        IBrowserContext? context = null;
         string? downloadsDir = null;
         string? chordsJsonData = null;
         string? lyricsJsonData = null;
@@ -295,7 +297,7 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
             logger.LogInformation($"[WORKER] Lançando Chromium com Perfil Persistente (Headless: {isHeadless}, Canal: {browserChannel}, SlowMo: {slowMo}ms, Perfil: {userProfileDir})...");
             Console.WriteLine($"[BOT-PASSO] Lançando navegador com perfil persistente em: {userProfileDir}");
 
-            var context = await playwright.Chromium.LaunchPersistentContextAsync(userProfileDir, contextOptions);
+            context = await playwright.Chromium.LaunchPersistentContextAsync(userProfileDir, contextOptions);
             
             // Garante que só temos 1 página aberta no perfil persistente e foca nela em primeiro plano
             var pages = context.Pages.ToList();
@@ -1346,76 +1348,39 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 throw new TimeoutException("[WORKER ERROR] Falha ao iniciar o download das stems após várias retentativas na DAW.");
             }
 
-            var zipPath = Path.Combine(downloadsDir, $"{track.TrackId}_stems.zip");
-            logger.LogInformation($"[WORKER] PASSO: Download iniciado! Gravando arquivo ZIP em: {zipPath}");
-            Console.WriteLine($"[BOT-PASSO] Efetuando gravação do download do ZIP em: {zipPath}...");
-            
             var downloadUrl = download.Url;
             Console.WriteLine($"[BOT-PASSO] Download URL detectada: {downloadUrl}");
-
-            bool saveSuccess = false;
-            try
+            if (string.IsNullOrEmpty(downloadUrl) || !downloadUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
             {
-                await download.SaveAsAsync(zipPath);
-                if (File.Exists(zipPath) && new FileInfo(zipPath).Length > 0)
-                {
-                    saveSuccess = true;
-                    logger.LogInformation($"[WORKER SUCCESS] PASSO: Download do ZIP de stems finalizado com sucesso via Playwright: {zipPath} (Tamanho: {new FileInfo(zipPath).Length} bytes)");
-                    Console.WriteLine($"[BOT-PASSO] Sucesso: ZIP gravado com êxito via Playwright! (Tamanho: {new FileInfo(zipPath).Length} bytes)");
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning($"[WORKER WARNING] Falha no download.SaveAsAsync via Playwright: {ex.Message}. Tentando fallback direto via HttpClient...");
-                Console.WriteLine($"[BOT-PASSO] [Aviso] Falha no SaveAsAsync ({ex.Message}). Acionando fallback resiliente via HttpClient...");
+                throw new InvalidOperationException("[WORKER ERROR] URL de download capturada da DAW é inválida ou vazia.");
             }
 
-            // Fallback: se o SaveAsAsync falhou devido a desconexão ou fechamento precoce do navegador, tenta baixar diretamente via HttpClient
-            if (!saveSuccess && !string.IsNullOrEmpty(downloadUrl) && downloadUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            // Desacoplamento Imediato: Fecha o navegador Chromium logo após capturar a URL para liberar recursos
+            // e evitar race conditions de destruição de iframes (TargetClosedException)
+            if (context != null)
             {
+                logger.LogInformation("[WORKER] URL de download capturada com sucesso. Fechando navegador para liberar recursos...");
+                Console.WriteLine("[BOT-PASSO] Fechando navegador Chromium imediatamente para liberar RAM e evitar instabilidade de iframe...");
                 try
                 {
-                    Console.WriteLine($"[BOT-PASSO] Baixando ZIP de stems diretamente via HttpClient a partir da URL: {downloadUrl}...");
-                    using var fallbackHandler = new HttpClientHandler
-                    {
-                        AllowAutoRedirect = true,
-                        AutomaticDecompression = System.Net.DecompressionMethods.All
-                    };
-                    using var fallbackClient = new HttpClient(fallbackHandler);
-                    fallbackClient.Timeout = TimeSpan.FromMinutes(10);
-                    if (!string.IsNullOrEmpty(authToken))
-                    {
-                        fallbackClient.DefaultRequestHeaders.Add("Authorization", authToken);
-                    }
-                    
-                    using var directDownloadResponse = await fallbackClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, stoppingToken);
-                    directDownloadResponse.EnsureSuccessStatusCode();
-                    
-                    using (var fs = new FileStream(zipPath, FileMode.Create, FileAccess.Write, FileShare.None))
-                    {
-                        await directDownloadResponse.Content.CopyToAsync(fs, stoppingToken);
-                    }
-                    
-                    if (File.Exists(zipPath) && new FileInfo(zipPath).Length > 0)
-                    {
-                        saveSuccess = true;
-                        logger.LogInformation($"[WORKER SUCCESS] PASSO: Download do ZIP de stems finalizado com sucesso via HttpClient Fallback: {zipPath} (Tamanho: {new FileInfo(zipPath).Length} bytes)");
-                        Console.WriteLine($"[BOT-PASSO] Sucesso: Download do ZIP concluído via HttpClient Fallback! (Tamanho: {new FileInfo(zipPath).Length} bytes)");
-                    }
+                    await context.DisposeAsync();
+                    context = null;
+                    page = null;
+                    _activePage = null;
                 }
-                catch (Exception fallbackEx)
+                catch (Exception ex)
                 {
-                    logger.LogError(fallbackEx, $"[WORKER ERROR] Falha também no fallback HttpClient de download: {fallbackEx.Message}");
-                    Console.WriteLine($"[BOT-ERRO] Falha no download via HttpClient Fallback: {fallbackEx.Message}");
+                    logger.LogWarning($"[WORKER WARNING] Aviso ao descartar contexto do navegador: {ex.Message}");
                 }
             }
 
-            if (!saveSuccess || !File.Exists(zipPath) || new FileInfo(zipPath).Length == 0)
-            {
-                var failureReason = "";
-                try { failureReason = await download.FailureAsync(); } catch { }
-                throw new Exception($"[WORKER ERROR] Não foi possível salvar o arquivo ZIP de stems. Motivo de falha: {failureReason ?? "TargetClosed / Conexão interrompida"}");
-            }
+            var zipPath = Path.Combine(downloadsDir, $"{track.TrackId}_stems.zip");
+            logger.LogInformation($"[WORKER] PASSO: Download iniciado! Gravando arquivo ZIP em: {zipPath}");
+            Console.WriteLine($"[BOT-PASSO] Efetuando gravação do download do ZIP em: {zipPath} via .NET Resiliente...");
+            await UpdateTrackStatusAsync(track.TrackId, "Processando: Baixando stems da nuvem (.NET Watchdog)", db, stoppingToken);
+
+            // Download 100% nativo em .NET com Watchdog de inatividade (45s) e timeout global (10 minutos)
+            await DownloadFileWithHeartbeatAsync(downloadUrl, zipPath, TimeSpan.FromSeconds(45), TimeSpan.FromMinutes(10), stoppingToken);
 
             // Injeta os metadados (cifras/letras) capturados no ZIP
             if (!string.IsNullOrEmpty(chordsJsonData) || !string.IsNullOrEmpty(lyricsJsonData) || !string.IsNullOrEmpty(lyricsNewFormatJsonData))
@@ -1462,8 +1427,11 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 }
             }
 
-            // Fecha o contexto do navegador com segurança
-            await context.DisposeAsync();
+            // Fecha o contexto do navegador com segurança caso ainda não tenha sido descartado
+            if (context != null)
+            {
+                try { await context.DisposeAsync(); context = null; } catch { }
+            }
 
             // Etapa 11: Invoca o endpoint do backend para que ele processe e converta tudo para Opus
             apiUrl = configuration["API_URL"];
@@ -1527,6 +1495,10 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
         finally
         {
             _activePage = null;
+            if (context != null)
+            {
+                try { await context.DisposeAsync(); context = null; } catch { }
+            }
 
             // Limpeza dos arquivos locais temporários no worker para evitar disk leak
             if (!string.IsNullOrEmpty(downloadsDir))
@@ -1545,6 +1517,137 @@ public class Worker(ILogger<Worker> logger, IServiceProvider serviceProvider, IC
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Efetua o download de arquivos volumosos (ZIP de stems) diretamente via HttpClient em blocos com Watchdog de inatividade (Heartbeat).
+    /// Evita que oscilações de rede ou conexões estagnadas (half-open TCP / packet drop) bloqueiem o worker indefinidamente.
+    /// </summary>
+    private async Task DownloadFileWithHeartbeatAsync(
+        string downloadUrl, 
+        string destinationPath, 
+        TimeSpan inactivityTimeout, 
+        TimeSpan totalTimeout, 
+        CancellationToken stoppingToken)
+    {
+        const int maxAttempts = 3;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            using var totalCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+            totalCts.CancelAfter(totalTimeout);
+
+            try
+            {
+                logger.LogInformation($"[WORKER] [Tentativa {attempt}/{maxAttempts}] Conectando ao Storage para download do ZIP de stems...");
+                Console.WriteLine($"[BOT-PASSO] [Tentativa {attempt}/{maxAttempts}] Baixando ZIP de stems via HttpClient (Watchdog: {inactivityTimeout.TotalSeconds}s, Limite: {totalTimeout.TotalMinutes}min)...");
+
+                if (File.Exists(destinationPath))
+                {
+                    try { File.Delete(destinationPath); } catch { }
+                }
+
+                using var handler = new SocketsHttpHandler
+                {
+                    AllowAutoRedirect = true,
+                    AutomaticDecompression = DecompressionMethods.All,
+                    ConnectTimeout = TimeSpan.FromSeconds(30),
+                    KeepAlivePingDelay = TimeSpan.FromSeconds(15),
+                    KeepAlivePingTimeout = TimeSpan.FromSeconds(10),
+                    EnableMultipleHttp2Connections = true
+                };
+                using var httpClient = new HttpClient(handler, disposeHandler: true);
+
+                // NOTA DE ENGENHARIA: NÃO adicionar cabeçalho 'Authorization' para URLs pré-assinadas da Google Cloud Storage (storage.googleapis.com).
+                // Elas já contêm autorização autossuficiente via query string (GoogleAccessId, Signature).
+
+                using var response = await httpClient.GetAsync(
+                    downloadUrl, 
+                    HttpCompletionOption.ResponseHeadersRead, 
+                    totalCts.Token);
+
+                response.EnsureSuccessStatusCode();
+
+                var totalBytes = response.Content.Headers.ContentLength ?? -1L;
+                var totalMbStr = totalBytes > 0 ? $"{(totalBytes / (1024.0 * 1024.0)):F1} MB" : "Tamanho dinâmico";
+                logger.LogInformation($"[WORKER] Conexão com Storage estabelecida com sucesso. Tamanho esperado: {totalMbStr}.");
+                Console.WriteLine($"[BOT-PASSO] Conexão com Storage estabelecida com sucesso. Tamanho: {totalMbStr} ({(totalBytes > 0 ? $"{totalBytes} bytes" : "stream")})");
+
+                await using var networkStream = await response.Content.ReadAsStreamAsync(totalCts.Token);
+                await using var fileStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true);
+
+                var buffer = new byte[81920]; // 80 KB chunks
+                long totalBytesRead = 0;
+                var lastLogTime = DateTime.UtcNow;
+
+                while (true)
+                {
+                    // Watchdog por bloco lido: se a conexão ficar sem entregar bytes pelo tempo de inactivityTimeout, cancela
+                    using var chunkCts = CancellationTokenSource.CreateLinkedTokenSource(totalCts.Token);
+                    chunkCts.CancelAfter(inactivityTimeout);
+
+                    int bytesRead;
+                    try
+                    {
+                        bytesRead = await networkStream.ReadAsync(buffer.AsMemory(0, buffer.Length), chunkCts.Token);
+                    }
+                    catch (OperationCanceledException) when (!totalCts.IsCancellationRequested && !stoppingToken.IsCancellationRequested)
+                    {
+                        throw new TimeoutException($"[WORKER TIMEOUT] Conexão de rede inativa por mais de {inactivityTimeout.TotalSeconds} segundos sem receber novos bytes do Storage.");
+                    }
+
+                    if (bytesRead == 0)
+                    {
+                        // Fim do stream concluído
+                        break;
+                    }
+
+                    await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead), totalCts.Token);
+                    totalBytesRead += bytesRead;
+
+                    // Log periódico de progresso a cada 5 segundos
+                    if ((DateTime.UtcNow - lastLogTime).TotalSeconds >= 5)
+                    {
+                        lastLogTime = DateTime.UtcNow;
+                        var mbRead = totalBytesRead / (1024.0 * 1024.0);
+                        if (totalBytes > 0)
+                        {
+                            var percent = (double)totalBytesRead / totalBytes * 100.0;
+                            Console.WriteLine($"[BOT-PASSO] Progresso do download: {mbRead:F1} MB / {totalMbStr} ({percent:F1}%)");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[BOT-PASSO] Progresso do download: {mbRead:F1} MB transferidos...");
+                        }
+                    }
+                }
+
+                await fileStream.FlushAsync(totalCts.Token);
+
+                if (!File.Exists(destinationPath) || new FileInfo(destinationPath).Length == 0)
+                {
+                    throw new IOException("[WORKER ERROR] O arquivo ZIP gravado em disco está vazio ou não existe.");
+                }
+
+                if (totalBytes > 0 && totalBytesRead < totalBytes)
+                {
+                    throw new IOException($"[WORKER ERROR] Download incompleto: foram recebidos {totalBytesRead} bytes de {totalBytes} bytes esperados.");
+                }
+
+                var finalLength = new FileInfo(destinationPath).Length;
+                logger.LogInformation($"[WORKER SUCCESS] Download do ZIP de stems finalizado com sucesso via .NET Resiliente: {destinationPath} ({(finalLength / (1024.0 * 1024.0)):F1} MB / {finalLength} bytes)");
+                Console.WriteLine($"[BOT-PASSO] Sucesso: Download do ZIP concluído e verificado em disco! ({(finalLength / (1024.0 * 1024.0)):F1} MB / {finalLength} bytes)");
+                return; // Sucesso absoluto
+            }
+            catch (Exception ex) when (attempt < maxAttempts && !stoppingToken.IsCancellationRequested)
+            {
+                logger.LogWarning(ex, $"[WORKER WARNING] Falha na tentativa {attempt}/{maxAttempts} de download do ZIP: {ex.Message}. Retentando em 5 segundos...");
+                Console.WriteLine($"[BOT-PASSO] [Aviso] Falha na tentativa {attempt} ({ex.Message}). Retentando download em 5s...");
+                try { if (File.Exists(destinationPath)) File.Delete(destinationPath); } catch { }
+                await Task.Delay(5000, stoppingToken);
+            }
+        }
+
+        throw new TimeoutException($"[WORKER ERROR] Falha definitiva no download das stems após {maxAttempts} tentativas.");
     }
 
     private async Task CheckIfTrackAbortedAsync(Guid trackId, Mixer8DbContext db)
